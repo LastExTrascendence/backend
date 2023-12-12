@@ -1,4 +1,5 @@
 import { BaseEntity, Column, Entity, OneToMany, PrimaryGeneratedColumn, Unique } from "typeorm";
+import { Status } from "./user.enum";
 
 @Entity()
 export class User extends BaseEntity{
@@ -6,10 +7,16 @@ export class User extends BaseEntity{
     id: number;
     
     @Column()
-    username: string;
+    IntraId: string;
 
     @Column()
-    password: string;
+    nickname: string;
+
+    @Column()
+    avatar : string;
+    
+    @Column()
+    status : Status
 
     // @OneToMany(type => Board, board => board.user, {eager:true})
     // boards: Board[]
