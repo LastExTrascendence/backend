@@ -188,3 +188,7 @@ $RECYCLE.BIN/
 *.msix
 *.msm
 *.msp
+
+# yml / yaml file
+*.yml
+*.yaml
