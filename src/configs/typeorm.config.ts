@@ -1,9 +1,9 @@
 import { TypeOrmModuleOptions } from "@nestjs/typeorm";
-import { User } from "src/auth/user.entity";
+import { User } from "../user/user.entity";
 
 export const typeORMConfig: TypeOrmModuleOptions = {
   type: "postgres",
-  host: "host.docker.internal",
+  host: "localhost",
   port: 5432,
   username: "postgres",
   password: "password",
