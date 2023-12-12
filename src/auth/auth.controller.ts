@@ -20,8 +20,10 @@ export class AuthController {
     @UseGuards(FortyTwoAuthGuard)
     async redirect(@Req() req: any, @Res({ passthrough: true }) res: Response, @Query('code') code : string) {
         console.log(code)
+        console.log('req',req);
         if (req.user) {
             const token = await this.authService.login(req.user);
+            console.log('token.accessToken',token.accessToken);
             res.cookie('access_token', token.accessToken, {
                 httpOnly: false,
               });
