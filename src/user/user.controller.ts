@@ -8,9 +8,10 @@ import { User } from './user.entity';
 export class UserController {
     constructor(private userService: UserService){}
     @Post('/create')
-    createUser(@Body(ValidationPipe) userCredentialsDto: UserCredentialsDto): Promise<void> {
+    createUser(@Body(ValidationPipe) userCredentialsDto: UserCredentialsDto): Promise<{access_token: string}> {
         return this.userService.createUser(userCredentialsDto);
     }
+
 
 
     // @Get('/:id')

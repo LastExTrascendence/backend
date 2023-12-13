@@ -9,12 +9,23 @@ import * as config from 'config';
 import { User } from './user.entity';
 import { TypeOrmModule } from '@nestjs/typeorm';
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
+
+
+
 const jwtConfig = config.get('jwt');
 
 @Module({
   imports : [
+    PassportModule.register({defaultStrategy: 'jwt'}),
+    JwtModule.register({
+      secret: process.env.JWT_SECRET || jwtConfig.secret,
+      signOptions:{
+        expiresIn: jwtConfig.expiresIn,
+      }
+    }),
     TypeOrmModule.forFeature([User])],
   controllers: [UserController],
-  providers: [UserService],
+  providers: [UserService,
+    PassportModule],
 })
 export class UserModule {}
