@@ -5,24 +5,35 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { User } from './user.entity';
 import { Repository } from 'typeorm';
 import * as bcrypt from 'bcryptjs';
-//import { JwtService } from '@nestjs/jwt';
+import {Status } from './user.enum';
+import { JwtService } from '@nestjs/jwt';
 
 @Injectable()
 export class UserService {
     //constructor(private userRepository: UserRepository) {}
     constructor(
         @InjectRepository(User) private userRepository:Repository<User>,
-        //private jwtService : JwtService
+        private jwtService : JwtService
     ){ }
 
-    async createUser(userCredentialsDto: UserCredentialsDto) : Promise<void> {
+    async createUser(userCredentialsDto: UserCredentialsDto) : Promise<{access_token: string}> {
         const {IntraId, nickname, avatar, status} = userCredentialsDto;
-        const user = await this.userRepository.findOne({where : {IntraId}});
-        if (!user)
-        {
-            const user_db = this.userRepository.create({IntraId, nickname, avatar, status});4
-            await this.userRepository.save(user_db);
-        }
+        //const check_user = this.findUser(IntraId);
+
+        const user_db = this.userRepository.create({IntraId, nickname, avatar, status});
+        await this.userRepository.save(user_db);
+        await this.updateUser(user_db);
+
+        const payload = { username: user_db.IntraId};
+
+        return {access_token: await this.jwtService.sign(payload)};
+         //jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+        //const user = await this.userRepository.findOne({where : {IntraId}});
+        //if (!user) 
+        //{
+        //}
+
+        
         // if (user && (await bcrypt.compare(IntraId, user.IntraId))){
         //     //유저 토큰 생성 (Secret + payload)
         //     const payload = {IntraId};
@@ -36,15 +47,20 @@ export class UserService {
 
         //const user = this.userRepository.create({IntraId, nickname});
     }
+
+    async updateUser(userCredentialsDto: UserCredentialsDto):Promise<void>{
+        userCredentialsDto.status = Status.ONLINE;
+    }
     
 
     async findUser(IntraId: string ): Promise<User> {
         const user = await this.userRepository.findOne({where : {IntraId}});
         //const user = await this.boardRepository.findOne(id);
 
-        if (!user){
-            throw new NotFoundException(`Can't find Board with id ${IntraId}`)
-        }
+        //front요청을 해서 정보를 받아서 그 기반으로 유저 생성해서 db담기
+        // if (!user){
+        //     throw new NotFoundException(`Can't find Board with id ${IntraId}`)
+        // }
         return user;
     }
 

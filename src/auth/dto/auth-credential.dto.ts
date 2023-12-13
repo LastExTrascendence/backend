@@ -1,6 +1,6 @@
 //import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 
-export class AuthCredentialsDto{
+export class AuthDto{
     // @IsString()
     // @MinLength(4)
     // @MaxLength(20)
@@ -12,5 +12,9 @@ export class AuthCredentialsDto{
     // @Matches(/^[a-zA-Z0-9]*$/,{
     //     message: 'passwrod only accepts english and number'
     // })
-    password: string;
+    userId : string;
+
+    profile : string;
+
+    accessToken : string;
 }
