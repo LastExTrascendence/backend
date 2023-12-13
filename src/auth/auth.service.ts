@@ -3,7 +3,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { User } from '../user/user.entity';
 import { JwtService } from '@nestjs/jwt';
-import { AuthCredentialsDto } from './dto/auth-credential.dto';
+//import { AuthCredentialsDto } from './dto/auth-credential.dto';
 import { UserService } from 'src/user/user.service';
 import { authenticator } from 'otplib';
 import axios from 'axios';
@@ -62,34 +62,34 @@ export class AuthService {
         }
   }
 
-  async onOtp(user : User): Promise<object> {
-    try {
-      const finduser = await this.userService.findUser(user.IntraId);
-      // const auth42User = await this.userRepository.findOne({where: { userId: user.IntraId },});
-      if (auth42User.otpOn === false) 
-        auth42User.otpOn = true;
-      await this.userRepository.save(auth42User);
-      const result = { status: 'otpOn' };
-      return result;
-    } catch (e) {
-      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-    }
-  }
+  //async onOtp(user : User): Promise<object> {
+  //  try {
+  //    const finduser = await this.userService.findUser(user.IntraId);
+  //    // const auth42User = await this.userRepository.findOne({where: { userId: user.IntraId },});
+  //    if (auth42User.otpOn === false) 
+  //      auth42User.otpOn = true;
+  //    await this.userRepository.save(auth42User);
+  //    const result = { status: 'otpOn' };
+  //    return result;
+  //  } catch (e) {
+  //    throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //  }
+  //}
 
-  async offOtp(userId: number): Promise<object> {
-    try {
-      const user = await this.userService.findUserById(userId, ['auth42']);
-      const auth42User = await this.userRepository.findOne({
-        where: { userId: user.id },
-      });
-      if (auth42User.otpOn === true) auth42User.otpOn = false;
-      await this.userRepository.save(auth42User);
-      const result = { status: 'otpOff' };
-      return result;
-    } catch (e) {
-      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-    }
-  }
+  //async offOtp(userId: number): Promise<object> {
+  //  try {
+  //    const user = await this.userService.findUserById(userId, ['auth42']);
+  //    const auth42User = await this.userRepository.findOne({
+  //      where: { userId: user.id },
+  //    });
+  //    if (auth42User.otpOn === true) auth42User.otpOn = false;
+  //    await this.userRepository.save(auth42User);
+  //    const result = { status: 'otpOff' };
+  //    return result;
+  //  } catch (e) {
+  //    throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //  }
+  //}
 
   
 
