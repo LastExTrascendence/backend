@@ -1,12 +1,14 @@
 import { ConflictException, Injectable, InternalServerErrorException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
-import { User } from '../user/user.entity';
+import { User } from '../user/entity/user.entity';
 import { JwtService } from '@nestjs/jwt';
 //import { AuthCredentialsDto } from './dto/auth-credential.dto';
 import { UserService } from 'src/user/user.service';
 import { authenticator } from 'otplib';
 import axios from 'axios';
+
+import * as Config from 'config';
 
 @Injectable()
 export class AuthService {
@@ -21,16 +23,15 @@ export class AuthService {
       //   };
       // }
     async login(user: User): Promise<{access_token: string}> {
-      
-        const findUser = await this.userService.findUser(user.IntraId)
-        console.log('findUser', findUser)
+      const nickname = user.nickname;
+        const findUser = await this.userService.findUser(nickname);
         if (!findUser) {
           return null
         }
         else { //백엔드에 finduser, update 요청하기
           //findUser.userservice.updateuser()
           const status = findUser.status;
-          if (status === 'OFFLINE') 
+          if (status === 'OFFLINE')
           {
             // this.userService.updateUser();
             await this.userService.updateUser(findUser);  
@@ -43,10 +44,12 @@ export class AuthService {
     // return {
     //   access_token: this.jwtService.sign(payload),
     // };
-          console.log('test');
-          const payload = { username: findUser.IntraId};
+          const payload = { 
+            username: findUser.intra_id,
+          accessToken : findUser.access_token
+        };
           // const payload = findUser.IntraId;
-          console.log(payload);
+          // console.log(payload);
           //const result = {
           //  token: await this.authService.generateJWT(
           //    user.id,

@@ -7,7 +7,7 @@ export class User extends BaseEntity{
     id: number;
     
     @Column()
-    IntraId: string;
+    intra_id: string;
 
     @Column()
     nickname: string;
@@ -17,6 +17,22 @@ export class User extends BaseEntity{
     
     @Column()
     status : Status
+
+    @Column()
+    email: string;
+    
+    @Column()
+    "2fa_status": boolean;
+
+    @Column()
+    created_at: Date;
+
+    @Column()
+    deleted_at: Date;
+    
+    @Column()
+    access_token: string;
+
 
     // @OneToMany(type => Board, board => board.user, {eager:true})
     // boards: Board[]
