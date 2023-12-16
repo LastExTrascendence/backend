@@ -27,20 +27,23 @@ export class AuthController {
     @UseGuards(FortyTwoAuthGuard)
     async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
         try {
-            console.log('awdawd');
             if (req.user) {
-                //console.log('req.user', req.user); //yeomin
+                // console.log('req.user', req.user); //yeomin
                 const token = await this.authService.login(req.user);
-                console.log('token', token);
                 if (!token){
-                    console.log("hello_!token")
                     //초기세팅, otpstatus, accesstoken
-                    res.access_token = req.access_token;
 
+                    // console.log('before res',res.user);
+                    // console.log('before req', req.user);
+                    //  res.uesr = req.user;
+                    //  console.log('after res',res.user);
+                    //  console.log('after req', req.user);
                     //req.access => res.access => front => front access + user information => post('/create') => accesstokn + a 
                     //프론트한테 여기 유저 새로 만들어야함(페이지 이동해야 함)을 요청 보내는 방법 배워야함
                     //front 로 보내거나 /user/create로 보내기
                     //accessToken 넘기는거 만들기
+                    res.cookie('xis user', req.user.access_token);
+                    //console.log('xibal res', res);
                     res.status(302).redirect(`http://localhost:3333/register`);
                 }
                 else
