@@ -44,21 +44,20 @@ export class AuthController {
                     //accessToken 넘기는거 만들기
                     res.cookie('xis user', req.user.access_token);
                     //console.log('xibal res', res);
-                    res.status(302).redirect(`http://localhost:3333/register`);
+                    res.status(301).redirect(`http://localhost:3333/register`);
                 }
                 else
                 {
-                    res.cookie('access_token', token.access_token, {
-                        httpOnly: false,
-                    });
-                    if (req.user.enableTwoFactorAuth === false) {
-                        res.cookie('two_factor_auth', true, {
-                          httpOnly: false,
-                        });
-                    }
+                    res.cookie('accessToken', token.access_token);
+                    res.cookie('avatar', token.avatar);
+                    res.cookie('2fa_status', token["2fa_status"]);
+                    res.cookie('access_token', token.access_token);
                     res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
                 }
-                
+            }
+            else
+            {
+                res.status(301).redirect(`http://localhost:3333`);
             }
         }catch (error) {
             return new HttpException(error.message, HttpStatus.BAD_REQUEST);
