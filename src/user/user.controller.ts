@@ -91,10 +91,12 @@ export class UserController {
   }
 
   @Delete("/friend/remove")
-  unfollow(@Req() req: UserFriendDto) {
+  unfollow(
+    @Query("ids", new ParseArrayPipe({ items: Number, separator: "," }))
+    ids: number[],
+  ) {
     try {
-      const { user_id, friend_user_id } = req; //number, number
-      return this.friendService.unfollowing(user_id, friend_user_id);
+      return this.friendService.unfollowing(ids[0], ids[1]);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
