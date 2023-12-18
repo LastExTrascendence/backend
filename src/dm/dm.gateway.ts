@@ -34,7 +34,8 @@
 //      async handleConnection(@ConnectedSocket() socket: Socket)
 //      : Promise<void> {
 //          try {
-//            const user = await this.authService.findUserByRequestToken(socket);
+//            // DM하려는 상대가 친구가 아니라면
+//            const user = await this.userService.findUser(socket);
 //            if (!user) {
 //            socket.disconnect();
 //            throw new WsException('소켓 연결 유저 없습니다.');
