@@ -6,9 +6,17 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { AuthModule } from './auth/auth.module';
 import { UserModule } from './user/user.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
+import { ChannelModule } from './channel/channel.module';
+import { SocketModule } from './channel/socket/socket.module';
 
 @Module({
-  imports : [TypeOrmModule.forRoot(typeORMConfig), AuthModule, UserModule],
+  imports : [
+    TypeOrmModule.forRoot(typeORMConfig), 
+    AuthModule, 
+    UserModule,
+    ChannelModule,
+    SocketModule
+  ],
   controllers: [AppController],
   providers: [AppService]
 })
