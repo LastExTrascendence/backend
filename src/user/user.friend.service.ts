@@ -12,20 +12,20 @@ export class FriendService {
     private readonly userService: UserService,
   ) {}
 
-  async addFriendUser(
+  async addfollowing(
     userId: number,
-    friendUserId: number,
+    following_user_id: number,
   ): Promise<User_friends> {
     try {
       const addingUser = await this.userService.findUserById(userId);
-      const friendUser = await this.userService.findUserById(friendUserId);
+      const followUser = await this.userService.findUserById(following_user_id);
 
       const add_id = addingUser.id;
-      const follow_id = friendUser.id;
+      const follow_id = followUser.id;
       const checkFriendUser: User_friends = await this.friendRepository.findOne(
         { where: { user_id: add_id, friend_user_id: follow_id } },
       );
-      if (checkFriendUser || !addingUser || !friendUser) {
+      if (checkFriendUser || !addingUser || !followUser) {
         throw new HttpException(
           "팔로우할 수 없습니다.",
           HttpStatus.BAD_REQUEST,
@@ -38,12 +38,12 @@ export class FriendService {
       //    () => null,
       //  );
 
-      const added_at: Date = new Date();
+      const followed_at: Date = new Date();
 
       const newFriend: User_friends = this.friendRepository.create({
         user_id: add_id,
         friend_user_id: follow_id,
-        followed_at: added_at,
+        followed_at: followed_at,
       });
 
       await this.friendRepository.save(newFriend);
@@ -53,7 +53,7 @@ export class FriendService {
     }
   }
 
-  async findFriendUsers(id: number): Promise<User_friends[]> {
+  async findFollwing(id: number): Promise<User_friends[]> {
     try {
       const user = await this.userService.findUserById(id);
 
@@ -76,27 +76,24 @@ export class FriendService {
     }
   }
 
-  async removeFriendUser(
-    user_id: number,
-    unfollow_user_id: number,
-  ): Promise<void> {
+  async unfollowing(user_id: number, unfollow_user_id: number): Promise<void> {
     try {
-      const friendUser = await this.userService.findUserById(user_id);
-      const removingFriend =
+      const followedUser = await this.userService.findUserById(user_id);
+      const followingUser =
         await this.userService.findUserById(unfollow_user_id);
 
-      const friendUserId = friendUser.id;
-      const removingFriendId = removingFriend.id;
+      const followedUserId = followedUser.id;
+      const followingUserId = followingUser.id;
 
       await this.friendRepository
         .createQueryBuilder()
         .delete()
         .from(User_friends)
         .where("user_id = :user_id", {
-          user_id: friendUserId,
+          user_id: followedUserId,
         })
         .andWhere("unfollwing_user_id = :unfollwing_user_id", {
-          unfollwing_user_id: removingFriendId,
+          unfollwing_user_id: followingUserId,
         })
         .execute();
     } catch (e) {

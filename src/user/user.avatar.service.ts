@@ -29,7 +29,7 @@ export class AvatarService {
   //  npm install @types/multer --save
 
   async updateAvatar(
-    id: number,
+    intra_id: string,
     profileUrl: string,
     file: Express.Multer.File,
   ): Promise<User> {
@@ -44,7 +44,7 @@ export class AvatarService {
         );
       }
 
-      const findUser = await this.userService.findUserById(id);
+      const findUser = await this.userService.findUserByName(intra_id);
 
       if (!findUser)
         throw new HttpException(
