@@ -23,9 +23,25 @@ export class UserService {
     // const {intra_id, nickname, avatar, status} = UserDto;
     //const check_user = this.findUser(intra_id);
 
+    const { intra_id, nickname, avatar, email, access_token } = UserDto;
+
+    const created_at = new Date();
+
+    const newUser = {
+      intra_id: intra_id,
+      nickname: nickname,
+      avatar: avatar,
+      status: Status.OFFLINE,
+      email: email,
+      "2fa_status": false,
+      created_at: created_at,
+      deleted_at: null,
+      access_token: access_token,
+    };
+
     // const user_db = this.userRepository.create({intra_id, nickname, avatar, status});
-    await this.userRepository.save(UserDto);
-    await this.updateUser(UserDto);
+    await this.userRepository.save(newUser);
+    //await this.updateUser(UserDto);
 
     const payload = { username: UserDto.intra_id };
 
