@@ -83,8 +83,7 @@ export class UserController {
   @Get("/friend/find")
   findfollow(@Req() req: UserFriendDto) {
     try {
-      const user_id = req;
-      return this.friendService.findFollwing(user_id);
+      return this.friendService.findFollwing(req.user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
