@@ -51,7 +51,7 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<User> | HttpException {
     try {
-      return this.avatarservice.updateAvatar(req.user.intra_id, null, file);
+      return this.avatarservice.updateAvatar(req.user.id, null, file);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -61,19 +61,24 @@ export class UserController {
   // getBoardById(@Param('id') id:number) : Promise<Board> {
   //     return this.boardsService.getBoardById(id);
   // }
-  @Get("/:IntraId")
-  findUser(@Param("IntraId") userDto: UserDto): Promise<User> {
+  @Get("/:id")
+  findUserId(@Param("id") userDto: UserDto): Promise<User> {
+    return this.userService.findUserById(userDto.id);
+  }
+
+  @Get("/:intra_id")
+  findUserName(@Param("intra_id") userDto: UserDto): Promise<User> {
     return this.userService.findUserByName(userDto.intra_id);
   }
 
   @Post("/friend/add")
-  addfollow(
-    @Body(ValidationPipe) regist: UserFriendDto,
+  addFriend(
+    @Body(ValidationPipe) user: UserFriendDto,
   ): Promise<User_friends> | HttpException {
     try {
-      return this.friendService.addfollowing(
-        regist.user_id,
-        regist.friend_user_id,
+      return this.friendService.addFriendUser(
+        user.user_id,
+        user.friend_user_id,
       );
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -81,22 +86,22 @@ export class UserController {
   }
 
   @Get("/friend/find")
-  findfollow(@Req() req: UserFriendDto) {
+  findFriend(@Req() req: UserFriendDto) {
     try {
-      const user_id = req;
-      return this.friendService.findFollwing(user_id);
+      const user_id = req.id;
+      return this.friendService.findFriendUsers(user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   @Delete("/friend/remove")
-  unfollow(
+  removeFriend(
     @Query("ids", new ParseArrayPipe({ items: Number, separator: "," }))
     ids: number[],
   ) {
     try {
-      return this.friendService.unfollowing(ids[0], ids[1]);
+      return this.friendService.removeFriendUser(ids[0], ids[1]);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
@@ -104,10 +109,10 @@ export class UserController {
 
   @Post("/block/add")
   addblock(
-    @Body(ValidationPipe) regist: UserBlockDto,
+    @Body(ValidationPipe) user: UserBlockDto,
   ): Promise<User_block> | HttpException {
     try {
-      return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
+      return this.blockService.addBlock(user.user_id, user.blocked_user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
