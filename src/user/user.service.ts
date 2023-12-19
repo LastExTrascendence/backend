@@ -23,6 +23,8 @@ export class UserService {
     // const {intra_id, nickname, avatar, status} = UserDto;
     //const check_user = this.findUser(intra_id);
 
+    // console.log(UserDto);
+
     const { intra_id, nickname, avatar, email, access_token } = UserDto;
 
     const created_at = new Date();

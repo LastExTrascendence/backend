@@ -20,13 +20,15 @@ import {
 import { UserBlockDto, UserDto, UserFriendDto } from "./dto/user.dto";
 import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
-import { JWTAuthGuard } from "src/auth/auth.guard";
+import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
 import { User_friends } from "./entity/user.friends.entity";
 import { BlockService } from "./user.block.service";
 import { User_block } from "./entity/user.blocked.entity";
+import { JwtService } from "@nestjs/jwt";
+import { Headers } from "@nestjs/common";
 
 @Controller("user")
 export class UserController {
@@ -35,11 +37,18 @@ export class UserController {
     private avatarservice: AvatarService,
     private friendService: FriendService,
     private blockService: BlockService,
+    private jwtService: JwtService,
   ) {}
   @Post("/create")
+  @UseGuards(loginAuthGuard)
   createUser(
+    @Headers() headers: any,
     @Body(ValidationPipe) userDto: UserDto,
   ): Promise<{ access_token: string }> {
+    //// console.log(jwtString);
+    //const jwt = headers.authorization.replace("Bearer ", "");
+    //// jwt decode & verify
+    //userDto = { ...userDto, intra_id: decoded_token.oauth_user };
     return this.userService.createUser(userDto);
   }
 

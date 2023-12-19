@@ -28,9 +28,7 @@ export class AuthService {
   //     access_token: this.jwtService.sign(payload),
   //   };
   // }
-  async login(
-    user: User,
-  ): Promise<{
+  async login(user: User): Promise<{
     access_token: string;
     avatar: string;
     "2fa_status": boolean;
@@ -49,6 +47,8 @@ export class AuthService {
         await this.userService.updateUser(findUser);
         console.log("사용자는 오프라인 상태입니다.");
       }
+
+      //intra, email jwt token
 
       const payload = {
         accessToken: findUser.access_token,
