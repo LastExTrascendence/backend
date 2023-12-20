@@ -50,7 +50,7 @@ export class AuthController {
         const token = await this.authService.login(req.user);
         if (!token) {
           const payload = {
-            oauth_name: req.user.nickname,
+            intra_name: req.user.nickname,
             email: req.user.email,
           };
           const access_token = this.jwtService.sign(payload);
@@ -60,10 +60,10 @@ export class AuthController {
         } else {
           res.cookie("accessToken", token.access_token);
           res.cookie("avatar", token.avatar);
-          res.cookie("2fa_status", token["2fa_status"]);
+          res.cookie(two_fa, token["two_fa"]);
           res.cookie("access_token", token.access_token);
 
-          // 2fa_status 확인 후 리다이렉트 여부
+          // two_fa 확인 후 리다이렉트 여부
 
           res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
         }
