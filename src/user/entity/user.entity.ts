@@ -2,24 +2,28 @@ import {
   BaseEntity,
   Column,
   Entity,
-  OneToMany,
   PrimaryGeneratedColumn,
   Unique,
 } from "typeorm";
-import { Status } from "../user.enum";
+import { Status } from "./user.enum";
 
 @Entity()
-export class user extends BaseEntity {
+export class User extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
+  @Unique(["intra_name"])
   intra_name: string;
 
   @Column()
+  @Unique(["nickname"])
   nickname: string;
 
   @Column()
+  email: string;
+
+  @Column({ nullable: true })
   avatar: string;
 
   @Column()
