@@ -53,11 +53,13 @@ export class UserController {
   ): Promise<{ access_token: string }> {
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
+    console.log(decoded_token);
     const userSessionDto: UserSessionDto = {
       ...userDto,
-      intra_name: decoded_token["oauth_name"],
+      intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
     };
+    console.log(userSessionDto.intra_name);
     return this.userService.createUser(userSessionDto);
   }
 
@@ -69,7 +71,7 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<User> | HttpException {
     try {
-      return this.avatarservice.updateAvatar(req.user.intra_id, null, file);
+      return this.avatarservice.updateAvatar(req.user.intra_name, null, file);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

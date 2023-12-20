@@ -33,7 +33,7 @@ export class User extends BaseEntity {
   status: Status;
 
   @Column()
-  create_at: Date;
+  created_at: Date;
 
   @Column({ nullable: true })
   deleted_at: Date;

@@ -26,17 +26,17 @@ export class UserService {
     const created_at = new Date();
 
     const newUser = {
-      intra_id: intra_name,
+      intra_name: intra_name,
       nickname: nickname,
       avatar: avatar,
       status: Status.OFFLINE,
       email: email,
-      "2fa_status": false,
+      two_fa: false,
       created_at: created_at,
       deleted_at: null,
     };
 
-    // const user_db = this.userRepository.create({intra_id, nickname, avatar, status});
+    // const user_db = this.userRepository.create({intra_name, nickname, avatar, status});
     await this.userRepository.save(newUser);
     //await this.updateUser(UserDto);
 
@@ -44,14 +44,14 @@ export class UserService {
 
     return { access_token: await this.jwtService.sign(payload) };
     //jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-    //const user = await this.userRepository.findOne({where : {intra_id}});
+    //const user = await this.userRepository.findOne({where : {intra_name}});
     //if (!user)
     //{
     //}
 
-    // if (user && (await bcrypt.compare(intra_id, user.intra_id))){
+    // if (user && (await bcrypt.compare(intra_name, user.intra_name))){
     //     //유저 토큰 생성 (Secret + payload)
-    //     const payload = {intra_id};
+    //     const payload = {intra_name};
     //     const accessToken = await this.jwtService.sign(payload);
 
     //     return {accessToken : accessToken};
@@ -65,7 +65,7 @@ export class UserService {
     //     throw new UnauthorizedException('login failed');
     // }
 
-    //const user = this.userRepository.create({intra_id, nickname});
+    //const user = this.userRepository.create({intra_name, nickname});
   }
 
   async updateUser(UserDto: UserDto): Promise<void> {
@@ -78,7 +78,7 @@ export class UserService {
 
     //front요청을 해서 정보를 받아서 그 기반으로 유저 생성해서 db담기
     // if (!user){
-    //     throw new NotFoundException(`Can't find Board with id ${intra_id}`)
+    //     throw new NotFoundException(`Can't find Board with id ${intra_name}`)
     // }
     return user;
   }
