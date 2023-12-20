@@ -25,7 +25,6 @@ import {
 } from "./dto/user.dto";
 import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
-import { User as UserDec } from "../decorator/user.decorator";
 import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
