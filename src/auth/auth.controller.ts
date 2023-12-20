@@ -58,14 +58,12 @@ export class AuthController {
 
           res.status(301).redirect(`http://localhost:3333/register`);
         } else {
-          res.cookie("accessToken", token.access_token);
-          res.cookie("avatar", token.avatar);
-          res.cookie("two_fa", token["two_fa"]);
           res.cookie("access_token", token.access_token);
 
           // two_fa 확인 후 리다이렉트 여부
 
-          res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+          // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+          res.status(301).redirect(`http://localhost:3333`);
         }
       } else {
         res.status(301).redirect(`http://localhost:3333`);
