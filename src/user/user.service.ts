@@ -59,6 +59,11 @@ export class UserService {
     // else {
     //     throw new UnauthorizedException('login failed');
     // }
+    //     return {accessToken : accessToken};
+    // }
+    // else {
+    //     throw new UnauthorizedException('login failed');
+    // }
 
     //const user = this.userRepository.create({intra_id, nickname});
   }
@@ -95,6 +100,12 @@ export class UserService {
   //         const payload = {username};
   //         const accessToken = await this.jwtService.sign(payload);
 
+  //         return {accessToken : accessToken};
+  //     }
+  //     else {
+  //         throw new UnauthorizedException('login failed');
+  //     }
+  // }
   //         return {accessToken : accessToken};
   //     }
   //     else {
