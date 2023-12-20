@@ -1,45 +1,34 @@
-import { PassportStrategy } from '@nestjs/passport';
-import { Strategy, VerifyCallback } from 'passport-42';
+import { PassportStrategy } from "@nestjs/passport";
+import { Strategy, VerifyCallback } from "passport-42";
 
-import { HttpException, HttpStatus, Injectable } from '@nestjs/common';
-import * as config from 'config';
-import axios from 'axios';
+import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import * as config from "config";
+import axios from "axios";
 
 //passport-oauth2
 
-const ftConfig = config.get('FORTYTWO');
+const ftConfig = config.get("FORTYTWO");
 
 @Injectable()
-export class FortyTwoStrategy extends PassportStrategy(Strategy, 'auth') {
-
+export class FortyTwoStrategy extends PassportStrategy(Strategy, "auth") {
   constructor() {
     super({
-      //authorizationURL : `https://api.intra.42.fr/oauth/authorize?client_id=u-s4t2ud-d73e50e7ffad718ea84af12ee950e7dfb26e492c7abb0d377143dd63dc0d7a76&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fredirect&response_type=code`,
-      //tokenURL : `http://api.intra.42.fr/oauth/token`,
-      //clientID: process.env.FORTYTWO_CLIENT_ID || ftConfig.FORTYTWO_CLIENT_ID,
-      //clientSecret: process.env.FORTYTWO_CLIENT_SECRET || ftConfig.FORTYTWO_CLIENT_SECRET,
-      //callbackURL: process.env.FORTYTWO_CLIENT_CALLBACK || ftConfig.FORTYTWO_CLIENT_CALLBACK,
-      // clientID: ftConfig.FORTYTWO_CLIENT_ID,
-      // clientSecret: process.env.FORTYTWO_CLIENT_SECRET || ftConfig.FORTYTWO_CLIENT_SECRET,
-      // callbackURL: process.env.FORTYTWO_CLIENT_CALLBACK ||  ftConfig.FORTYTWO_CLIENT_CALLBACK,
-      // scope: 'public',
-      // clientID: ftConfig.get<string>("FORTYTWO_CLIENT_ID"),
-      // clientSecret: ftConfig.get<string>("FORTYTWO_CLIENT_SECRET"),
-      // callbackURL: ftConfig.get<string>("FORTYTWO_CLIENT_CALLBACK"),
       clientID: ftConfig.get<string>("CLIENT_ID"),
       clientSecret: ftConfig.get<string>("CLIENT_SECRET"),
       callbackURL: ftConfig.get<string>("CALLBACK_URL"),
-      scope : `public`,
-      // secretOrKey : process.env.JWT_SECRET || config.get('jwt.secret')
-      //authorizationURL : `https://api.intra.42.fr/oauth/authorize?client_id=${ftConfig.FORTYTWO_CLIENT_ID}&redirect_uri=http%3A%2F%2Flocalhost%3A3000%2Fauth%2Fredirect&response_type=code`,
+      scope: `public`,
     });
   }
 
-    //42api에 접근하는 accessToken -> 유저에 대한 접근 권한 
+  //42api에 접근하는 accessToken -> 유저에 대한 접근 권한
   //profile -> 유저의 정보
   //  async validate (accessToken: string, refreshToken: string, profile: any, cd : any): Promise<any> {
 
-  async validate (accessToken: string, refreshToken: string, profile:any): Promise<any> {
+  async validate(
+    accessToken: string,
+    refreshToken: string,
+    profile: any,
+  ): Promise<any> {
     //   try {
     //     console.log('accessToken: ', accessToken);
     //     console.log('refreshToken: ', refreshToken);
@@ -48,24 +37,24 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, 'auth') {
     //     console.log(error);
     //   }
     // }
-  
-      //저 도메인이 42api에서 나의 정보를 불러오는 도메인인데 -> acctoken 그걸로 내 정보 권한을 얻는다.
+
+    //저 도메인이 42api에서 나의 정보를 불러오는 도메인인데 -> acctoken 그걸로 내 정보 권한을 얻는다.
     // try {
     //   const req = await axios.get('https://api.intra.42.fr/v2/me', {
     //     headers: { Authorization: `Bearer ${accessToken}` }, //authentication code
     //   });
-  
+
     //   return req.data.login;
     // } catch (error) {
     //   console.log(error);
     // }
-    
+
     try {
       const user = {
         intra_id: profile.id,
         nickname: profile.username,
         avator: profile.photos[0].value,
-        access_token : accessToken,
+        access_token: accessToken,
         // avator : profile._json.image[0'link']],
         email: profile.emails[0].value,
       };
@@ -76,9 +65,6 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, 'auth') {
     }
   }
 }
-
-
-
 
 //   async validate (accessToken: string, refreshToken: string): Promise<any> {
 //   //   try {

@@ -1,30 +1,30 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { And, Repository } from "typeorm";
-import { User_friends } from "./entity/user.friends.entity";
+import { UserFriend } from "./entity/user.friend.entity";
 import { UserService } from "./user.service";
 
 @Injectable()
 export class FriendService {
   constructor(
-    @InjectRepository(User_friends)
-    private friendRepository: Repository<User_friends>,
+    @InjectRepository(UserFriend)
+    private friendRepository: Repository<UserFriend>,
     private readonly userService: UserService,
   ) {}
 
   async addfollowing(
     userId: number,
     following_user_id: number,
-  ): Promise<User_friends> {
+  ): Promise<UserFriend> {
     try {
       const addingUser = await this.userService.findUserById(userId);
       const followUser = await this.userService.findUserById(following_user_id);
 
       const add_id = addingUser.id;
       const follow_id = followUser.id;
-      const checkFriendUser: User_friends = await this.friendRepository.findOne(
-        { where: { user_id: add_id, friend_user_id: follow_id } },
-      );
+      const checkFriendUser: UserFriend = await this.friendRepository.findOne({
+        where: { user_id: add_id, friend_id: follow_id },
+      });
       if (checkFriendUser || !addingUser || !followUser) {
         throw new HttpException(
           "팔로우할 수 없습니다.",
@@ -40,10 +40,10 @@ export class FriendService {
 
       const followed_at: Date = new Date();
 
-      const newFriend: User_friends = this.friendRepository.create({
+      const newFriend: UserFriend = this.friendRepository.create({
         user_id: add_id,
-        friend_user_id: follow_id,
-        followed_at: followed_at,
+        friend_id: follow_id,
+        created_at: followed_at,
       });
 
       await this.friendRepository.save(newFriend);
@@ -53,7 +53,7 @@ export class FriendService {
     }
   }
 
-  async findFollwing(id: number): Promise<User_friends[]> {
+  async findFollwing(id: number): Promise<UserFriend[]> {
     try {
       const user = await this.userService.findUserById(id);
 
@@ -88,7 +88,7 @@ export class FriendService {
       await this.friendRepository
         .createQueryBuilder()
         .delete()
-        .from(User_friends)
+        .from(UserFriend)
         .where("user_id = :user_id", {
           user_id: followedUserId,
         })

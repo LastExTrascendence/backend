@@ -1,35 +1,35 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { User_block } from "./entity/user.blocked.entity";
+import { UserBlock } from "./entity/user.block.entity";
 import { UserService } from "./user.service";
 
 @Injectable()
 export class BlockService {
   constructor(
-    @InjectRepository(User_block)
-    private blockRepository: Repository<User_block>,
+    @InjectRepository(UserBlock)
+    private blockRepository: Repository<UserBlock>,
     private readonly userService: UserService,
   ) {}
 
-  async addBlock(userId: number, blocked_user_id: number): Promise<User_block> {
+  async addBlock(userId: number, blocked_user_id: number): Promise<UserBlock> {
     try {
       const blockingUser = await this.userService.findUserById(userId);
       const blockedUser = await this.userService.findUserById(blocked_user_id);
 
       const blocking_id = blockedUser.id;
       const blocked_id = blockedUser.id;
-      const checkBlockUser: User_block = await this.blockRepository.findOne({
-        where: { user_id: blocking_id, blocked_user_id: blocked_id },
+      const checkBlockUser: UserBlock = await this.blockRepository.findOne({
+        where: { user_id: blocking_id, blocked_id: blocked_id },
       });
-      if (checkBlockUser || !blockedUser.id || !blockingUser.intra_id) {
+      if (checkBlockUser || !blockedUser.id || !blockingUser.intra_name) {
         throw new HttpException("블락할 수 없습니다.", HttpStatus.BAD_REQUEST);
       }
       const created_at: Date = new Date();
 
-      const newBlock: User_block = this.blockRepository.create({
+      const newBlock: UserBlock = this.blockRepository.create({
         user_id: blockingUser.id,
-        blocked_user_id: blockedUser.id,
+        blocked_id: blockedUser.id,
         created_at: created_at,
       });
 
@@ -40,7 +40,7 @@ export class BlockService {
     }
   }
 
-  async findBlock(id: number): Promise<User_block[]> {
+  async findBlock(id: number): Promise<UserBlock[]> {
     try {
       const user = await this.userService.findUserById(id);
 
@@ -77,13 +77,13 @@ export class BlockService {
       const blockedUserId = removedUser.id;
 
       //아래 명령어의 쿼리문
-      //DELETE FROM user_block
+      //DELETE FROM UserBlock
       //WHERE user_id = :user_id AND blocked_user_id = :blocked_user_id;
 
       await this.blockRepository
         .createQueryBuilder()
         .delete()
-        .from(User_block)
+        .from(UserBlock)
         .where("user_id = :user_id", {
           user_id: blockingUserId,
         })

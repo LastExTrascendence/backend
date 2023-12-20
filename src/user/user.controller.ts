@@ -29,9 +29,9 @@ import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
-import { User_friends } from "./entity/user.friends.entity";
+import { UserFriend } from "./entity/user.friend.entity";
 import { BlockService } from "./user.block.service";
-import { User_block } from "./entity/user.blocked.entity";
+import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 
@@ -55,7 +55,7 @@ export class UserController {
     const decoded_token = this.jwtService.decode(token);
     const userSessionDto: UserSessionDto = {
       ...userDto,
-      oauth_name: decoded_token["oauth_name"],
+      intra_name: decoded_token["oauth_name"],
       email: decoded_token["email"],
     };
     return this.userService.createUser(userSessionDto);
@@ -87,7 +87,7 @@ export class UserController {
   @Post("/friend/add")
   addfollow(
     @Body(ValidationPipe) regist: UserFriendDto,
-  ): Promise<User_friends> | HttpException {
+  ): Promise<UserFriend> | HttpException {
     try {
       return this.friendService.addfollowing(
         regist.user_id,
@@ -122,7 +122,7 @@ export class UserController {
   @Post("/block/add")
   addblock(
     @Body(ValidationPipe) regist: UserBlockDto,
-  ): Promise<User_block> | HttpException {
+  ): Promise<UserBlock> | HttpException {
     try {
       return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
     } catch (error) {

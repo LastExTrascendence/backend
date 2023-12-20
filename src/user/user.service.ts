@@ -21,12 +21,12 @@ export class UserService {
   async createUser(
     UserSessionDto: UserSessionDto,
   ): Promise<{ access_token: string }> {
-    const { oauth_name, nickname, avatar, email } = UserSessionDto;
+    const { intra_name, nickname, avatar, email } = UserSessionDto;
 
     const created_at = new Date();
 
     const newUser = {
-      intra_id: oauth_name,
+      intra_id: intra_name,
       nickname: nickname,
       avatar: avatar,
       status: Status.OFFLINE,
@@ -72,8 +72,8 @@ export class UserService {
     UserDto.status = Status.ONLINE;
   }
 
-  async findUserByName(intra_id: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { intra_id } });
+  async findUserByName(intra_name: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { intra_name } });
     //const user = await this.boardRepository.findOne(id);
 
     //front요청을 해서 정보를 받아서 그 기반으로 유저 생성해서 db담기

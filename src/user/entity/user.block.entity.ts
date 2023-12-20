@@ -6,10 +6,9 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from "typeorm";
-import { Status } from "../user.enum";
 
 @Entity()
-export class user_friend extends BaseEntity {
+export class UserBlock extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -17,7 +16,7 @@ export class user_friend extends BaseEntity {
   user_id: number;
 
   @Column()
-  friend_id: number;
+  blocked_id: number;
 
   @Column()
   created_at: Date;
