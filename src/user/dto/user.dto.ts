@@ -7,6 +7,8 @@ import { Status } from "../entity/user.enum";
  * @param {string} nickname - 유저의 LET 닉네임
  * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
  * @param {string} email - 유저의 42 Intra Email
+ * @param {boolean} two_fa - 유저의 2FA 사용 여부
+ * @param {Status} status - 유저 접속상태
  */
 export class UserDto {
   nickname: string;
