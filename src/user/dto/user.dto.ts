@@ -1,23 +1,40 @@
 import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { Status } from "../user.enum";
 
-export class UserCredentialsDto{
-    IntraId: string;
-    nickname: string;
-    avatar : string;
-    status : Status
-    // @IsString()
-    // @MinLength(4)
-    // @MaxLength(20)
-    // username: string;
+export class userDto {
+  id: number;
 
-    // @IsString()
-    // @MinLength(4)
-    // @MaxLength(20)
-    // @Matches(/^[a-zA-Z0-9]*$/,{
-    //     message: 'passwrod only accepts english and number'
-    // })
-    // password: string;
+  intra_name: string;
 
+  nickname: string;
 
+  avatar: string;
+
+  two_fa: boolean;
+
+  status: Status;
+
+  create_at: Date;
+
+  deleted_at: Date;
+}
+
+export class userBlockDto {
+  id: number;
+
+  user_id: number;
+
+  friend_id: number;
+
+  created_at: Date;
+}
+
+export class userFriendDto {
+  id: number;
+
+  user_id: number;
+
+  blocked_id: number;
+
+  created_at: Date;
 }
