@@ -5,6 +5,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Logger,
   Param,
   ParseArrayPipe,
   ParseIntPipe,
@@ -37,6 +38,7 @@ import { Headers } from "@nestjs/common";
 
 @Controller("user")
 export class UserController {
+  private logger = new Logger(UserController.name);
   constructor(
     private userService: UserService,
     private avatarservice: AvatarService,
@@ -53,14 +55,20 @@ export class UserController {
   ): Promise<{ access_token: string }> {
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
-    console.log(decoded_token);
     const userSessionDto: UserSessionDto = {
       ...userDto,
       intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
     };
-    console.log(userSessionDto.intra_name);
-    return this.userService.createUser(userSessionDto);
+    try {
+      this.logger.debug(
+        `Called ${UserController.name} ${this.createUser.name}`,
+      );
+      return this.userService.createUser(userSessionDto);
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 
   @Put("/avatar/update")

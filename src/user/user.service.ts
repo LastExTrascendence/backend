@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   NotFoundException,
   UnauthorizedException,
 } from "@nestjs/common";
@@ -13,6 +14,7 @@ import { Status } from "./entity/user.enum";
 
 @Injectable()
 export class UserService {
+  private logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private jwtService: JwtService,
@@ -22,9 +24,6 @@ export class UserService {
     UserSessionDto: UserSessionDto,
   ): Promise<{ access_token: string }> {
     const { intra_name, nickname, avatar, email } = UserSessionDto;
-
-    const created_at = new Date();
-
     const newUser = {
       intra_name: intra_name,
       nickname: nickname,
@@ -32,17 +31,22 @@ export class UserService {
       status: Status.OFFLINE,
       email: email,
       two_fa: false,
-      created_at: created_at,
+      created_at: new Date(),
       deleted_at: null,
     };
 
+    try {
+      this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
+      await this.userRepository.save(newUser);
+      const payload = { username: UserSessionDto.nickname };
+      return { access_token: await this.jwtService.sign(payload) };
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
     // const user_db = this.userRepository.create({intra_name, nickname, avatar, status});
-    await this.userRepository.save(newUser);
     //await this.updateUser(UserDto);
 
-    const payload = { username: UserSessionDto.nickname };
-
-    return { access_token: await this.jwtService.sign(payload) };
     //jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
     //const user = await this.userRepository.findOne({where : {intra_name}});
     //if (!user)
