@@ -17,9 +17,15 @@ import {
   UseInterceptors,
   ValidationPipe,
 } from "@nestjs/common";
-import { UserBlockDto, UserDto, UserFriendDto } from "./dto/user.dto";
+import {
+  UserBlockDto,
+  UserDto,
+  UserFriendDto,
+  UserSessionDto,
+} from "./dto/user.dto";
 import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
+import { User as UserDec } from "../decorator/user.decorator";
 import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
@@ -39,17 +45,21 @@ export class UserController {
     private blockService: BlockService,
     private jwtService: JwtService,
   ) {}
+
   @Post("/create")
-  @UseGuards(loginAuthGuard)
+  // @UseGuards(loginAuthGuard)
   createUser(
     @Headers() headers: any,
     @Body(ValidationPipe) userDto: UserDto,
   ): Promise<{ access_token: string }> {
-    //// console.log(jwtString);
-    //const jwt = headers.authorization.replace("Bearer ", "");
-    //// jwt decode & verify
-    //userDto = { ...userDto, intra_id: decoded_token.oauth_user };
-    return this.userService.createUser(userDto);
+    const token = headers.authorization.replace("Bearer ", "");
+    const decoded_token = this.jwtService.decode(token);
+    const userSessionDto: UserSessionDto = {
+      ...userDto,
+      oauth_name: decoded_token["oauth_name"],
+      email: decoded_token["email"],
+    };
+    return this.userService.createUser(userSessionDto);
   }
 
   @Put("/avatar/update")
@@ -72,7 +82,7 @@ export class UserController {
   // }
   @Get("/:IntraId")
   findUser(@Param("IntraId") userDto: UserDto): Promise<User> {
-    return this.userService.findUserByName(userDto.intra_id);
+    return this.userService.findUserByName(userDto.nickname);
   }
 
   @Post("/friend/add")

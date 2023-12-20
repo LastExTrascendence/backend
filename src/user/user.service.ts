@@ -4,7 +4,7 @@ import {
   UnauthorizedException,
 } from "@nestjs/common";
 // import { UserRepository } from './user.repository';
-import { UserDto } from "./dto/user.dto";
+import { UserDto, UserSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Repository } from "typeorm";
@@ -13,24 +13,20 @@ import { Status } from "./entity/user.enum";
 
 @Injectable()
 export class UserService {
-  //constructor(private userRepository: UserRepository) {}
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private jwtService: JwtService,
   ) {}
 
-  async createUser(UserDto: UserDto): Promise<{ access_token: string }> {
-    // const {intra_id, nickname, avatar, status} = UserDto;
-    //const check_user = this.findUser(intra_id);
-
-    // console.log(UserDto);
-
-    const { intra_id, nickname, avatar, email, access_token } = UserDto;
+  async createUser(
+    UserSessionDto: UserSessionDto,
+  ): Promise<{ access_token: string }> {
+    const { oauth_name, nickname, avatar, email } = UserSessionDto;
 
     const created_at = new Date();
 
     const newUser = {
-      intra_id: intra_id,
+      intra_id: oauth_name,
       nickname: nickname,
       avatar: avatar,
       status: Status.OFFLINE,
@@ -38,14 +34,13 @@ export class UserService {
       "2fa_status": false,
       created_at: created_at,
       deleted_at: null,
-      access_token: access_token,
     };
 
     // const user_db = this.userRepository.create({intra_id, nickname, avatar, status});
     await this.userRepository.save(newUser);
     //await this.updateUser(UserDto);
 
-    const payload = { username: UserDto.intra_id };
+    const payload = { username: UserSessionDto.nickname };
 
     return { access_token: await this.jwtService.sign(payload) };
     //jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
