@@ -17,16 +17,23 @@ import {
   UseInterceptors,
   ValidationPipe,
 } from "@nestjs/common";
-import { UserBlockDto, UserDto, UserFriendDto } from "./dto/user.dto";
+import {
+  UserBlockDto,
+  UserDto,
+  UserFriendDto,
+  UserSessionDto,
+} from "./dto/user.dto";
 import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
-import { JWTAuthGuard } from "src/auth/auth.guard";
+import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
 import { User_friends } from "./entity/user.friends.entity";
 import { BlockService } from "./user.block.service";
 import { User_block } from "./entity/user.blocked.entity";
+import { JwtService } from "@nestjs/jwt";
+import { Headers } from "@nestjs/common";
 
 @Controller("user")
 export class UserController {
@@ -35,12 +42,23 @@ export class UserController {
     private avatarservice: AvatarService,
     private friendService: FriendService,
     private blockService: BlockService,
+    private jwtService: JwtService,
   ) {}
+
   @Post("/create")
+  // @UseGuards(loginAuthGuard)
   createUser(
+    @Headers() headers: any,
     @Body(ValidationPipe) userDto: UserDto,
   ): Promise<{ access_token: string }> {
-    return this.userService.createUser(userDto);
+    const token = headers.authorization.replace("Bearer ", "");
+    const decoded_token = this.jwtService.decode(token);
+    const userSessionDto: UserSessionDto = {
+      ...userDto,
+      oauth_name: decoded_token["oauth_name"],
+      email: decoded_token["email"],
+    };
+    return this.userService.createUser(userSessionDto);
   }
 
   @Put("/avatar/update")
@@ -63,7 +81,7 @@ export class UserController {
   // }
   @Get("/:IntraId")
   findUser(@Param("IntraId") userDto: UserDto): Promise<User> {
-    return this.userService.findUserByName(userDto.intra_id);
+    return this.userService.findUserByName(userDto.nickname);
   }
 
   @Post("/friend/add")

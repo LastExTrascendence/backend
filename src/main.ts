@@ -7,8 +7,9 @@ async function bootstrap() {
   dotenv.config(); // .env 파일 로드
   const app = await NestFactory.create(AppModule);
   app.enableCors({
-    origin: true,
+    origin: "http://localhost:3333",
     credentials: true,
+    preflightContinue: false,
   });
   app.use(cookieParser());
   await app.listen(3000);

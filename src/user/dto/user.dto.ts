@@ -1,30 +1,35 @@
 import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { Status } from "../entity/user.enum";
 
+/**
+ * @description 유저의 기본 정보를 담은 DTO
+ *
+ * @param {string} nickname - 유저의 LET 닉네임
+ * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
+ * @param {string} email - 유저의 42 Intra Email
+ */
 export class UserDto {
-  //automatic increased
-  id: number;
-  intra_id: string;
   nickname: string;
   avatar: string;
   email: string;
   "2fa_status": boolean;
   status: Status;
-  created_at: Date;
-  deleted_at: Date;
-  access_token: string;
-  // @IsString()
-  // @MinLengthw(4)
-  // @MaxLength(20)
-  // username: string;
+}
 
-  // @IsString()
-  // @MinLength(4)
-  // @MaxLength(20)
-  // @Matches(/^[a-zA-Z0-9]*$/,{
-  //     message: 'passwrod only accepts english and number'
-  // })
-  // password: string;
+/**
+ * @description JWT 토큰 내 유저 세션 정보를 담은 DTO
+ *
+ * @param {number} oauth_id - 유저의 고유 42 ID
+ * @param {string} oauth_name - 유저의 고유 42 Intra ID
+ * @param {number} iat - JWT 발급 시간
+ * @param {number} ext - JWT 만료 시간
+ * @extends {UserDto}
+ */
+export class UserSessionDto extends UserDto {
+  // oauth_id: number;
+  oauth_name: string;
+  iat?: number;
+  ext?: number;
 }
 
 export class UserBlockDto {
