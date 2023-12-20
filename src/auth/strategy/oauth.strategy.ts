@@ -51,7 +51,7 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, "auth") {
 
     try {
       const user = {
-        intra_id: profile.id,
+        intra_name: profile.id,
         nickname: profile.username,
         avator: profile.photos[0].value,
         access_token: accessToken,
