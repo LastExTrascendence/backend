@@ -60,7 +60,7 @@ export class AuthController {
         } else {
           res.cookie("accessToken", token.access_token);
           res.cookie("avatar", token.avatar);
-          res.cookie(two_fa, token["two_fa"]);
+          res.cookie("two_fa", token["two_fa"]);
           res.cookie("access_token", token.access_token);
 
           // two_fa 확인 후 리다이렉트 여부
