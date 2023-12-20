@@ -5,6 +5,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Logger,
   Param,
   ParseArrayPipe,
   ParseIntPipe,
@@ -29,14 +30,15 @@ import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
-import { User_friends } from "./entity/user.friends.entity";
+import { UserFriend } from "./entity/user.friend.entity";
 import { BlockService } from "./user.block.service";
-import { User_block } from "./entity/user.blocked.entity";
+import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 
 @Controller("user")
 export class UserController {
+  private logger = new Logger(UserController.name);
   constructor(
     private userService: UserService,
     private avatarservice: AvatarService,
@@ -55,10 +57,18 @@ export class UserController {
     const decoded_token = this.jwtService.decode(token);
     const userSessionDto: UserSessionDto = {
       ...userDto,
-      oauth_name: decoded_token["oauth_name"],
+      intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
     };
-    return this.userService.createUser(userSessionDto);
+    try {
+      this.logger.debug(
+        `Called ${UserController.name} ${this.createUser.name}`,
+      );
+      return this.userService.createUser(userSessionDto);
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 
   @Put("/avatar/update")
@@ -69,7 +79,7 @@ export class UserController {
     @UploadedFile() file: Express.Multer.File,
   ): Promise<User> | HttpException {
     try {
-      return this.avatarservice.updateAvatar(req.user.intra_id, null, file);
+      return this.avatarservice.updateAvatar(req.user.intra_name, null, file);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -87,7 +97,7 @@ export class UserController {
   @Post("/friend/add")
   addfollow(
     @Body(ValidationPipe) regist: UserFriendDto,
-  ): Promise<User_friends> | HttpException {
+  ): Promise<UserFriend> | HttpException {
     try {
       return this.friendService.addfollowing(
         regist.user_id,
@@ -122,7 +132,7 @@ export class UserController {
   @Post("/block/add")
   addblock(
     @Body(ValidationPipe) regist: UserBlockDto,
-  ): Promise<User_block> | HttpException {
+  ): Promise<UserBlock> | HttpException {
     try {
       return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
     } catch (error) {

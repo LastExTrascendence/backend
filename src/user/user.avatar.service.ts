@@ -12,9 +12,9 @@ export class AvatarService {
     private readonly userService: UserService,
   ) {}
 
-  async findAvatarByIntraId(intra_id: string): Promise<string> {
+  async findAvatarByIntraId(intra_name: string): Promise<string> {
     try {
-      const user: User = await this.userService.findUserByName(intra_id);
+      const user: User = await this.userService.findUserByName(intra_name);
       if (!user.avatar)
         throw new HttpException(
           "유저를 찾을 수 없습니다.",
@@ -29,7 +29,7 @@ export class AvatarService {
   //  npm install @types/multer --save
 
   async updateAvatar(
-    intra_id: string,
+    intra_name: string,
     profileUrl: string,
     file: Express.Multer.File,
   ): Promise<User> {
@@ -44,7 +44,7 @@ export class AvatarService {
         );
       }
 
-      const findUser = await this.userService.findUserByName(intra_id);
+      const findUser = await this.userService.findUserByName(intra_name);
 
       if (!findUser)
         throw new HttpException(
@@ -55,7 +55,7 @@ export class AvatarService {
         findUser.avatar = photoData;
         return findUser;
       }
-      //await this.userRepository.delete(this.userService.findUser(intra_id));
+      //await this.userRepository.delete(this.userService.findUser(intra_name));
 
       //await this.userRepository.save(findUser);
 

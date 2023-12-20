@@ -11,8 +11,8 @@ import { TypeOrmModule } from "@nestjs/typeorm";
 import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
 import { BlockService } from "./user.block.service";
-import { User_friends } from "./entity/user.friends.entity";
-import { User_block } from "./entity/user.blocked.entity";
+import { UserFriend } from "./entity/user.friend.entity";
+import { UserBlock } from "./entity/user.block.entity";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -26,7 +26,7 @@ const jwtConfig = config.get("jwt");
         expiresIn: jwtConfig.expiresIn,
       },
     }),
-    TypeOrmModule.forFeature([User, User_friends, User_block]),
+    TypeOrmModule.forFeature([User, UserFriend, UserBlock]),
   ],
   controllers: [UserController],
   providers: [

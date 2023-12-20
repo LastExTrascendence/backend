@@ -31,7 +31,7 @@ export class AuthService {
   async login(user: User): Promise<{
     access_token: string;
     avatar: string;
-    "2fa_status": boolean;
+    two_fa: boolean;
     username: string;
   }> {
     const nickname = user.nickname;
@@ -51,14 +51,13 @@ export class AuthService {
       //intra, email jwt token
 
       const payload = {
-        accessToken: findUser.access_token,
-        "2fa_status": findUser["2fa_status"],
+        two_fa: findUser["two_fa"],
       };
       const ret = {
-        username: findUser.intra_id,
+        username: findUser.intra_name,
         access_token: this.jwtService.sign(payload),
         avatar: findUser.avatar,
-        "2fa_status": findUser["2fa_status"],
+        two_fa: findUser["two_fa"],
       };
       return ret;
     }
