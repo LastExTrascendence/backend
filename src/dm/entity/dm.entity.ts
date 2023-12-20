@@ -1,22 +1,21 @@
 import { BaseEntity, Column, Entity, OneToMany, PrimaryGeneratedColumn, Unique } from "typeorm";
-import { Status } from "./user.enum";
 
 @Entity()
-export class User extends BaseEntity{
+export class Dm extends BaseEntity{
     @PrimaryGeneratedColumn()
     id: number;
     
     @Column()
-    IntraId: string;
+    sender_id: string;
 
     @Column()
-    nickname: string;
+    receiver_id: string;
 
     @Column()
-    avatar : string;
-    
+    message : string;
+
     @Column()
-    status : Status
+    created_at: Date;
 
     // @OneToMany(type => Board, board => board.user, {eager:true})
     // boards: Board[]

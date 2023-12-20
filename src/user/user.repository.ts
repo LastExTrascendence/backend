@@ -3,7 +3,6 @@
 // import { User } from "./user.entity";
 // import { UserCredentialsDto } from './dto/user.dto'
 
-
 // export class UserRepository extends Repository<User> {
 //     constructor(@InjectRepository(User) private dataSource: DataSource) {
 //         super(User, dataSource.manager);
@@ -15,7 +14,5 @@
 
 //     //     await this.save(user);
 //     // }
-
-    
 
 // }
