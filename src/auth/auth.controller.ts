@@ -10,62 +10,51 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  Logger,
 } from "@nestjs/common";
 import { Response } from "express";
 import { FortyTwoAuthGuard, JWTAuthGuard } from "./auth.guard";
 import { AuthService } from "./auth.service";
-//import { AuthCredentialsDto } from './dto/auth-credential.dto';
 import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
-import { User } from "src/user/entity/user.entity";
-import { equal } from "assert";
+import { JWTSignGuard } from "./jwt/jwtSign.guard";
 
 @Controller("auth")
 export class AuthController {
+  private logger = new Logger(AuthController.name);
   constructor(
     private authService: AuthService,
     private readonly userService: UserService,
     private jwtService: JwtService,
   ) {}
 
-  @Get("/42login")
+  @Get("/login")
   @UseGuards(FortyTwoAuthGuard)
-  async FortyTwoAuth(@Res() res: Response) {
-    try {
-      res.status(301).redirect(`http://localhost:3000/auth/redirect`);
-    } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
-    }
+  login() {
+    this.logger.log(`Called ${AuthController.name} ${this.login.name}`);
   }
-  //301 혹은 영구이동(Permanently Moved)는 해당 URL이 영구적으로 새로운 URL로 변경되었음을 나타냅니다.
-  //검색엔진은 301 요청을 만나면 컨텐트가 새로운 URL로 영원히 이동했다고 판단합니다.
-  //https://nsinc.tistory.com/168
 
   @Get("/redirect")
-  @UseGuards(FortyTwoAuthGuard)
-  async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  @UseGuards(FortyTwoAuthGuard, JWTSignGuard)
+  async redirect(@Req() req: any, @Res({ passthrough: true }) res: Response) {
+    this.logger.log(`Called ${AuthController.name} ${this.redirect.name}`);
     try {
-      if (req.user) {
-        // console.log('req.user', req.user); //yeomin
-        const token = await this.authService.login(req.user);
-        if (!token) {
-          const payload = {
-            intra_name: req.user.nickname,
-            email: req.user.email,
-          };
-          const access_token = this.jwtService.sign(payload);
-          res.cookie("access_token", access_token);
+      // const tmp = await this.userService.findUserByName(req.user.intra_name);
+      const token = await this.authService.login(req.user);
+      if (!token) {
+        const payload = {
+          intra_name: req.user.intra_name,
+          email: req.user.email,
+        };
+        const access_token = this.jwtService.sign(payload);
+        res.cookie("access_token", access_token);
 
-          res.status(301).redirect(`http://localhost:3333/register`);
-        } else {
-          res.cookie("access_token", token.access_token);
-
-          // two_fa 확인 후 리다이렉트 여부
-
-          // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-          res.status(301).redirect(`http://localhost:3333`);
-        }
+        res.status(301).redirect(`http://localhost:3333/register`);
       } else {
+        res.cookie("access_token", token.access_token);
+
+        // two_fa 확인 후 리다이렉트 여부
+        // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
         res.status(301).redirect(`http://localhost:3333`);
       }
     } catch (error) {
@@ -73,6 +62,36 @@ export class AuthController {
     }
   }
 
+  // @Get("/redirect")
+  // @UseGuards(FortyTwoAuthGuard, JWTAuthGuard)
+  // async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  //   try {
+  //     if (req.user) {
+  //       const token = await this.authService.login(req.user);
+  //       if (!token) {
+  //         const payload = {
+  //           intra_name: req.user.intra_name,
+  //           email: req.user.email,
+  //         };
+  //         const access_token = this.jwtService.sign(payload);
+  //         res.cookie("access_token", access_token);
+
+  //         res.status(301).redirect(`http://localhost:3333/register`);
+  //       } else {
+  //         res.cookie("access_token", token.access_token);
+
+  //         // two_fa 확인 후 리다이렉트 여부
+
+  //         // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+  //         res.status(301).redirect(`http://localhost:3333`);
+  //       }
+  //     } else {
+  //       res.status(301).redirect(`http://localhost:3333`);
+  //     }
+  //   } catch (error) {
+  //     return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+  //   }
+  // }
   //@Post('/otp')
   //async setOtpCookie(@Req() req: any, @Res({ passthrough: true }) res: Response) {
   //    const body = req.body;

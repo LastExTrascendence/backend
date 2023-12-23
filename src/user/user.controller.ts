@@ -74,10 +74,7 @@ export class UserController {
   @Put("/avatar/update")
   @UseGuards(JWTAuthGuard)
   @UseInterceptors(FileInterceptor("file"))
-  updateAvatar(
-    @Req() req: any,
-    @UploadedFile() file: Express.Multer.File,
-  ): Promise<User> | HttpException {
+  updateAvatar(@Req() req: any): Promise<User> | HttpException {
     try {
       return this.avatarservice.updateAvatar(req.user.intra_name, null, file);
     } catch (error) {
