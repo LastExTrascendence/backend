@@ -8,6 +8,10 @@ import { UserModule } from './user/user.module';
 import { JwtStrategy } from './auth/strategy/jwt.strategy';
 import { ChannelModule } from './channel/channel.module';
 import { SocketModule } from './channel/socket/socket.module';
+// import { ChatGateway } from './channel/channel.gateway';
+import { ChannelGateWay } from './channel/channel.gateway';
+import { ChannelsService } from './channel/channel.service';
+import { DmModule } from './dm/dm.module';
 
 @Module({
   imports : [
@@ -15,9 +19,11 @@ import { SocketModule } from './channel/socket/socket.module';
     AuthModule, 
     UserModule,
     ChannelModule,
-    SocketModule
+    SocketModule,
+    DmModule
   ],
   controllers: [AppController],
-  providers: [AppService]
+  providers: [AppService ]
+  // providers: [AppService, ChatGateway ]
 })
 export class AppModule {}

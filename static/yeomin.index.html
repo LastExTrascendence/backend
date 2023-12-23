@@ -1,0 +1,76 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Socket Chat</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div id="app" class="chat-app">
+      <div class="chat-header">
+        <h1>{{ title }}</h1>
+      </div>
+      <div class="chat-input">
+        <div class="input-group">
+          <label for="name">Name:</label>
+          <input id="name" v-model="name" />
+        </div>
+        <div class="input-group">
+          <label for="text">Message:</label>
+          <input id="text" v-model="text" />
+        </div>
+        <button @click="sendMessage">Send Message</button>
+      </div>
+      <div class="chat-messages">
+        <div v-for="(message, index) in messages" :key="index" class="message">
+          <span class="user">{{ message.name }}:</span> {{ message.text }}
+        </div>
+      </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+    <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+    <script>
+      const app = new Vue({
+        el: "#app",
+        data: {
+          title: "Socket Chat",
+          name: "",
+          text: "",
+          messages: [],
+          socket: null,
+        },
+        methods: {
+          sendMessage() {
+            if (this.validateInput()) {
+              const message = {
+                name: this.name,
+                text: this.text,
+              };
+              this.socket.emit("msgToServer", message);
+              this.text = "";
+            }
+          },
+          receivedMessage(message) {
+            this.messages.push(message);
+          },
+          validateInput() {
+            return this.name.length > 0 && this.text.length > 0;
+          },
+        },
+        created() {
+          // Connect to the WebSocket server
+          this.socket = io("http://localhost:80/dm", {
+            transports: ["websocket"], // Specify the transport type
+          });
+
+          // Listen for incoming messages from the server
+          this.socket.on("msgToClient", (message) => {
+            this.receivedMessage(message);
+          });
+        },
+      });
+    </script>
+  </body>
+</html>
