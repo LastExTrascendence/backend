@@ -5,6 +5,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Param,
   ParseArrayPipe,
@@ -17,6 +18,7 @@ import {
   UseGuards,
   UseInterceptors,
   ValidationPipe,
+  forwardRef,
 } from "@nestjs/common";
 import {
   UserBlockDto,
@@ -35,6 +37,8 @@ import { BlockService } from "./user.block.service";
 import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
+import { GamePlayerService } from "src/game/game.players.service";
+import { UserProfileDto } from "./dto/user.profile.dto";
 
 @Controller("user")
 export class UserController {
@@ -45,6 +49,7 @@ export class UserController {
     private friendService: FriendService,
     private blockService: BlockService,
     private jwtService: JwtService,
+    private gamePlayerService: GamePlayerService,
   ) {}
 
   @Post("/create")
@@ -164,9 +169,27 @@ export class UserController {
 
   @Get("/me")
   @UseGuards(JWTAuthGuard)
-  findme(@Req() req: any): Promise<User> | HttpException {
+  async findme(@Req() req: any): Promise<UserProfileDto | HttpException> {
     try {
-      return this.userService.findUserById(req.user.id);
+      const UserInfo = await this.userService.findUserById(req.user.id);
+      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+        req.user.id,
+      );
+
+      const Userprofile: UserProfileDto = {
+        id: UserInfo.id,
+        intra_name: UserInfo.intra_name,
+        nickname: UserInfo.nickname,
+        avatar: UserInfo.avatar,
+        email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
+        status: UserInfo.status,
+        Games: UserGameInfo.length,
+        Wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        Loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+      };
+      this.logger.debug(`Called ${UserController.name} ${this.findme.name}`);
+      return Userprofile;
     } catch (e) {
       return new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
@@ -184,6 +207,34 @@ export class UserController {
     }
   }
 
+  @Get("/profile/:id")
+  async profile(
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<UserProfileDto | HttpException> {
+    try {
+      const UserInfo = await this.userService.findUserById(id);
+      const UserGameInfo =
+        await this.gamePlayerService.findGamePlayerByUserId(id);
+
+      const Userprofile: UserProfileDto = {
+        id: UserInfo.id,
+        intra_name: UserInfo.intra_name,
+        nickname: UserInfo.nickname,
+        avatar: UserInfo.avatar,
+        email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
+        status: UserInfo.status,
+        Games: UserGameInfo.length,
+        Wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        Loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+      };
+      this.logger.debug(`Called ${UserController.name} ${this.profile.name}`);
+      return Userprofile;
+    } catch (e) {
+      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
   private checkNickname(nickname: string): void {
     // 닉네임 정책 : 길이 16, 영어, 숫자, 대쉬, 언더바만 허용
     try {
@@ -198,6 +249,9 @@ export class UserController {
           HttpStatus.BAD_REQUEST,
         );
       }
+      this.logger.debug(
+        `Called ${UserController.name} ${this.checkNickname.name}`,
+      );
     } catch (error) {
       throw error;
     }
