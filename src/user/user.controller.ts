@@ -161,4 +161,45 @@ export class UserController {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
+
+  @Get("/me")
+  @UseGuards(JWTAuthGuard)
+  findme(@Req() req: any): Promise<User> | HttpException {
+    try {
+      return this.userService.findUserById(req.user.id);
+    } catch (e) {
+      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post("/me/update")
+  updateMe(
+    @Body(ValidationPipe) userDto: UserDto,
+  ): Promise<User> | HttpException {
+    try {
+      this.checkNickname(userDto.nickname);
+      return this.userService.updateUserProfile(userDto);
+    } catch (error) {
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  private checkNickname(nickname: string): void {
+    // 닉네임 정책 : 길이 16, 영어, 숫자, 대쉬, 언더바만 허용
+    try {
+      if (nickname.length > 16 && nickname.length < 1) {
+        throw new HttpException(
+          "닉네임은 16글자 이하여야 합니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      } else if (!/^[a-zA-Z0-9-_]*$/.test(nickname)) {
+        throw new HttpException(
+          "닉네임은 영어, 숫자, 대쉬, 언더바만 허용됩니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      throw error;
+    }
+  }
 }

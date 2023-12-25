@@ -11,6 +11,7 @@ import { Status } from "../entity/user.enum";
  * @param {Status} status - 유저 접속상태
  */
 export class UserDto {
+  id: number;
   nickname: string;
   avatar: string;
   email: string;
