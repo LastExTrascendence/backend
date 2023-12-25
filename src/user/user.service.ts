@@ -92,6 +92,15 @@ export class UserService {
     return user;
   }
 
+  async updateUserProfile(userDto: UserDto): Promise<User> {
+    const { id, nickname, avatar } = userDto;
+    const user = await this.userRepository.findOne({ where: { id } });
+    user.nickname = nickname;
+    user.avatar = avatar;
+    await this.userRepository.save(user);
+    return user;
+  }
+
   // async signIn(authCredentialDto: AuthCredentialsDto): Promise<{accessToken: string}> {
   //     const {username, password} = authCredentialDto;
   //     //console.log('username', username);

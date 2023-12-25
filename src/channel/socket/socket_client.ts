@@ -1,6 +1,8 @@
 import { Injectable, OnModuleInit } from "@nestjs/common";
 import { io, Socket } from "socket.io-client";
 
+//npm install socket.io-client
+
 @Injectable()
 export class SocketClient implements OnModuleInit {
   public socketClient: Socket;
