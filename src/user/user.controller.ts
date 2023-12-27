@@ -5,6 +5,7 @@ import {
   Get,
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   Param,
   ParseArrayPipe,
@@ -17,6 +18,7 @@ import {
   UseGuards,
   UseInterceptors,
   ValidationPipe,
+  forwardRef,
 } from "@nestjs/common";
 import {
   UserBlockDto,
@@ -35,6 +37,8 @@ import { BlockService } from "./user.block.service";
 import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
+import { GamePlayerService } from "src/game/game.players.service";
+import { UserProfileDto } from "./dto/user.profile.dto";
 
 @Controller("user")
 export class UserController {
@@ -45,6 +49,7 @@ export class UserController {
     private friendService: FriendService,
     private blockService: BlockService,
     private jwtService: JwtService,
+    private gamePlayerService: GamePlayerService,
   ) {}
 
   @Post("/create")
@@ -85,21 +90,13 @@ export class UserController {
     }
   }
 
-  // @Get('/:id')
-  // getBoardById(@Param('id') id:number) : Promise<Board> {
-  //     return this.boardsService.getBoardById(id);
-  // }
-  @Get("/:IntraId")
-  findUser(@Param("IntraId") userDto: UserDto): Promise<User> {
-    return this.userService.findUserByName(userDto.nickname);
-  }
-
   @Post("/friend/add")
-  addfollow(
+  addFriend(
     @Body(ValidationPipe) regist: UserFriendDto,
   ): Promise<UserFriend> | HttpException {
     try {
-      return this.friendService.addfollowing(
+      this.logger.debug(`Called ${UserController.name} ${this.addFriend.name}`);
+      return this.friendService.addFriend(
         regist.user_id,
         regist.friend_user_id,
       );
@@ -108,32 +105,51 @@ export class UserController {
     }
   }
 
-  @Get("/friend/find")
-  findfollow(@Req() req: UserFriendDto) {
+  @Get("/friend/find/all")
+  findAllFriend(@Req() req: UserFriendDto) {
     try {
-      return this.friendService.findFollwing(req.user_id);
+      this.logger.debug(
+        `Called ${UserController.name} ${this.findAllFriend.name}`,
+      );
+      return this.friendService.findAllFriend(req.user_id);
+    } catch (error) {
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get("/friend/find/:id")
+  findFriendById(@Param("id", ParseIntPipe) id: number) {
+    try {
+      this.logger.debug(
+        `Called ${UserController.name} ${this.findFriendById.name}`,
+      );
+      return this.friendService.findFriend(id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   @Delete("/friend/remove")
-  unfollow(
+  deleteFriend(
     @Query("ids", new ParseArrayPipe({ items: Number, separator: "," }))
     ids: number[],
   ) {
     try {
-      return this.friendService.unfollowing(ids[0], ids[1]);
+      this.logger.debug(
+        `Called ${UserController.name} ${this.deleteFriend.name}`,
+      );
+      return this.friendService.removeFriend(ids[0], ids[1]);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
   }
 
   @Post("/block/add")
-  addblock(
+  addBlock(
     @Body(ValidationPipe) regist: UserBlockDto,
   ): Promise<UserBlock> | HttpException {
     try {
+      this.logger.debug(`Called ${UserController.name} ${this.addBlock.name}`);
       return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -151,11 +167,14 @@ export class UserController {
   }
 
   @Delete("/block/remove")
-  removeblock(
+  removeBlock(
     @Query("ids", new ParseArrayPipe({ items: Number, separator: "," }))
     ids: number[],
   ) {
     try {
+      this.logger.debug(
+        `Called ${UserController.name} ${this.removeBlock.name}`,
+      );
       return this.blockService.removeBlock(ids[0], ids[1]);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -164,23 +183,76 @@ export class UserController {
 
   @Get("/me")
   @UseGuards(JWTAuthGuard)
-  findme(@Req() req: any): Promise<User> | HttpException {
+  async findMe(@Req() req: any): Promise<UserProfileDto | HttpException> {
     try {
-      return this.userService.findUserById(req.user.id);
+      const UserInfo = await this.userService.findUserById(req.user.id);
+      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+        req.user.id,
+      );
+
+      const Userprofile: UserProfileDto = {
+        id: UserInfo.id,
+        intra_name: UserInfo.intra_name,
+        nickname: UserInfo.nickname,
+        avatar: UserInfo.avatar,
+        email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
+        status: UserInfo.status,
+        is_friend: false,
+        at_friend: null,
+        games: UserGameInfo.length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+      };
+      this.logger.debug(`Called ${UserController.name} ${this.findMe.name}`);
+      return Userprofile;
     } catch (e) {
       return new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
-  @Post("/me/update")
-  updateMe(
-    @Body(ValidationPipe) userDto: UserDto,
-  ): Promise<User> | HttpException {
+  @Put("/me/update")
+  updateME(@Req() req: any): Promise<User> | HttpException {
     try {
-      this.checkNickname(userDto.nickname);
-      return this.userService.updateUserProfile(userDto);
+      this.checkNickname(req.user.nickname);
+      return this.userService.updateUserProfile(req.user);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get("/profile/:id")
+  async getprofilebyid(
+    @Param("id", ParseIntPipe) id: number,
+  ): Promise<UserProfileDto | HttpException> {
+    try {
+      const UserInfo = await this.userService.findUserById(id);
+      const UserGameInfo =
+        await this.gamePlayerService.findGamePlayerByUserId(id);
+      const UserFriendInfo = await this.friendService.findFriend(id);
+
+      //유저 본인 인지, 친구인지, 차단인지 확인
+
+      const Userprofile: UserProfileDto = {
+        id: UserInfo.id,
+        intra_name: UserInfo.intra_name,
+        nickname: UserInfo.nickname,
+        avatar: UserInfo.avatar,
+        email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
+        status: UserInfo.status,
+        games: UserGameInfo.length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+        is_friend: UserFriendInfo ? true : false,
+        at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
+      };
+      this.logger.debug(
+        `Called ${UserController.name} ${this.getprofilebyid.name}`,
+      );
+      return Userprofile;
+    } catch (e) {
+      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -198,6 +270,9 @@ export class UserController {
           HttpStatus.BAD_REQUEST,
         );
       }
+      this.logger.debug(
+        `Called ${UserController.name} ${this.checkNickname.name}`,
+      );
     } catch (error) {
       throw error;
     }

@@ -1,4 +1,6 @@
 import {
+  HttpException,
+  HttpStatus,
   Injectable,
   Logger,
   NotFoundException,
@@ -11,6 +13,8 @@ import { User } from "./entity/user.entity";
 import { Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { Status } from "./entity/user.enum";
+import { GamePlayers } from "src/game/entity/game.players.entity";
+import { UserProfileDto } from "./dto/user.profile.dto";
 
 @Injectable()
 export class UserService {
@@ -93,10 +97,11 @@ export class UserService {
   }
 
   async updateUserProfile(userDto: UserDto): Promise<User> {
-    const { id, nickname, avatar } = userDto;
+    const { id, nickname, avatar, two_fa } = userDto;
     const user = await this.userRepository.findOne({ where: { id } });
     user.nickname = nickname;
     user.avatar = avatar;
+    user.two_fa = two_fa;
     await this.userRepository.save(user);
     return user;
   }
