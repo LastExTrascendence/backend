@@ -1,42 +1,40 @@
-import { BaseEntity, Column, Entity, OneToMany, PrimaryGeneratedColumn, Unique } from "typeorm";
+import {
+  BaseEntity,
+  Column,
+  Entity,
+  PrimaryGeneratedColumn,
+  Unique,
+} from "typeorm";
 import { Status } from "./user.enum";
 
 @Entity()
-export class User extends BaseEntity{
-    @PrimaryGeneratedColumn()
-    id: number;
-    
-    @Column()
-    intra_id: string;
+export class User extends BaseEntity {
+  @PrimaryGeneratedColumn()
+  id: number;
 
-    @Column()
-    nickname: string;
+  @Column()
+  @Unique(["intra_name"])
+  intra_name: string;
 
-    @Column()
-    avatar : string;
-    
-    @Column()
-    status : Status
+  @Column()
+  @Unique(["nickname"])
+  nickname: string;
 
-    @Column()
-    email: string;
-    
-    @Column()
-    "2fa_status": boolean;
+  @Column()
+  email: string;
 
-    @Column()
-    created_at: Date;
+  @Column({ nullable: true })
+  avatar: string;
 
-    @Column()
-    deleted_at: Date;
-    
-    @Column()
-    access_token: string;
+  @Column()
+  two_fa: boolean;
 
+  @Column()
+  status: Status;
 
-    // @OneToMany(type => Board, board => board.user, {eager:true})
-    // boards: Board[]
+  @Column()
+  created_at: Date;
+
+  @Column({ nullable: true })
+  deleted_at: Date;
 }
-
-//@Unique(['username'])
-// @Unique(['', 'password']) 가능

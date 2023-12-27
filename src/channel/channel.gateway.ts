@@ -6,7 +6,6 @@
 //   WebSocketServer,
 // } from '@nestjs/websockets';
 
-
 // @WebSocketGateway(81, { namespace: 'chat', cors:true },
 // )
 // export class ChatGateway {
@@ -40,18 +39,23 @@
 //   }
 // }
 
-import { Logger, OnModuleInit } from '@nestjs/common';
-import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-import { Server, Socket } from 'socket.io';
-import { UserDto } from 'src/user/dto/user.dto';
-import { channel_user_dto } from './channel_dto/channel.user.dto';
-import { channels } from './channel_entity/channels.entity';
-import { ChannelsService } from './channel.service';
-import { Channels_dto } from './channel_dto/channels.dto';
-import { Channel_Status } from './channel.enum';
-import { SaveOptions, RemoveOptions } from 'typeorm';
-import { ChannelUserService } from './channel.user.service';
-
+import { Logger, OnModuleInit } from "@nestjs/common";
+import {
+  ConnectedSocket,
+  MessageBody,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { UserDto } from "src/user/dto/user.dto";
+import { channel_user_dto } from "./channel_dto/channel.user.dto";
+import { channels } from "./channel_entity/channels.entity";
+import { ChannelsService } from "./channel.service";
+import { Channels_dto } from "./channel_dto/channels.dto";
+import { Channel_Status } from "./channel.enum";
+import { SaveOptions, RemoveOptions } from "typeorm";
+import { ChannelUserService } from "./channel.user.service";
 
 // @WebSocketGateway({ namespace : 'channel' })
 // @WebSocketGateway(81, {
@@ -60,7 +64,7 @@ import { ChannelUserService } from './channel.user.service';
 //   // cors: {
 //   //   origin: '*',
 //   //   methods: ['GET', 'POST'],
-//   // }  
+//   // }
 //   // cors: {
 //   //   origin: "http://localhost:3000",
 //   //   methods: ["GET", "POST"],
@@ -68,45 +72,46 @@ import { ChannelUserService } from './channel.user.service';
 //   // }
 //   })
 
-@WebSocketGateway(81, { namespace: 'chat',
-  cors: true
+@WebSocketGateway(81, {
+  namespace: "chat",
+  cors: true,
   // cors: {
   //   origin: "http://localhost:3000",
   //   methods: ["GET", "POST"],
   //   credentials: true
-  // } 
+  // }
 })
-export class ChannelGateWay{
-
-  private logger = new Logger('ChannelGateWay');
-  constructor(private readonly channelsService: ChannelsService,
-              private readonly channelUserSerivce : ChannelUserService) {}
+export class ChannelGateWay {
+  private logger = new Logger("ChannelGateWay");
+  constructor(
+    private readonly channelsService: ChannelsService,
+    private readonly channelUserSerivce: ChannelUserService,
+  ) {}
 
   handleRoomCreation(roomName: string) {
-    throw new Error('Method not implemented.');
+    throw new Error("Method not implemented.");
   }
   @WebSocketServer()
   server: Server;
 
-   wsClients = [];
+  wsClients = [];
 
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }
-  handleConnection(Socket: Socket) {
+  handleConnection(Socket: Socket) {}
 
-  }
+  handleDisconnect(Socket: Socket) {}
 
-  handleDisconnect(Socket: Socket) {
-
-  }
-
-    //----------------------------------------------
-  @SubscribeMessage('hihi')
+  //----------------------------------------------
+  @SubscribeMessage("hihi")
   //원래는 channel_user_dto가 data안에 와야됨
   //connectSomeone(@MessageBody() data: channel_user_dto, @ConnectedSocket() Socket: Socket)
-  async connectSomeone(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    // console.log('data', data);
+  async connectSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() Socket: Socket,
+  ) {
+    console.log("data", data);
     const { channel_name, user_id } = data;
     // const channel_name = data.channel_name;
     // const user_id = data.user_id;
@@ -114,69 +119,66 @@ export class ChannelGateWay{
     console.log(`${user_id}님이 입장했습니다.`);
     // this.server.emit(channel_name);
     const comeOn = `${user_id}님이 입장했습니다.`;
-    this.server.emit('comeOn' + channel_name, comeOn);
+    this.server.emit("comeOn" + channel_name, comeOn);
     this.wsClients.push(Socket);
-
 
     //채널이 이미 있으면 DB에 넣지 않고 있으면 DB를 만든다.
     const channel = await this.channelsService.getdbchannel(channel_name);
-    if (!channel)
-    {  
-      this.logger.debug(`channel_name : ${channel_name} is already exist, in getdbchannelName`);
-        // console.log('channel_name', channel_name)
-        const channelData = {
-          name: channel_name, 
-          type: Channel_Status.PUBLIC, 
-          description: 'Channel Description', 
-          created_at: new Date(),
-          deleted_at: new Date()
-        };
-        await this.channelsService.createdbchannel(channelData);
+    if (!channel) {
+      this.logger.debug(
+        `channel_name : ${channel_name} is already exist, in getdbchannelName`,
+      );
+      console.log("channel_name", channel_name);
+      const channelData = {
+        name: channel_name,
+        type: Channel_Status.PUBLIC,
+        description: "Channel Description",
+        created_at: new Date(),
+        deleted_at: new Date(),
+      };
+      await this.channelsService.createdbchannel(channelData);
     }
     //채널에 대한 id를 가져오기
     // const id = this.channelsService.
     const channel_id = await this.channelsService.getdbchannel_id(channel_name);
-    console.log('channel_id', channel_id)
+    console.log("channel_id", channel_id);
     //id를 사용자에 넣어주기
     const channelUser = {
-      user_id : user_id,
-      channel_id : channel_id,
-      role : 'User Description',
-      created_at : new Date(),
-      deleted_at : new Date()
+      user_id: user_id,
+      channel_id: channel_id,
+      role: "User Description",
+      created_at: new Date(),
+      deleted_at: new Date(),
     };
 
     this.channelUserSerivce.createuser(channelUser);
 
     //채널에 사용자 추가
     // const UserData = {
-    //   user_id: "12", 
+    //   user_id: "12",
     //   channel_id : channel_id,
-    //   role: 'User Description', 
+    //   role: 'User Description',
     //   created_at: new Date(),
     //   deleted_at: new Date()
     // };
     // await this.channelUserSerivce.createuser(UserData);
 
-
     // this.channelsService.createdbchannel(channelData);
-    
+
     // if (await this.channelsService.getUserschannel(channel_id, user_id))
-    // {  
+    // {
     //   this.logger.debug(`channel_id : ${channel_id} is already exist, in getdbchannelName`);
     //     console.log('channel_id', channel_id)
     //     const channelData = {
-    //       name: channel_id, 
-    //       type: Channel_Status.PUBLIC, 
-    //       description: 'Channel Description', 
+    //       name: channel_id,
+    //       type: Channel_Status.PUBLIC,
+    //       description: 'Channel Description',
     //       created_at: new Date(),
     //       deleted_at: new Date()
     //     };
     //     this.channelsService.createdbchannel(channelData);
     // }
   }
-
-  
 
   // @SubscribeMessage('hihi')
   // connectSomeone(
@@ -193,37 +195,26 @@ export class ChannelGateWay{
   //}
   //----------------------------------------------
 
-
   private broadcast(event, client, message: any) {
     for (let c of this.wsClients) {
-      if (client.id == c.id)
-        continue;
+      if (client.id == c.id) continue;
       c.emit(event, message);
     }
   }
 
-  @SubscribeMessage('send')
+  @SubscribeMessage("send")
   sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-    console.log('data', data)
+    console.log("data", data);
     const [room, nickname, message] = data;
-    console.log('----------------------')
+    console.log("----------------------");
     console.log(`${client.id} : ${data}`);
-    console.log('room', room)
-    console.log('nickname', nickname)
-    console.log('message', message)
-    console.log('----------------------')
+    console.log("room", room);
+    console.log("nickname", nickname);
+    console.log("message", message);
+    console.log("----------------------");
     this.broadcast(room, client, [nickname, message]);
   }
-
-  
 }
-
-
-
-
-
-
-
 
 // export class ChannelGateWay implements OnModuleInit{
 //   @WebSocketServer()
@@ -231,9 +222,9 @@ export class ChannelGateWay{
 
 //   // wsClients = [];
 
-//   //NestJS 애플리케이션에서 Socket.io를 사용하여 
-//   //서버 측 소켓 연결 이벤트를 처리하는 부분. 
-//   //onModuleInit() 메서드는 NestJS에서 사용되는 라이프사이클 훅 중 하나. 
+//   //NestJS 애플리케이션에서 Socket.io를 사용하여
+//   //서버 측 소켓 연결 이벤트를 처리하는 부분.
+//   //onModuleInit() 메서드는 NestJS에서 사용되는 라이프사이클 훅 중 하나.
 //   //해당 클래스가 초기화될 때 호출됩니다.
 //   onModuleInit() {
 //     //Socket.io의 서버 인스턴스에서 연결 이벤트를 처리하는 부분
@@ -244,7 +235,7 @@ export class ChannelGateWay{
 //       })
 //   }
 
-//   //NestJS 내에서 Socket.io를 사용하여 
+//   //NestJS 내에서 Socket.io를 사용하여
 //   //특정 메시지('nmessage')를 구독하고, 해당 메시지를 처리하는 메서드
 //   @SubscribeMessage('nmessage')
 //   connectSomeone(@MessageBody() data: any) {
@@ -253,7 +244,7 @@ export class ChannelGateWay{
 //     const room = data.room;
 //     console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
 //     //emit안에 onmessage 이벤트만 가지고 있는 사람에게(클라이언트) 메세지를 보냄.
-//     //'onmessage'라는 이벤트로 데이터를 송신. 
+//     //'onmessage'라는 이벤트로 데이터를 송신.
 //     //이로 인해 클라이언트 측에서 'onmessage' 이벤트를 구독하고 있는 경우 해당 데이터를 수신.
 //     this.server.emit('onmessage', {
 //       msg: 'New Message',
@@ -265,7 +256,6 @@ export class ChannelGateWay{
 //     // this.server.emit('comeOn' + room, comeOn);
 //     // this.wsClients.push(client);
 //   }
-  
 
 //   private broadcast(event, client, message: any) {
 //     for (let c of this.wsClients) {
@@ -287,10 +277,9 @@ export class ChannelGateWay{
 //   }
 // }
 
-
 // import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
 
-// @WebSocketGateway(80, { namespace : 'channel' })
+// @WebSocketGateway(83, { namespace : 'channel' })
 // export class ChannelGateWay {
 //   @WebSocketServer()
 //   server;

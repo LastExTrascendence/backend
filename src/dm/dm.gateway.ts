@@ -99,7 +99,9 @@ import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 import { createAdapter } from 'socket.io-redis';
 
-@WebSocketGateway(80, { namespace: "dm", cors: true })
+//path, endpoint
+
+@WebSocketGateway(83, { namespace: "dm", cors: true })
 export class DmGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
