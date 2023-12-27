@@ -23,7 +23,10 @@ export class UserProfileDto {
   two_fa: boolean;
   status: Status;
 
-  Games: number;
-  Wins: number;
-  Loses: number;
+  is_friend: boolean;
+  at_friend: Date;
+
+  games: number;
+  wins: number;
+  loses: number;
 }

@@ -10,6 +10,8 @@ import {
 import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 
+//path, endpoint
+
 @WebSocketGateway(83, { namespace: "dm", cors: true })
 export class DmGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit

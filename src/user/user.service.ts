@@ -97,10 +97,11 @@ export class UserService {
   }
 
   async updateUserProfile(userDto: UserDto): Promise<User> {
-    const { id, nickname, avatar } = userDto;
+    const { id, nickname, avatar, two_fa } = userDto;
     const user = await this.userRepository.findOne({ where: { id } });
     user.nickname = nickname;
     user.avatar = avatar;
+    user.two_fa = two_fa;
     await this.userRepository.save(user);
     return user;
   }
