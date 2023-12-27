@@ -10,6 +10,7 @@ import {
   Query,
   HttpException,
   HttpStatus,
+  Logger,
 } from "@nestjs/common";
 import { Response } from "express";
 import { FortyTwoAuthGuard, JWTAuthGuard } from "./auth.guard";
@@ -22,6 +23,7 @@ import { equal } from "assert";
 
 @Controller("auth")
 export class AuthController {
+  private logger = new Logger("AuthController");
   constructor(
     private authService: AuthService,
     private readonly userService: UserService,
@@ -31,6 +33,7 @@ export class AuthController {
   @Get("/42login")
   @UseGuards(FortyTwoAuthGuard)
   async FortyTwoAuth(@Res() res: Response) {
+    this.logger.debug(`$FortyTwoAuth`);
     try {
       res.status(301).redirect(`http://localhost:3000/auth/redirect`);
     } catch (error) {
@@ -48,9 +51,10 @@ export class AuthController {
     // 가능하다면 정적 문자열들(http://localhost:3333...)을 env로 관리하기
     //
 
+    this.logger.debug(`Called ${AuthController.name} ${this.redirect.name}`);
     try {
       if (req.user) {
-        // console.log('req.user', req.user); //yeomin
+        console.log("req.user", req.user); //yeomin
         const token = await this.authService.login(req.user);
         if (!token) {
           const payload = {

@@ -2,6 +2,7 @@ import {
   ConflictException,
   Injectable,
   InternalServerErrorException,
+  Logger,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
@@ -16,6 +17,8 @@ import * as Config from "config";
 
 @Injectable()
 export class AuthService {
+  private jwtConfig = Config.get("jwt");
+  private logger = new Logger("AuthService");
   constructor(
     private userService: UserService,
     private jwtService: JwtService,
@@ -34,6 +37,7 @@ export class AuthService {
     two_fa: boolean;
     username: string;
   }> {
+    this.logger.debug(`Called ${AuthService.name} ${this.login.name}`);
     const nickname = user.nickname;
     const findUser = await this.userService.findUserByName(nickname);
     if (!findUser) {
