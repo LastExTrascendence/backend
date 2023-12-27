@@ -106,7 +106,7 @@ export class ChannelGateWay{
   //원래는 channel_user_dto가 data안에 와야됨
   //connectSomeone(@MessageBody() data: channel_user_dto, @ConnectedSocket() Socket: Socket)
   async connectSomeone(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    console.log('data', data);
+    // console.log('data', data);
     const { channel_name, user_id } = data;
     // const channel_name = data.channel_name;
     // const user_id = data.user_id;
@@ -123,7 +123,7 @@ export class ChannelGateWay{
     if (!channel)
     {  
       this.logger.debug(`channel_name : ${channel_name} is already exist, in getdbchannelName`);
-        console.log('channel_name', channel_name)
+        // console.log('channel_name', channel_name)
         const channelData = {
           name: channel_name, 
           type: Channel_Status.PUBLIC, 

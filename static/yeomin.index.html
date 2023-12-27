@@ -1,4 +1,4 @@
-<!doctype html>
+<!-- <!doctype html>
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -73,4 +73,187 @@
       });
     </script>
   </body>
-</html>
+</html> -->
+<!-- 
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Socket Chat</title>
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <div id="app" class="chat-app">
+    <div class="chat-header">
+      <h1>{{ title }}</h1>
+    </div>
+    <div class="chat-input">
+      <div class="input-group">
+        <label for="name">Name:</label>
+        <input id="name" v-model="name" />
+      </div>
+      <div class="input-group">
+        <label for="text">Message:</label>
+        <input id="text" v-model="text" />
+      </div>
+      <div class="input-group">
+        <label for="channel">Channel:</label>
+        <input id="channel" v-model="channel" />
+      </div>
+      <button @click="sendMessage">Send Message</button>
+    </div>
+    <div class="chat-messages">
+      <div v-for="(message, index) in messages" :key="index" class="message">
+        <span class="user">{{ message.name }}:</span> {{ message.text }}
+      </div>
+    </div>
+  </div>
+
+  <script src="https://cdn.jsdelivr.net/npm/vue@2"></script>
+  <script src="https://cdn.socket.io/4.0.1/socket.io.min.js"></script>
+  <script>
+    //dm_room 입력
+    //const room = prompt('입장할 방의 코드를 적어주세요.');
+    //if (!(room)) {
+    //  alert('다시 입력해주세요.')
+    //  window.location.reload();
+    //  }
+
+    const app = new Vue({
+      el: "#app",
+      data: {
+        title: "Socket Chat",
+        name: "",
+        text: "",
+        channel: room, // Default channel
+        messages: [],
+        socket: null,
+      },
+      methods: {
+        //메세지를 서버로 전송한다.
+        sendMessage() {
+          if (this.validateInput()) {
+            const message = {
+              name: this.name,
+              text: this.text,
+              channel: room // Send channel information along with the message
+            };
+            //this.socket.emit("msgToServer", message);
+            this.text = "";
+          }
+        },
+        //서버에서 전송된 메시지를 받와 화면에 표시한다.
+        receivedMessage(message) {
+          this.messages.push(message);
+        },
+        validateInput() {
+          return this.name.length > 0 && this.text.length > 0 && this.channel.length > 0;
+        },
+      },
+      //라이프사이클 훅을 통해 Vue 앱이 생성될 때, 
+      //웹 소켓 서버에 연결하고 서버에서 오는 메시지를 수신합니다.
+      created() {
+        // Connect to the WebSocket server
+        this.socket = io("http://localhost:80/dm", {
+          transports: ["websocket"], // Specify the transport type
+        });
+        this.socket.emit("msgToServer", message);
+
+        // Listen for incoming messages from the server
+        this.socket.on("msgToClient", (message) => {
+          this.receivedMessage(message);
+        });
+        
+      },
+    });
+  </script>
+</body>
+</html> -->
+
+
+<!DOCTYPE html>
+<html lang="en">
+	<head>
+		<meta charset="UTF-8" />
+		<meta http-equiv="X-UA-Compatible" content="IE=edge" />
+		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+		<title>시크릿 채팅방</title>
+		<!-- jQuery -->
+		<script
+			src="https://code.jquery.com/jquery-3.6.0.js"
+			integrity="sha256-H+K7U5CnXl1h5ywQfKtSj8PCmoN9aaq30gDh27Xc0jk="
+			crossorigin="anonymous"
+		></script>
+		<!-- socket.io -->
+		<script src="http://localhost:81/socket.io/socket.io.js"></script>
+		<script>
+			const socket = io('http://localhost:80/dm');
+			const nickname = prompt('닉네임을 알려주세요.');
+			const room = prompt('입장할 방의 코드를 적어주세요.');
+			if (!(nickname && room)) {
+				alert('다시 입력해주세요.')
+				window.location.reload();
+            }
+            const fuck = {
+                //id : 123,
+                //user_id : "1234",
+                //channel_name : "123451",
+               //role: "fuck",
+                //created_at: Date,
+                //deleted_at: Date,
+                id: 1,
+                user_id: nickname,
+                channel_name: room,
+                role: "someRole",
+                created_at: new Date(),
+                deleted_at: new Date(),
+            };
+            
+			//socket.emit('hihi', nickname, room);
+      socket.emit('msgToServer', fuck);
+
+			socket.on('connect', () => {
+				/* 누군가 채팅침 */
+				socket.on(room, (data) => {
+					console.log('data_cli', data);
+					$('#chatList').append(`<div>${data[0]} : ${data[1]}</div>`);
+				});
+				/* 누군가 입장 */
+				socket.on('comeOn' + room, (comeOn) => {
+					$('#chatList').append(`<div style="color:blue;">${comeOn}</div>`);
+				});
+
+
+        socket.on("msgToClient", (message) => {
+          console.log(message)
+          $('#chatList').append(`<div style="color:blue;">${message.name} : ${message.text}</div>`);
+        });
+			});
+
+			function msg_send() {
+				/* 메시지 전송 사용자가 입력한 메시지를 가져옵니다. */
+				let message = $('#msg').val();
+
+				//socket.emit('send', fuck, message);
+                socket.emit('send', room, nickname , message);
+				$('#msg').val('');
+				$('#chatList').append(`<div style="color:red;">나 : ${message}</div>`);
+			}
+
+			$(document).ready(() => {
+				$('#room').text(`${room}`)
+			})
+		</script>
+	</head>
+	<body>
+		<h1>시크릿 채팅방 <span id="room" style="font-size: large;"></span></h1>
+		<div id="chatList">
+		</div>
+
+		<div id="sendMessage" style="position: fixed; bottom: 5%;">
+			<input type="text" id="msg" onKeyPress="if( event.keyCode==13 ){msg_send();}" />
+			<button onclick="msg_send()">제출</button>
+		</div>
+	</body>
+</html> 

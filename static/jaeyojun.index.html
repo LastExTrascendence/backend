@@ -41,6 +41,7 @@
 			socket.on('connect', () => {
 				/* 누군가 채팅침 */
 				socket.on(room, (data) => {
+					console.log('data_cli', data);
 					$('#chatList').append(`<div>${data[0]} : ${data[1]}</div>`);
 				});
 				/* 누군가 입장 */
@@ -50,7 +51,7 @@
 			});
 
 			function msg_send() {
-				/* 메시지 전송 */
+				/* 메시지 전송 사용자가 입력한 메시지를 가져옵니다. */
 				let message = $('#msg').val();
 
 				//socket.emit('send', fuck, message);
@@ -66,9 +67,7 @@
 	</head>
 	<body>
 		<h1>시크릿 채팅방 <span id="room" style="font-size: large;"></span></h1>
-
 		<div id="chatList">
-
 		</div>
 
 		<div id="sendMessage" style="position: fixed; bottom: 5%;">
