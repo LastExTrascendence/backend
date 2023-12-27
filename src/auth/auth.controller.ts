@@ -44,6 +44,10 @@ export class AuthController {
   @Get("/redirect")
   @UseGuards(FortyTwoAuthGuard)
   async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
+    // 가능하다면 정적 문자열들(http://localhost:3333...)을 env로 관리하기
+    //
+
     try {
       if (req.user) {
         // console.log('req.user', req.user); //yeomin
