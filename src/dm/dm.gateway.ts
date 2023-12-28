@@ -9,6 +9,9 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
+import { UserService } from "src/user/user.service";
+import { DmDto } from "./dto/dm.dto";
+import { DmService } from "./dm.service";
 
 //path, endpoint
 
@@ -20,7 +23,11 @@ export class DmGateway
 
   @WebSocketServer()
   server: Server;
-  constructor(private redisClient: Redis) {}
+  constructor(
+    private redisClient: Redis,
+    private userService: UserService,
+    private dmService: DmService,
+  ) {}
 
   afterInit() {
     DmGateway.logger.debug(`Socket Server Init Complete`);
@@ -49,11 +56,58 @@ export class DmGateway
   }
 
   @SubscribeMessage("msgToServer")
-  handleMessage(client: Socket, payload: { name: string; text: string }): void {
+  async handleMessage(
+    client: Socket,
+    payload: { sender: number; receiver: string; content: string },
+  ): Promise<string> {
+    //DB에 저장
+    //1. UserDB에서 sender, receiver가 있는지 확인
+    //sender, receiver
+    const sender = await this.userService.findUserById(payload.sender);
+    const receiver = await this.userService.findUserByName(payload.receiver);
+    if (!sender) throw new HttpException("No sender found", 404);
+    else if (!receiver) throw new HttpException("No receiver found", 404);
+
+    //2. 둘다 있으면 저장 중복이면 저장 안함
+    const name = sender.id + "," + receiver.id;
+    if (!(await this.dmService.getdmchannelByName(name))) {
+      const dm_channel = {
+        name: name,
+        created_at: new Date(),
+        deleted_at: new Date(),
+      };
+      this.dmService.createdmchannel(dm_channel);
+    }
+
+    //3. DmUser 저장
+
     // Save the new message to Redis
     this.saveMessageToRedis(this.redisClient, payload);
+
+    const payload2 = {
+      payload : payload,
+      name
+    }
     // Broadcast the message to all connected clients
-    this.server.emit("msgToClient", payload);
+    this.server.emit("msgToClient", payload2);
+    // this.server.emit("comeOn" + channel_name, comeOn);
+    return name;
+  }
+
+  @SubscribeMessage("getRedis")
+  async giveRedis(
+    client: Socket,
+  ): Promise<void> {
+    const chats = await this.fetchChatHistory(client, this.redisClient);
+
+    if (chats) {
+      for (const idx in chats) {
+        const split = chats[idx].split(":");
+        this.server
+          .to(client.id)
+          .emit("msgToClient", { name: split[0], text: split[1] });
+      }
+    }
   }
 
   private async fetchChatHistory(
@@ -73,9 +127,11 @@ export class DmGateway
 
   private saveMessageToRedis(
     redisClient: Redis,
-    payload: { name: string; text: string },
+    payload: { sender: number; receiver: string; content: string },
   ) {
     // Save the new message to Redis
-    redisClient.rpush("chatHistory", `${payload.name}: ${payload.text}`);
+
+    //조건문 추가 -> 여기서 sender, receiver가 있는지 확인 후 없으면 저장 안함
+    // redisClient.rpush("chatHistory", `${payload.name}: ${payload.text}`);
   }
 }
