@@ -39,7 +39,7 @@ export class AuthService {
   }> {
     this.logger.debug(`Called ${AuthService.name} ${this.login.name}`);
     const nickname = user.nickname;
-    const findUser = await this.userService.findUserByName(nickname);
+    const findUser = await this.userService.findUserByNickname(nickname);
     if (!findUser) {
       return null;
     } else {
