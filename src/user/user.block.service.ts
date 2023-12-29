@@ -40,7 +40,7 @@ export class BlockService {
     }
   }
 
-  async findBlock(id: number): Promise<UserBlock[]> {
+  async findBlockAll(id: number): Promise<UserBlock[]> {
     try {
       const user = await this.userService.findUserById(id);
 
@@ -59,6 +59,36 @@ export class BlockService {
       }
 
       return blockedUser;
+    } catch (e) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  async findBlock(
+    blocking_user_id: number,
+    blocked_user_id: number,
+  ): Promise<UserBlock> {
+    try {
+      const blockingUser =
+        await this.userService.findUserById(blocking_user_id);
+      const blockedUser = await this.userService.findUserById(blocked_user_id);
+
+      const blockingUserId = blockingUser.id;
+      const blockedUserId = blockedUser.id;
+
+      const blockedUserById = await this.blockRepository.findOne({
+        where: { user_id: blockingUserId, blocked_id: blockedUserId },
+      });
+
+      //해당 유저가 차단 유저가 없는 경우
+      if (!blockedUserById) {
+        throw new HttpException(
+          "블락된 유저가 존재하지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return blockedUserById;
     } catch (e) {
       throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }

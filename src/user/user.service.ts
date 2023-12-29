@@ -10,7 +10,7 @@ import {
 import { UserDto, UserSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
-import { Repository } from "typeorm";
+import { Like, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { Status } from "./entity/user.enum";
 import { GamePlayers } from "src/game/entity/game.players.entity";
@@ -48,40 +48,14 @@ export class UserService {
       this.logger.error(error);
       throw error;
     }
-    // const user_db = this.userRepository.create({intra_name, nickname, avatar, status});
-    //await this.updateUser(UserDto);
-
-    //jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-    //const user = await this.userRepository.findOne({where : {intra_name}});
-    //if (!user)
-    //{
-    //}
-
-    // if (user && (await bcrypt.compare(intra_name, user.intra_name))){
-    //     //유저 토큰 생성 (Secret + payload)
-    //     const payload = {intra_name};
-    //     const accessToken = await this.jwtService.sign(payload);
-
-    //     return {accessToken : accessToken};
-    // }
-    // else {
-    //     throw new UnauthorizedException('login failed');
-    // }
-    //     return {accessToken : accessToken};
-    // }
-    // else {
-    //     throw new UnauthorizedException('login failed');
-    // }
-
-    //const user = this.userRepository.create({intra_name, nickname});
   }
 
   async updateUser(UserDto: UserDto): Promise<void> {
     UserDto.status = Status.ONLINE;
   }
 
-  async findUserByName(intra_name: string): Promise<User> {
-    const user = await this.userRepository.findOne({ where: { intra_name } });
+  async findUserByNickname(nickname: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { nickname } });
     //const user = await this.boardRepository.findOne(id);
 
     //front요청을 해서 정보를 받아서 그 기반으로 유저 생성해서 db담기
@@ -96,38 +70,74 @@ export class UserService {
     return user;
   }
 
-  async updateUserProfile(userDto: UserDto): Promise<User> {
+  //유저 검색 창에서 유저 검색 기능
+  async searchUserByNickname(nickname: string): Promise<User[]> {
+    const users = await this.userRepository.find({
+      where: {
+        nickname: Like(`%${nickname}%`), // Partial matching for the nickname field
+      },
+      take: 5, // Limit the number of results to 5
+    });
+    return users;
+  }
+
+  async updateUserProfile(
+    userDto: UserDto,
+    file: Express.Multer.File,
+    //profileUrl: string,
+  ): Promise<User> {
     const { id, nickname, avatar, two_fa } = userDto;
     const user = await this.userRepository.findOne({ where: { id } });
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
+    let photoData = null;
+    if (file) {
+      photoData = file.buffer;
+    }
+    //} else if (profileUrl) {
+    //  photoData = profileUrl;
+    //}
+    //user.avatar = photoData;
     await this.userRepository.save(user);
     return user;
   }
 
-  // async signIn(authCredentialDto: AuthCredentialsDto): Promise<{accessToken: string}> {
-  //     const {username, password} = authCredentialDto;
-  //     //console.log('username', username);
-  //     //console.log('password', password);
-  //     const user = await this.userRepository.findOne({where : {username}});
-  //     //console.log('find user', user);
+  //  async updateAvatar(
+  //    nickname: string,
+  //    profileUrl: string,
+  //    file: Express.Multer.File,
+  //  ): Promise<User> {
+  //    try {
+  //      let photoData = null;
+  //      if (file) {
+  //        photoData = file.buffer;
+  //      } else {
+  //        throw new HttpException(
+  //          "파일이 존재하지 않습니다.",
+  //          HttpStatus.BAD_REQUEST,
+  //        );
+  //      }
 
-  //     if (user && (await bcrypt.compare(password, user.password))){
-  //         //유저 토큰 생성 (Secret + payload)
-  //         const payload = {username};
-  //         const accessToken = await this.jwtService.sign(payload);
+  //      const findUser = await this.userService.findUserByNickname(nickname);
 
-  //         return {accessToken : accessToken};
-  //     }
-  //     else {
-  //         throw new UnauthorizedException('login failed');
-  //     }
-  // }
-  //         return {accessToken : accessToken};
-  //     }
-  //     else {
-  //         throw new UnauthorizedException('login failed');
-  //     }
-  // }
+  //      if (!findUser)
+  //        throw new HttpException(
+  //          "유저를 찾을 수 없습니다.",
+  //          HttpStatus.BAD_REQUEST,
+  //        );
+  //      else {
+  //        findUser.avatar = photoData;
+  //        return findUser;
+  //      }
+  //      //await this.userRepository.delete(this.userService.findUser(intra_name));
+
+  //      //await this.userRepository.save(findUser);
+
+  //      ////delete avatar.photoData;
+  //      //return findUser;
+  //    } catch (e) {
+  //      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //    }
+  //  }
 }

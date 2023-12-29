@@ -26,6 +26,11 @@ export class DmGateway
     DmGateway.logger.debug(`Socket Server Init Complete`);
   }
 
+  //create_user 후에 user id를 넘겨줘야함
+
+  //sender : number
+  //receiver : string
+
   async handleConnection(client: Socket) {
     DmGateway.logger.debug(
       `${client.id}(${client.handshake.query["username"]}) is connected!`,
@@ -53,6 +58,11 @@ export class DmGateway
     // Save the new message to Redis
     this.saveMessageToRedis(this.redisClient, payload);
     // Broadcast the message to all connected clients
+
+    //interface
+    //sender :number
+    //receiver : nickname(string)
+    //content :string
     this.server.emit("msgToClient", payload);
   }
 
