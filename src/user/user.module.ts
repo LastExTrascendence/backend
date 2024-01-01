@@ -8,7 +8,6 @@ import { UserService } from "./user.service";
 import * as config from "config";
 import { User } from "./entity/user.entity";
 import { TypeOrmModule } from "@nestjs/typeorm";
-import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
 import { BlockService } from "./user.block.service";
 import { UserFriend } from "./entity/user.friend.entity";
@@ -34,13 +33,7 @@ const jwtConfig = config.get("jwt");
     GameModule,
   ],
   controllers: [UserController],
-  providers: [
-    UserService,
-    AvatarService,
-    PassportModule,
-    FriendService,
-    BlockService,
-  ],
+  providers: [UserService, PassportModule, FriendService, BlockService],
   exports: [UserService],
 })
 export class UserModule {}

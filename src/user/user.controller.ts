@@ -30,7 +30,6 @@ import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
 import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
-import { AvatarService } from "./user.avatar.service";
 import { FriendService } from "./user.friend.service";
 import { UserFriend } from "./entity/user.friend.entity";
 import { BlockService } from "./user.block.service";
@@ -45,7 +44,6 @@ export class UserController {
   private logger = new Logger(UserController.name);
   constructor(
     private userService: UserService,
-    private avatarservice: AvatarService,
     private friendService: FriendService,
     private blockService: BlockService,
     private jwtService: JwtService,
