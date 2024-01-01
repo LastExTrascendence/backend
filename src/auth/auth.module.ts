@@ -18,7 +18,7 @@ const jwtConfig = config.get("jwt");
   imports: [
     PassportModule.register({ defaultStrategy: "jwt" }),
     JwtModule.register({
-      secret: process.env.JWT_SECRET || jwtConfig.secret,
+      secret: jwtConfig.secret,
       signOptions: {
         expiresIn: jwtConfig.expiresIn,
       },
@@ -27,14 +27,8 @@ const jwtConfig = config.get("jwt");
     UserModule,
   ],
   controllers: [AuthController],
-  providers: [
-    UserService,
-    JwtStrategy,
-    AuthService,
-    FortyTwoStrategy,
-    loginStrategy,
-  ],
-  exports: [JwtStrategy, loginStrategy, PassportModule],
+  providers: [UserService, JwtStrategy, AuthService, FortyTwoStrategy],
+  exports: [JwtStrategy, PassportModule, FortyTwoStrategy],
 })
 export class AuthModule {}
 

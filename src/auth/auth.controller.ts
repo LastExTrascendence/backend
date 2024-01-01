@@ -21,7 +21,7 @@ import { JWTSignGuard } from "./jwt/jwtSign.guard";
 
 @Controller("auth")
 export class AuthController {
-  private logger = new Logger(AuthController.name);
+  private logger = new Logger("AuthController");
   constructor(
     private authService: AuthService,
     private readonly userService: UserService,
@@ -35,9 +35,13 @@ export class AuthController {
   }
 
   @Get("/redirect")
-  @UseGuards(FortyTwoAuthGuard, JWTSignGuard)
-  async redirect(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-    this.logger.log(`Called ${AuthController.name} ${this.redirect.name}`);
+  @UseGuards(FortyTwoAuthGuard)
+  async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
+    // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
+    // 가능하다면 정적 문자열들(http://localhost:3333...)을 env로 관리하기
+    //
+
+    this.logger.debug(`Called ${AuthController.name} ${this.redirect.name}`);
     try {
       // const tmp = await this.userService.findUserByName(req.user.intra_name);
       const token = await this.authService.login(req.user);

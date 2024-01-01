@@ -12,7 +12,7 @@ export class FriendService {
     private readonly userService: UserService,
   ) {}
 
-  async addfollowing(
+  async addFriend(
     userId: number,
     following_user_id: number,
   ): Promise<UserFriend> {
@@ -53,7 +53,7 @@ export class FriendService {
     }
   }
 
-  async findFollwing(id: number): Promise<UserFriend[]> {
+  async findAllFriend(id: number): Promise<UserFriend[]> {
     try {
       const user = await this.userService.findUserById(id);
 
@@ -76,7 +76,31 @@ export class FriendService {
     }
   }
 
-  async unfollowing(user_id: number, unfollow_user_id: number): Promise<void> {
+  async findFriend(userId1: number, userId2: number): Promise<UserFriend> {
+    try {
+      const user = await this.userService.findUserById(userId1);
+      const freind = await this.userService.findUserById(userId2);
+      const user_id = user.id;
+      const friend_id = freind.id;
+
+      const friendedUser = await this.friendRepository.findOne({
+        where: { user_id, friend_id },
+      });
+
+      if (!friendedUser) {
+        throw new HttpException(
+          "팔로우할 유저가 존재하지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      return friendedUser;
+    } catch (e) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  async removeFriend(user_id: number, unfollow_user_id: number): Promise<void> {
     try {
       const followedUser = await this.userService.findUserById(user_id);
       const followingUser =

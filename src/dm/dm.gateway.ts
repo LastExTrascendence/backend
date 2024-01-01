@@ -1,168 +1,141 @@
-//import {
-//  ConnectedSocket,
-//  MessageBody,
-//  OnGatewayConnection,
-//  OnGatewayDisconnect,
-//  OnGatewayInit,
-//  SubscribeMessage,
-//  WebSocketGateway,
-//  WebSocketServer,
-//  WsException,
-//} from "@nestjs/websockets";
-//import { Server } from "http";
-//import { Socket } from "socket.io";
-//import { AuthService } from "src/auth/auth.service";
-//import { UserService } from "src/user/user.service";
-//import { DmService } from "./dm.service";
+import { HttpException, Logger } from "@nestjs/common";
+import {
+  OnGatewayConnection,
+  OnGatewayDisconnect,
+  OnGatewayInit,
+  SubscribeMessage,
+  WebSocketGateway,
+  WebSocketServer,
+} from "@nestjs/websockets";
+import { Server, Socket } from "socket.io";
+import { Redis } from "ioredis";
+import { UserService } from "src/user/user.service";
+import { DmDto } from "./dto/dm.dto";
+import { DmService } from "./dm.service";
 
-////https://4sii.tistory.com/487
+//path, endpoint
 
-//@WebSocketGateway(80, { namespace: "dm", cors: true })
-//export class DmGateWay
-//  implements OnGatewayInit, OnGatewayConnection, OnGatewayDisconnect
-//{
-//  constructor(
-//    private readonly authService: AuthService,
-//    private readonly userService: UserService,
-//    private readonly dmservice: DmService,
-//  ) {}
+@WebSocketGateway(83, { namespace: "dm", cors: true })
+export class DmGateway
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
+  private static readonly logger = new Logger(DmGateway.name);
 
-//  @WebSocketServer()
-//  public server: Server;
+  @WebSocketServer()
+  server: Server;
+  constructor(
+    private redisClient: Redis,
+    private userService: UserService,
+    private dmService: DmService,
+  ) {}
 
-//  /* --------------------------
-//        |				handleConnection 		|
-//        |				handleDisconnect		|
-//        ---------------------------*/
+  afterInit() {
+    DmGateway.logger.debug(`Socket Server Init Complete`);
+  }
 
-//  async afterInit(): Promise<void> {
-//    //나중에 끊었다가 다시 접속했을 떄 기록이 남아있는지 확인 필요
-//    //await this.dmservice.deleteChatRoomAll();
-//    //await this.dmservice.deleteChatRoomDmAll();
-//  }
+  //create_user 후에 user id를 넘겨줘야함
 
-//  async handleConnection(@ConnectedSocket() socket: Socket): Promise<void> {
-//    try {
-//      // DM하려는 상대가 친구가 아니라면
-//      const user = await this.userService.findUser(socket);
-//      if (!user) {
-//        socket.disconnect();
-//        throw new WsException("소켓 연결 유저 없습니다.");
-//      }
+  //sender : number
+  //receiver : string
 
-//      await this.userService.updateStatus(user.id, userStatus.ONLINE);
+  async handleConnection(client: Socket) {
+    DmGateway.logger.debug(
+      `${client.id}(${client.handshake.query["username"]}) is connected!`,
+    );
 
-//      await this.chatService.deleteChatRoomIfOwner(user.id);
-//      const initChatRooms = await this.chatService
-//        .findChatRoomByUserId(user.id)
-//        .catch(() => null);
+    // Fetch chat history from Redis and send it to the connected client
+    const chats = await this.fetchChatHistory(client, this.redisClient);
 
-//      if (initChatRooms) {
-//        for (const initChatRoom of initChatRooms) {
-//          await this.chatService.leaveChatRoom(
-//            user.id,
-//            initChatRoom.id,
-//            user.id,
-//          );
-//        }
-//      }
-//      await this.chatService.deleteChatRoomDmIfOwner(user.id);
-//      const initChatRoomDms = await this.chatService
-//        .findChatRoomDmByUserId(user.id, ["joinedDmUser", "owner"])
-//        .catch(() => null);
-//      if (initChatRoomDms) {
-//        for (const initChatRoomDm of initChatRoomDms) {
-//          await this.chatService.leaveChatRoomDm(
-//            user.id,
-//            initChatRoomDm.id,
-//            user.id,
-//          );
-//        }
-//      }
-//      const chatRooms = await this.chatService.findChatRoomByUserId(user.id);
-//      const chatRoomsDm = await this.chatService.findChatRoomDmByUserId(
-//        user.id,
-//      );
-//      const allChatRooms = await this.chatService.findChatRoomAll();
+    if (chats) {
+      for (const idx in chats) {
+        const split = chats[idx].split(":");
+        this.server
+          .to(client.id)
+          .emit("msgToClient", { name: split[0], text: split[1] });
+      }
+    }
+  }
 
-//      socket.data.user = user;
-//      socket_username[user.username] = socket;
+  handleDisconnect(client: Socket) {
+    DmGateway.logger.debug(`${client.id} is disconnected...`);
+  }
 
-//      socket.emit("connection", {
-//        message: `${user.username} 연결`,
-//        user,
-//        chatRooms,
-//        chatRoomsDm,
-//        allChatRooms,
-//      });
-//    } catch (e) {
-//      return new WsException(e.message);
-//    }
-//  }
-//  async handleDisconnect(
-//    @ConnectedSocket() socket: Socket,
-//  ): Promise<WsException | void> {
-//    try {
-//      const user = socket.data.user;
-//      if (!user) throw new WsException("소켓 연결 유저 없습니다.");
+  @SubscribeMessage("msgToServer")
+  async handleMessage(
+    client: Socket,
+    payload: { sender: number; receiver: string; content: string },
+  ): Promise<string> {
+    //DB에 저장
+    //1. UserDB에서 sender, receiver가 있는지 확인
+    //sender, receiver
+    const sender = await this.userService.findUserById(payload.sender);
+    const receiver = await this.userService.findUserByNickname(
+      payload.receiver,
+    );
+    if (!sender) throw new HttpException("No sender found", 404);
+    else if (!receiver) throw new HttpException("No receiver found", 404);
 
-//      const disconnectUser = await this.userService.findUserById(user.id);
+    //2. 둘다 있으면 저장 중복이면 저장 안함
+    const name = sender.id + "," + receiver.id;
+    if (!(await this.dmService.getdmchannelByName(name))) {
+      const dm_channel = {
+        name: name,
+        created_at: new Date(),
+        deleted_at: new Date(),
+      };
+      this.dmService.createdmchannel(dm_channel);
+    }
 
-//      await this.chatService.deleteChatRoomIfOwner(user.id);
-//      const chatRooms = await this.chatService
-//        .findChatRoomByUserId(disconnectUser.id)
-//        .catch(() => null);
-//      if (chatRooms) {
-//        for (const chatRoom of chatRooms) {
-//          const leaveUser = {
-//            targetUserId: disconnectUser.id,
-//            chatRoomId: chatRoom.id,
-//          };
-//          await this.leaveChatRoom(socket, leaveUser);
-//        }
-//      }
+    //3. DmUser 저장
 
-//      await this.chatService.deleteChatRoomDmIfOwner(user.id);
-//      const chatRoomDms = await this.chatService
-//        .findChatRoomDmByUserId(disconnectUser.id)
-//        .catch(() => null);
-//      if (chatRoomDms) {
-//        for (const chatRoomDm of chatRoomDms) {
-//          const leaveUser = {
-//            targetUserId: disconnectUser.id,
-//            chatRoomId: chatRoomDm.id,
-//          };
-//          await this.leaveChatRoomDm(socket, leaveUser);
-//        }
-//      }
+    // Save the new message to Redis
+    this.saveMessageToRedis(this.redisClient, payload);
 
-//      const chatRoom = await this.chatService.findChatRoomByUserId(
-//        disconnectUser.id,
-//      );
-//      const chatRoomDm = await this.chatService.findChatRoomDmByUserId(
-//        disconnectUser.id,
-//      );
+    const payload2 = {
+      payload: payload,
+      name,
+    };
+    // Broadcast the message to all connected clients
+    this.server.emit("msgToClient", payload2);
+    // this.server.emit("comeOn" + channel_name, comeOn);
+    return name;
+  }
 
-//      socket.emit("disconnectiton", {
-//        message: `${user.username} 연결해제`,
-//        disconnectUser,
-//        chatRoom,
-//        chatRoomDm,
-//      });
-//    } catch (e) {
-//      return new WsException(e.message);
-//    }
-//  }
+  @SubscribeMessage("getRedis")
+  async giveRedis(client: Socket): Promise<void> {
+    const chats = await this.fetchChatHistory(client, this.redisClient);
 
-//  @SubscribeMessage("new_user")
-//  handleNewUser(
-//    @MessageBody() username: string,
-//    @ConnectedSocket() socket: Socket,
-//  ) {
-//    console.log(socket.id);
+    if (chats) {
+      for (const idx in chats) {
+        const split = chats[idx].split(":");
+        this.server
+          .to(client.id)
+          .emit("msgToClient", { name: split[0], text: split[1] });
+      }
+    }
+  }
 
-//    console.log(username);
-//    socket.emit("hello_user", `hello ${username}`);
-//    return "hello world";
-//  }
-//}
+  private async fetchChatHistory(
+    client: Socket,
+    redisClient: Redis,
+  ): Promise<string[] | void> {
+    try {
+      const chatHistory = await redisClient.lrange("chatHistory", 0, -1);
+      console.log(chatHistory);
+      return chatHistory;
+    } catch (error) {
+      // Handle errors, log, or emit an error event to the client
+      console.error("Error fetching chat history from Redis:", error);
+      client.emit("error", "Failed to fetch chat history");
+    }
+  }
+
+  private saveMessageToRedis(
+    redisClient: Redis,
+    payload: { sender: number; receiver: string; content: string },
+  ) {
+    // Save the new message to Redis
+    //조건문 추가 -> 여기서 sender, receiver가 있는지 확인 후 없으면 저장 안함
+    // redisClient.rpush("chatHistory", `${payload.name}: ${payload.text}`);
+  }
+}
