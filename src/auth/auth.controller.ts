@@ -81,40 +81,29 @@ export class AuthController {
     }
   }
 
-  //@Post('/otp')
-  //async setOtpCookie(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-  //    const body = req.body;
-  //    if (body.otp && body.secret) {
-  //    const isValid = this.authService.isTwoFactorAuthCodeValid(body.otp, body.secret);
-  //    console.log('isValid', isValid);
-  //    if (isValid) {
-  //        res.cookie('two_factor_auth', true, {
-  //        httpOnly: false,
-  //        });
-  //    }
-  //    res.status(302).redirect(`${process.env.HOST}:${process.env.CLIENT_PORT}`);
-  //    }
-  //}
-
-  //@Post('/otp/on')
+  //@Post("/otp/generate")
   //@UseGuards(JWTAuthGuard)
-  //updateOtpOn(@Req() req: any): Promise<object> | HttpException {
+  //async generateOtp(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  //  this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
   //  try {
-  //    return this.authService.onOtp(req.user);
-  //  } catch (e) {
-  //    return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //    const user = await this.userService.findUserByNickname(req.user.nickname);
+  //    if (!user) {
+  //      return new HttpException("User not found", HttpStatus.NOT_FOUND);
+  //    }
+  //    const otp = await this.authService.generateOtp(user);
+  //    if (!otp) {
+  //      return new HttpException(
+  //        "OTP generation failed",
+  //        HttpStatus.BAD_REQUEST,
+  //      );
+  //    }
+  //    res.cookie("two_factor_auth", otp);
+  //    res.status(200).json({ otp });
+  //  } catch (error) {
+  //    return new HttpException(error.message, HttpStatus.BAD_REQUEST);
   //  }
   //}
 
-  //@Post('/otp/off')
-  //@UseGuards(JWTAuthGuard)
-  //updateOtpOff(@Req() req: any): Promise<object> | HttpException {
-  //  try {
-  //    return this.authService.offOtp(req.user.userId);
-  //  } catch (e) {
-  //    return new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //  }
-  //}
   //@Get('/42logout')
   //logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
   //    res.clearCookie('two_factor_auth');
