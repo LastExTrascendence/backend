@@ -94,6 +94,25 @@ export class GameGateWay {
     const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
     if (!roomStatus) {
       this.redisClient.del(data.game_title);
+    } else if (roomStatus.find((user) => user === user_id)) {
+      this.redisClient.del(data.game_title);
+    }
+  }
+
+  @SubscribeMessage("kick")
+  async kickSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() Socket: Socket,
+  ) {
+    const { game_title, user_id } = data;
+
+    await this.redisClient.lrem(game_title, 1, user_id);
+    const leave = `${user_id}님이 퇴장했습니다.`;
+    this.server.emit("leave" + game_title, leave);
+
+    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
+    if (!roomStatus) {
+      this.redisClient.del(data.game_title);
     }
   }
 

@@ -1,44 +1,3 @@
-// import {
-//   ConnectedSocket,
-//   MessageBody,
-//   SubscribeMessage,
-//   WebSocketGateway,
-//   WebSocketServer,
-// } from '@nestjs/websockets';
-
-// @WebSocketGateway(81, { namespace: 'chat', cors:true },
-// )
-// export class ChatGateway {
-//   @WebSocketServer()
-//   server;
-
-//   wsClients = [];
-
-//   @SubscribeMessage('hihi')
-//   connectSomeone(@MessageBody() data: string, @ConnectedSocket() client) {
-//     const [nickname, room] = data;
-//     console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
-//     const comeOn = `${nickname}님이 입장했습니다.`;
-//     this.server.emit('comeOn' + room, comeOn);
-//     this.wsClients.push(client);
-//   }
-
-//   private broadcast(event, client, message: any) {
-//     for (let c of this.wsClients) {
-//       if (client.id == c.id)
-//         continue;
-//       c.emit(event, message);
-//     }
-//   }
-
-//   @SubscribeMessage('send')
-//   sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-//     const [room, nickname, message] = data;
-//     console.log(`${client.id} : ${data}`);
-//     this.broadcast(room, client, [nickname, message]);
-//   }
-// }
-
 import { Logger, OnModuleInit } from "@nestjs/common";
 import {
   ConnectedSocket,
@@ -55,23 +14,7 @@ import { ChannelsService } from "./channel.service";
 import { Channels_dto } from "./channel_dto/channels.dto";
 import { Channel_Status } from "./channel.enum";
 import { SaveOptions, RemoveOptions } from "typeorm";
-import { ChannelUserService } from "./channel.user.service";
-
-// @WebSocketGateway({ namespace : 'channel' })
-// @WebSocketGateway(81, {
-//   namespace: 'chat',
-//   // cors: true
-//   // cors: {
-//   //   origin: '*',
-//   //   methods: ['GET', 'POST'],
-//   // }
-//   // cors: {
-//   //   origin: "http://localhost:3000",
-//   //   methods: ["GET", "POST"],
-//   //   credentials: true
-//   // }
-//   })
-
+import { Redis } from "ioredis";
 @WebSocketGateway(81, {
   namespace: "chat",
   cors: true,
@@ -85,7 +28,8 @@ export class ChannelGateWay {
   private logger = new Logger("ChannelGateWay");
   constructor(
     private readonly channelsService: ChannelsService,
-    private readonly channelUserSerivce: ChannelUserService,
+    //private readonly channelUserSerivce: ChannelUserService,
+    private redisClient: Redis,
   ) {}
 
   handleRoomCreation(roomName: string) {
@@ -104,96 +48,61 @@ export class ChannelGateWay {
   handleDisconnect(Socket: Socket) {}
 
   //----------------------------------------------
-  @SubscribeMessage("hihi")
-  //원래는 channel_user_dto가 data안에 와야됨
-  //connectSomeone(@MessageBody() data: channel_user_dto, @ConnectedSocket() Socket: Socket)
+  @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
-    console.log("data", data);
-    const { channel_name, user_id } = data;
-    // const channel_name = data.channel_name;
-    // const user_id = data.user_id;
-    console.log(`${user_id}님이 코드: ${channel_name}방에 접속했습니다.`);
+    const { game_title, user_id } = data;
+
+    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
+
+    try {
+      if (!roomStatus) {
+        await this.redisClient.rpush(game_title, user_id);
+      } else if (roomStatus.length > 2) {
+        throw new Error("방이 꽉 찼습니다.");
+      } else if (roomStatus && roomStatus.includes(user_id)) {
+        throw new Error("이미 방에 있습니다.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+
+    console.log(`${user_id}님이 코드: ${game_title}방에 접속했습니다.`);
     console.log(`${user_id}님이 입장했습니다.`);
-    // this.server.emit(channel_name);
     const comeOn = `${user_id}님이 입장했습니다.`;
-    this.server.emit("comeOn" + channel_name, comeOn);
+    this.server.emit("comeOn" + game_title, comeOn);
     this.wsClients.push(Socket);
 
-    //채널이 이미 있으면 DB에 넣지 않고 있으면 DB를 만든다.
-    const channel = await this.channelsService.getdbchannel(channel_name);
-    if (!channel) {
-      this.logger.debug(
-        `channel_name : ${channel_name} is already exist, in getdbchannelName`,
-      );
-      console.log("channel_name", channel_name);
-      const channelData = {
-        name: channel_name,
-        type: Channel_Status.PUBLIC,
-        description: "Channel Description",
-        created_at: new Date(),
-        deleted_at: new Date(),
-      };
-      await this.channelsService.createdbchannel(channelData);
-    }
-    //채널에 대한 id를 가져오기
-    // const id = this.channelsService.
-    const channel_id = await this.channelsService.getdbchannel_id(channel_name);
-    console.log("channel_id", channel_id);
-    //id를 사용자에 넣어주기
-    const channelUser = {
-      user_id: user_id,
-      channel_id: channel_id,
-      role: "User Description",
-      created_at: new Date(),
-      deleted_at: new Date(),
-    };
-
-    this.channelUserSerivce.createuser(channelUser);
-
-    //채널에 사용자 추가
-    // const UserData = {
-    //   user_id: "12",
-    //   channel_id : channel_id,
-    //   role: 'User Description',
-    //   created_at: new Date(),
-    //   deleted_at: new Date()
-    // };
-    // await this.channelUserSerivce.createuser(UserData);
-
-    // this.channelsService.createdbchannel(channelData);
-
-    // if (await this.channelsService.getUserschannel(channel_id, user_id))
-    // {
-    //   this.logger.debug(`channel_id : ${channel_id} is already exist, in getdbchannelName`);
-    //     console.log('channel_id', channel_id)
-    //     const channelData = {
-    //       name: channel_id,
-    //       type: Channel_Status.PUBLIC,
-    //       description: 'Channel Description',
-    //       created_at: new Date(),
-    //       deleted_at: new Date()
-    //     };
-    //     this.channelsService.createdbchannel(channelData);
-    // }
+    //this.channelUserSerivce.createuser(channelUser);
   }
 
-  // @SubscribeMessage('hihi')
-  // connectSomeone(
-  //   @MessageBody() data: string,
-  //   @ConnectedSocket() client: Socket,
-  // ) {
-  //   // console.log('client', client)
-  //   // console.log('data',data )
-  //   const [nickname, room] = data;
-  //   console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
-  //   const comeOn = `${nickname}님이 입장했습니다.`;
-  //   this.server.emit('comeOn' + room, comeOn);
-  //   this.wsClients.push(client);
-  //}
-  //----------------------------------------------
+  //채널에 사용자 추가
+  // const UserData = {
+  //   user_id: "12",
+  //   channel_id : channel_id,
+  //   role: 'User Description',
+  //   created_at: new Date(),
+  //   deleted_at: new Date()
+  // };
+  // await this.channelUserSerivce.createuser(UserData);
+
+  // this.channelsService.createdbchannel(channelData);
+
+  // if (await this.channelsService.getUserschannel(channel_id, user_id))
+  // {
+  //   this.logger.debug(`channel_id : ${channel_id} is already exist, in getdbchannelName`);
+  //     console.log('channel_id', channel_id)
+  //     const channelData = {
+  //       name: channel_id,
+  //       type: Channel_Status.PUBLIC,
+  //       description: 'Channel Description',
+  //       created_at: new Date(),
+  //       deleted_at: new Date()
+  //     };
+  //     this.channelsService.createdbchannel(channelData);
+  // }
 
   private broadcast(event, client, message: any) {
     for (let c of this.wsClients) {
@@ -215,7 +124,6 @@ export class ChannelGateWay {
     this.broadcast(room, client, [nickname, message]);
   }
 }
-
 // export class ChannelGateWay implements OnModuleInit{
 //   @WebSocketServer()
 //   server : Server;
