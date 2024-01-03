@@ -1,7 +1,8 @@
-import {Module} from "@nestjs/common"
+import { Module } from "@nestjs/common";
 import { SocketClient } from "./socket_client";
+import { Redis } from "ioredis";
 
 @Module({
-   providers : [SocketClient], 
+  providers: [SocketClient, Redis],
 })
 export class SocketModule {}

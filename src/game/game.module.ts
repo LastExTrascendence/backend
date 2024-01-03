@@ -8,11 +8,12 @@ import { Game } from "./entity/game.entity";
 import { GamePlayers } from "./entity/game.players.entity";
 import { GameController } from "./game.controller";
 import { UserModule } from "src/user/user.module";
+import { Redis } from "ioredis";
 
 @Module({
   imports: [TypeOrmModule.forFeature([Game, GamePlayers])],
   controllers: [GameController],
-  providers: [GameService, GamePlayerService],
-  exports: [GameService, GamePlayerService],
+  providers: [GameService, GamePlayerService, Redis],
+  exports: [GameService, GamePlayerService, Redis],
 })
 export class GameModule {}
