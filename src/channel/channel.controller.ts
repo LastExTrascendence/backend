@@ -34,7 +34,7 @@ export class ChannelController {
 
   @Post("/create")
   async createChannel(
-    @Req() req: any,
+    @Req() req: any, // ChatChannelInfoDto
     @Res() res: any,
   ): Promise<void | HttpException> {
     try {
@@ -46,7 +46,7 @@ export class ChannelController {
 
       // Redirect with JSON payload in the request body
       res.redirect("/channel/enter", 301, {
-        name: req.name,
+        req: req,
         password: password,
       });
     } catch (error) {
@@ -57,15 +57,14 @@ export class ChannelController {
 
   @Post("/enter")
   async enterChannel(
-    @Body("name") name: string,
+    @Body("req") req: any,
     @Body("password") password: string,
-    @Req() req: any,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(
         `Called ${ChannelController.name} ${this.enterChannel.name}`,
       );
-      await this.channelsService.enterChannel(name, password, req);
+      await this.channelsService.enterChannel(req, password);
     } catch (error) {
       this.logger.error(error);
       throw error;

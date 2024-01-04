@@ -13,12 +13,13 @@ import {
   Put,
   Query,
   Req,
+  Res,
   UploadedFile,
   UseGuards,
   UseInterceptors,
   ValidationPipe,
 } from "@nestjs/common";
-import { GameDto, GamePlayersDto } from "./dto/game.dto";
+import { GameChannelListDto, GameDto, GamePlayersDto } from "./dto/game.dto";
 import { GamePlayerService } from "./game.players.service";
 import { GameService } from "./game.service";
 
@@ -33,12 +34,19 @@ export class GameController {
   //게임 방 입장
 
   @Post("/create")
-  async createGame(@Req() req: any): Promise<void | HttpException> {
+  async createGame(
+    @Req() req: any,
+    @Res() res: any,
+  ): Promise<void | HttpException> {
     try {
       this.logger.debug(
         `Called ${GameController.name} ${this.createGame.name}`,
       );
-      await this.gameService.createGame(req);
+      const password = await this.gameService.createGame(req);
+      res.redirect("/game/enter", 301, {
+        req: req,
+        password: password,
+      });
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -47,13 +55,12 @@ export class GameController {
 
   @Post("/enter")
   async enterGame(
-    @Query("game_title") game_title: string,
-    @Query("password") password: string,
-    @Req() req: any,
+    @Body("req") req: any,
+    @Body("password") password: string,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${GameController.name} ${this.enterGame.name}`);
-      await this.gameService.enterGame(game_title, password, req);
+      await this.gameService.enterGame(req, password);
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -63,10 +70,10 @@ export class GameController {
   @Get("/rooms")
   async getRooms(
     @Req() req: any,
-  ): Promise<Record<string, string>[] | HttpException> {
+  ): Promise<GameChannelListDto[] | HttpException> {
     try {
       this.logger.debug(`Called ${GameController.name} ${this.getRooms.name}`);
-      return await this.gameService.getRooms(req);
+      return await this.gameService.getGameRooms(req);
     } catch (error) {
       this.logger.error(error);
       throw error;

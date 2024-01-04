@@ -1,5 +1,13 @@
 import { IsString, Matches, MaxLength, MinLength } from "class-validator";
-import { Mode, Role, Type, Status } from "../entity/game.enum";
+import {
+  Mode,
+  Role,
+  Type,
+  Status,
+  ChannelPolicy,
+  GameType,
+  GameMode,
+} from "../entity/game.enum";
 import { Game } from "../entity/game.entity";
 
 /**
@@ -45,4 +53,25 @@ export class GamePlayersDto {
   user_id: number;
   score: number;
   role: Role;
+}
+
+export interface UserInfoDto {
+  nickname: string;
+  avatar: string;
+}
+
+export interface ChannelDto {
+  title: string;
+  channelPolicy: ChannelPolicy;
+  password: string | null;
+  creator: UserInfoDto;
+}
+// 게임채널 리스트 보여줄 시
+export interface GameChannelListDto extends ChannelDto {
+  title: string;
+  channelPolicy: ChannelPolicy;
+  password: string | null;
+  creator: UserInfoDto;
+  gameType: GameType;
+  gameMode: GameMode;
 }
