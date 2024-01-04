@@ -18,3 +18,18 @@ export enum Role {
   WINNER = "WINNER",
   LOSER = "LOSER",
 }
+
+export enum GameType {
+  NORMAL = "NORMAL",
+  LADDER = "LADDER",
+}
+
+export enum GameMode {
+  NORMAL = "NORMAL",
+  SPEED = "SPEED",
+}
+
+export enum ChannelPolicy {
+  PUBLIC = "PUBLIC",
+  PRIVATE = "PRIVATE",
+}
