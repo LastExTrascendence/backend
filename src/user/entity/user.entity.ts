@@ -5,7 +5,7 @@ import {
   PrimaryGeneratedColumn,
   Unique,
 } from "typeorm";
-import { Status } from "./user.enum";
+import { UserStatus } from "./user.enum";
 
 @Entity()
 export class User extends BaseEntity {
@@ -30,7 +30,7 @@ export class User extends BaseEntity {
   two_fa: boolean;
 
   @Column()
-  status: Status;
+  status: UserStatus;
 
   @Column()
   created_at: Date;
