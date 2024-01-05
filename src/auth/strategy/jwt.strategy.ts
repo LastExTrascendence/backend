@@ -8,7 +8,7 @@ import { Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 
 @Injectable()
-export class JwtStrategy extends PassportStrategy(Strategy) {
+export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private jwtService: JwtService,
@@ -19,26 +19,14 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
     });
   }
 
-  // constructor(
-  //     @InjectRepository(UserRepository)
-  //     private userRepository : UserRepository
-  // ){
-  //     super({
-  //         secretOrKey : process.env.JWT_SECRET || Config.get('jwt.secret'),
-  //         jwtFromRequest : ExtractJwt.fromAuthHeaderAsBearerToken()
-  //     })
-  // }
-
   async validate(payload): Promise<User> {
     const { intra_name } = payload;
     const user: User = await this.userRepository.findOne({
       where: { intra_name },
     });
-
     if (!user) {
       throw new UnauthorizedException();
     }
-
     return user;
   }
 }

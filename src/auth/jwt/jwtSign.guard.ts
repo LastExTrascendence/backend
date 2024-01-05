@@ -29,6 +29,9 @@ export class JWTSignGuard implements CanActivate {
   }
 
   private generateJWTToken(request: Request, response: Response): boolean {
+    this.logger.verbose(
+      `Called ${JWTSignGuard.name} ${this.generateJWTToken.name}`,
+    );
     const user = request.user as UserSessionDto | undefined;
     if (user === undefined) {
       this.logger.debug(`can't generate JWTToken`);
@@ -43,7 +46,7 @@ export class JWTSignGuard implements CanActivate {
       const cookieOptions: CookieOptions = {
         expires,
         httpOnly: false,
-        domain: "cabi.42seoul.io",
+        domain: "localhost:3333",
       };
       response.cookie("access_token", token, cookieOptions);
     }

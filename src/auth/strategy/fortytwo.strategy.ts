@@ -2,6 +2,8 @@ import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, VerifyCallback } from "passport-42";
 import * as config from "config";
+import { UserSessionDto } from "src/user/dto/user.dto";
+import { UserStatus } from "src/user/entity/user.enum";
 
 const ftConfig = config.get("FORTYTWO");
 
@@ -13,12 +15,12 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, "fortytwo") {
       clientID: ftConfig.get<string>("CLIENT_ID"),
       clientSecret: ftConfig.get<string>("CLIENT_SECRET"),
       callbackURL: ftConfig.get<string>("CALLBACK_URL"),
-      scope: `public`,
       passReqToCallback: true,
       profileFields: {
         email: "email",
         intra_name: "login",
       },
+      scope: `public`,
     });
   }
 
@@ -27,14 +29,19 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, "fortytwo") {
     access_token: string,
     refresh_token: string,
     profile: any,
-    callback: VerifyCallback,
+    callback,
   ): Promise<any> {
     this.logger.verbose(
       `Called ${FortyTwoStrategy.name} ${this.validate.name} by ${profile.intra_name}`,
     );
-    const user = {
-      intra_name: profile.intra_name,
+    const user: UserSessionDto = {
+      id: profile.user_id,
+      nickname: null,
+      avatar: null,
       email: profile.email,
+      two_fa: false,
+      status: UserStatus.OFFLINE,
+      intra_name: profile.intra_name,
     };
     callback(null, user);
   }
