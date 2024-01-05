@@ -9,10 +9,12 @@ import {
   ChatChannelInfoDto,
   ChatChannelUserDto,
   ChatChannelUserRole,
+  ChatChannelConnectDto,
 } from "./channel_dto/channels.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { channelUser } from "./channel_entity/channel.user.entity";
+import { UserService } from "src/user/user.service";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
 //2. 채널 입장 시 유저 정보를 channelsUser DB에 담기
@@ -24,7 +26,7 @@ export class ChannelsService {
     private channelsRepository: Repository<channels>,
     @InjectRepository(channelUser)
     private channelUserRepository: Repository<channelUser>,
-    //private channelsRepository: ChannelsRepository
+    private userService: UserService,
     private RedisClient: Redis,
   ) {}
 
@@ -32,21 +34,11 @@ export class ChannelsService {
   //     @InjectRepository(channels) private channelsRepository:Repository<channels>,
   // ){ }
 
-  async createChannel(req: any): Promise<number | HttpException> {
+  async createChannel(
+    chatChannelConnectDto: ChatChannelConnectDto,
+  ): Promise<number | HttpException> {
     try {
-      console.log(req);
-      const ChannelInfo = await this.RedisClient.lrange(`${req.title}`, 0, -1);
-      const password = await bcrypt.hash(req.password, 10);
-
-      if ((await ChannelInfo).find((title) => title === req.title)) {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "이미 존재하는 방입니다.",
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      } else if (req.title.length > 20) {
+      if (chatChannelConnectDto.title.length > 20) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -55,43 +47,76 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
-      await this.RedisClient.hset(`${req.title}`, "title", req.title);
-      await this.RedisClient.hset(`${req.title}`, "password", password);
+
+      const ChannelInfo = await this.RedisClient.lrange(
+        `${chatChannelConnectDto.title}`,
+        0,
+        -1,
+      );
+      if (ChannelInfo.length !== 0) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "이미 존재하는 방입니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
 
       const channelinfo = {
-        title: req.title,
-        channelPolicy: ChannelPolicy.PUBLIC,
-        creator: req.user.nickname,
-        curUser: 1,
-        maxUser: req.maxUser,
-        avatar: req.user.avatar,
-        create_at: new Date(),
-        delete_at: null,
+        title: chatChannelConnectDto.title,
+        channelpolicy: ChannelPolicy.PUBLIC,
+        creator: chatChannelConnectDto.nickname,
+        curuser: 0,
+        maxuser: chatChannelConnectDto.maxuser,
+        avatar: chatChannelConnectDto.avatar,
+        created_at: new Date(),
+        deleted_at: null,
       };
-      if (req.password) {
-        channelinfo.channelPolicy = ChannelPolicy.PRIVATE;
+      if (chatChannelConnectDto.password) {
+        channelinfo.channelpolicy = ChannelPolicy.PRIVATE;
       }
 
       await this.channelsRepository.save(channelinfo);
 
-      const newChannel = await this.channelsRepository.findOne({
+      const channelId = await this.channelsRepository.findOne({
         where: { title: channelinfo.title },
       });
 
-      const userInfo = {
-        user_id: req.user.id,
-        channel_id: newChannel.id,
+      const userId = await this.userService.findUserByNickname(
+        chatChannelConnectDto.nickname,
+      );
+
+      const newUserInfo = {
+        userId: userId.id,
+        channelId: channelId.id,
         role: ChatChannelUserRole.CREATOR,
         mute: false,
-        create_at: new Date(),
-        delete_at: null,
+        created_at: new Date(),
+        deleted_at: null,
       };
 
-      await this.channelUserRepository.save(userInfo);
+      await this.channelUserRepository.save(newUserInfo);
       //await this.RedisClient.rpush(`${req.name}`, `user id: ${req.user_id}`);
       // 피그마에 따라 프론트에서 받아야할 데이터 추후 수정 필요
       // name, creator, 채널 내 유저 수 (유저 수 / 방 정원), type
-      return newChannel.id;
+      const password = await bcrypt.hash(chatChannelConnectDto.password, 10);
+
+      await this.RedisClient.hset(
+        `${chatChannelConnectDto.title}`,
+        "title",
+        chatChannelConnectDto.title,
+      );
+
+      if (chatChannelConnectDto.password) {
+        await this.RedisClient.hset(
+          `${chatChannelConnectDto.title}`,
+          "password",
+          password,
+        );
+      }
+
+      return newUserInfo.channelId;
     } catch (error) {
       throw error;
     }
