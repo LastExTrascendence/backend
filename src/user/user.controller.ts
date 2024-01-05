@@ -57,6 +57,7 @@ export class UserController {
     @Headers() headers: any,
     @Body(ValidationPipe) userDto: UserDto,
   ): Promise<{ access_token: string }> {
+    this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
     const userSessionDto: UserSessionDto = {
@@ -65,14 +66,12 @@ export class UserController {
       email: decoded_token["email"],
     };
     try {
-      this.logger.debug(
-        `Called ${UserController.name} ${this.createUser.name}`,
-      );
       return this.userService.createUser(userSessionDto);
     } catch (error) {
       this.logger.error(error);
       throw error;
     }
+    return null;
   }
 
   //특정 유저의 특정 한 유저 친구 추가
