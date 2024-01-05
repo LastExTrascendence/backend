@@ -1,4 +1,4 @@
-import { Status } from "../entity/user.enum";
+import { UserStatus } from "../entity/user.enum";
 
 /**
  * @description 유저의 기본 정보를 담은 DTO
@@ -21,7 +21,7 @@ export class UserProfileDto {
   avatar: string;
   email: string;
   two_fa: boolean;
-  status: Status;
+  status: UserStatus;
 
   is_friend: boolean;
   at_friend: Date;

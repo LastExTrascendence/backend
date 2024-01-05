@@ -12,7 +12,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import { Status } from "./entity/user.enum";
+import { UserStatus } from "./entity/user.enum";
 import { GamePlayers } from "src/game/entity/game.players.entity";
 import { UserProfileDto } from "./dto/user.profile.dto";
 
@@ -32,7 +32,7 @@ export class UserService {
       intra_name: intra_name,
       nickname: nickname,
       avatar: avatar,
-      status: Status.OFFLINE,
+      status: UserStatus.OFFLINE,
       email: email,
       two_fa: false,
       created_at: new Date(),
@@ -51,7 +51,7 @@ export class UserService {
   }
 
   async updateUser(UserDto: UserDto): Promise<void> {
-    UserDto.status = Status.ONLINE;
+    UserDto.status = UserStatus.ONLINE;
   }
 
   async findUserByNickname(nickname: string): Promise<User> {
