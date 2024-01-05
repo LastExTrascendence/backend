@@ -71,10 +71,7 @@ export class GameService {
     }
   }
 
-  async enterGame(
-    req: any,
-    password: string,
-  ): Promise<string[] | HttpException> {
+  async enterGame(req: any): Promise<string[] | HttpException> {
     try {
       const GameInfo = await this.RedisClient.lrange(
         `Game: ${req.title}`,
@@ -94,8 +91,8 @@ export class GameService {
       const checkIds = GameInfo.filter((value) =>
         /^user nickname: \d+$/.test(value),
       );
-      if (password && req.ChannelPolicy === ChannelPolicy.PRIVATE) {
-        const isMatch = await bcrypt.compare(password, (await GameInfo)[1]);
+      if (req.password && req.ChannelPolicy === ChannelPolicy.PRIVATE) {
+        const isMatch = await bcrypt.compare(req.password, (await GameInfo)[1]);
         if (!isMatch) {
           throw new HttpException(
             {
