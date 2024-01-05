@@ -35,7 +35,7 @@ export class AuthController {
   async FortyTwoAuth(@Res() res: Response) {
     this.logger.debug(`$FortyTwoAuth`);
     try {
-      res.status(301).redirect(`http://localhost:3000/auth/redirect`);
+      res.status(301).redirect(`http://10.19.239.198:3000/auth/redirect`);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -48,7 +48,7 @@ export class AuthController {
   @UseGuards(FortyTwoAuthGuard)
   async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
     // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
-    // 가능하다면 정적 문자열들(http://localhost:3333...)을 env로 관리하기
+    // 가능하다면 정적 문자열들(http://10.19.239.198:3333...)을 env로 관리하기
     //
 
     this.logger.debug(`Called ${AuthController.name} ${this.redirect.name}`);
@@ -64,17 +64,17 @@ export class AuthController {
           const access_token = this.jwtService.sign(payload);
           res.cookie("access_token", access_token);
 
-          res.status(301).redirect(`http://localhost:3333/register`);
+          res.status(301).redirect(`http://10.19.239.198:3333/register`);
         } else {
           res.cookie("access_token", token.access_token);
 
           // two_fa 확인 후 리다이렉트 여부
 
-          // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-          res.status(301).redirect(`http://localhost:3333`);
+          // res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
+          res.status(301).redirect(`http://10.19.239.198:3333`);
         }
       } else {
-        res.status(301).redirect(`http://localhost:3333`);
+        res.status(301).redirect(`http://10.19.239.198:3333`);
       }
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -120,8 +120,8 @@ export class AuthController {
   //  }
 }
 
-//finduser=> o => jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-//finduser=> X => res.status(302).redirect(`http://localhost:3333/register`); => nickname, avatar, bio => Post('/create') => createuser => user 새로 생성하고 db 저장
-// => jwt Token => cookie => res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+//finduser=> o => jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
+//finduser=> X => res.status(302).redirect(`http://10.19.239.198:3333/register`); => nickname, avatar, bio => Post('/create') => createuser => user 새로 생성하고 db 저장
+// => jwt Token => cookie => res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
 
-//jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+//jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);

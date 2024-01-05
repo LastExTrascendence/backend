@@ -22,7 +22,7 @@ import { GamePlayers } from "./entity/game.players.entity";
   namespace: "game",
   cors: true,
   // cors: {
-  //   origin: "http://localhost:3000",
+  //   origin: "http://10.19.239.198:3000",
   //   methods: ["GET", "POST"],
   //   credentials: true
   // }

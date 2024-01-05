@@ -11,15 +11,29 @@ import { UserDto } from "src/user/dto/user.dto";
 import { channel_user_dto } from "./channel_dto/channel.user.dto";
 import { channels } from "./channel_entity/channels.entity";
 import { ChannelsService } from "./channel.service";
-import { Channels_dto } from "./channel_dto/channels.dto";
+import { ChannelDto, ChatChannelUserRole } from "./channel_dto/channels.dto";
 import { Channel_Status } from "./channel.enum";
 import { SaveOptions, RemoveOptions } from "typeorm";
 import { Redis } from "ioredis";
+import { Repository } from "typeorm";
+import { User } from "src/user/entity/user.entity";
+import { InjectRepository } from "@nestjs/typeorm";
+import { UserService } from "src/user/user.service";
+import { channelUser } from "./channel_entity/channel.user.entity";
+import { format } from "date-fns";
+
+//방에 있는 사람들 속성
+
+function showTime(currentDate: Date) {
+  const formattedTime = format(currentDate, "h:mm a");
+  return formattedTime;
+}
+
 @WebSocketGateway(81, {
   namespace: "chat",
   cors: true,
   // cors: {
-  //   origin: "http://localhost:3000",
+  //   origin: "http://10.19.239.198:3000",
   //   methods: ["GET", "POST"],
   //   credentials: true
   // }
@@ -28,6 +42,11 @@ export class ChannelGateWay {
   private logger = new Logger("ChannelGateWay");
   constructor(
     private readonly channelsService: ChannelsService,
+    private userService: UserService,
+    @InjectRepository(channels)
+    private readonly channelRepository: Repository<channels>,
+    @InjectRepository(channelUser)
+    private readonly channelUserRepository: Repository<channelUser>,
     //private readonly channelUserSerivce: ChannelUserService,
     private redisClient: Redis,
   ) {}
@@ -48,32 +67,86 @@ export class ChannelGateWay {
   handleDisconnect(Socket: Socket) {}
 
   //----------------------------------------------
+
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
-    const { game_title, user_id } = data;
+    //1. 채널 주인/ 관리자
+    //2. DB에 담겨있는 채널 멤버들의 정보
 
-    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
-
+    //인터페이스 배열
     try {
-      if (!roomStatus) {
-        await this.redisClient.rpush(game_title, user_id);
-      } else if (roomStatus.length > 2) {
-        throw new Error("방이 꽉 찼습니다.");
-      } else if (roomStatus && roomStatus.includes(user_id)) {
-        throw new Error("이미 방에 있습니다.");
+      const { userId, channelTitle } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: channelTitle },
+      });
+
+      const channelUsers = await this.channelUserRepository.find({
+        where: { channelId: channelInfo.id },
+      });
+
+      const TotalUserInfo = [];
+
+      for (let i = 0; i < channelUsers.length; i++) {
+        let findUser = await this.userService.findUserById(
+          channelUsers[i].userId,
+        );
+        const userInfo = {
+          id: channelUsers[i].userId,
+          nickname: findUser.nickname,
+          avatar: findUser.avatar,
+          role: channelUsers[i].role,
+          mute: channelUsers[i].mute,
+        };
+        TotalUserInfo.push(userInfo);
       }
+
+      //const roomInfo = await this.channelRepository.findOne({
+      //  where: { title: channelTitle },
+      //});
+      //const userInfo = await this.userService.findUserById(userId);
+      //if (!roomInfo) {
+      //  const UserInfo = {
+      //    id: userInfo.id,
+      //    nickname: userInfo.nickname,
+      //    avatar: userInfo.avatar,
+      //    role: ChatChannelUserRole.CREATOR,
+      //    mute: false,
+      //  };
+      //} else {
+      //  const UserInfo = {
+      //    id: user.id,
+      //    nickname: user.nickname,
+      //    avatar: user.avatar,
+      //    role: roomInfo.Users.role,
+      //    mute: false,
+      //  };
+      //}
+      console.log(`${userId}님이 코드: ${channelTitle}방에 접속했습니다.`);
+      console.log(`${userId}님이 입장했습니다.`);
+      const comeOn = `${userId}님이 입장했습니다.`;
+      this.server.emit("userList", TotalUserInfo);
+      this.wsClients.push(Socket);
     } catch (error) {
       console.log(error);
     }
 
-    console.log(`${user_id}님이 코드: ${game_title}방에 접속했습니다.`);
-    console.log(`${user_id}님이 입장했습니다.`);
-    const comeOn = `${user_id}님이 입장했습니다.`;
-    this.server.emit("comeOn" + game_title, comeOn);
-    this.wsClients.push(Socket);
+    //방에 없다
+
+    //try {
+    //  if (!roomInfo) {
+    //    await this.redisClient.rpush(channelTitle, userId);
+    //  } else if (roomInfo.length > 2) {
+    //    throw new Error("방이 꽉 찼습니다.");
+    //  } else if (roomInfo && roomInfo.includes(userId)) {
+    //    throw new Error("이미 방에 있습니다.");
+    //  }
+    //} catch (error) {
+    //  console.log(error);
+    //}
 
     //this.channelUserSerivce.createuser(channelUser);
   }
@@ -107,21 +180,32 @@ export class ChannelGateWay {
   private broadcast(event, client, message: any) {
     for (let c of this.wsClients) {
       if (client.id == c.id) continue;
-      c.emit(event, message);
+      c.to(client.id).emit(event, message);
     }
   }
 
-  @SubscribeMessage("send")
-  sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-    console.log("data", data);
-    const [room, nickname, message] = data;
-    console.log("----------------------");
-    console.log(`${client.id} : ${data}`);
-    console.log("room", room);
-    console.log("nickname", nickname);
-    console.log("message", message);
-    console.log("----------------------");
-    this.broadcast(room, client, [nickname, message]);
+  //sender : number
+  //content : string
+
+  @SubscribeMessage("msgToServer")
+  async sendMessage(@MessageBody() data: any, @ConnectedSocket() client) {
+    //console.log("data", data)
+
+    const senderInfo = await this.userService.findUserById(data.sender);
+
+    this.server.to(client.id).emit("msgToClient", {
+      time: showTime(data.time),
+      sender: senderInfo.nickname,
+      content: data.content,
+    });
+
+    //console.log("----------------------");
+    //console.log(`${client.id} : ${data}`);
+    //console.log("room", room);
+    //console.log("nickname", nickname);
+    //console.log("message", message);
+    //console.log("----------------------");
+    //this.broadcast(room, client, [nickname, message]);
   }
 }
 // export class ChannelGateWay implements OnModuleInit{

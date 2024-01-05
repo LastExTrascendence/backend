@@ -45,7 +45,6 @@ export class GameController {
       const password = await this.gameService.createGame(req);
       res.redirect("/game/enter", 301, {
         req: req,
-        password: password,
       });
     } catch (error) {
       this.logger.error(error);
@@ -54,13 +53,10 @@ export class GameController {
   }
 
   @Post("/enter")
-  async enterGame(
-    @Body("req") req: any,
-    @Body("password") password: string,
-  ): Promise<void | HttpException> {
+  async enterGame(@Body() req: any): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${GameController.name} ${this.enterGame.name}`);
-      await this.gameService.enterGame(req, password);
+      await this.gameService.enterGame(req);
     } catch (error) {
       this.logger.error(error);
       throw error;
