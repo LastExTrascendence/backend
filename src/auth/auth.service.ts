@@ -67,86 +67,43 @@ export class AuthService {
     }
   }
 
-  //async onOtp(user : User): Promise<object> {
-  //  try {
-  //    const finduser = await this.userService.findUser(user.IntraId);
-  //    // const auth42User = await this.userRepository.findOne({where: { userId: user.IntraId },});
-  //    if (auth42User.otpOn === false)
-  //      auth42User.otpOn = true;
-  //    await this.userRepository.save(auth42User);
-  //    const result = { status: 'otpOn' };
-  //    return result;
-  //  } catch (e) {
-  //    throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //  }
+  //public async generateTwoFactorAuthenticationSecret(
+  //  user: User,
+  //): Promise<object> {
+  //  // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
+  //  const secret = authenticator.generateSecret();
+
+  //  // accountName + issuer + secret 을 활용하여 인증 코드 갱신을 위한 인증 앱 주소 설정
+  //  const otpAuthUrl = authenticator.keyuri(
+  //    user.email,
+  //    Config.get("jwt.secret"),
+  //    //this.configService.get("TWO_FACTOR_AUTHENTICATION_APP_NAME"),
+  //    secret,
+  //  );
+
+  //  // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
+  //  await this.userService.setTwoFactorAuthenticationSecret(secret, user.id);
+
+  //  // 생성 객체 리턴
+  //  return {
+  //    secret,
+  //    otpAuthUrl,
+  //  };
   //}
 
-  //async offOtp(userId: number): Promise<object> {
-  //  try {
-  //    const user = await this.userService.findUserById(userId, ['auth42']);
-  //    const auth42User = await this.userRepository.findOne({
-  //      where: { userId: user.id },
-  //    });
-  //    if (auth42User.otpOn === true) auth42User.otpOn = false;
-  //    await this.userRepository.save(auth42User);
-  //    const result = { status: 'otpOff' };
-  //    return result;
-  //  } catch (e) {
-  //    throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //  }
+  //// qrcode의 toFileStream()을 사용해 QR 이미지를 클라이언트에게 응답
+  //// 이때, Express의 Response 객체를 받아옴으로써 클라이언트에게 응답할 수 있다.
+  //public async pipeQrCodeStream(
+  //  stream: Response,
+  //  otpAuthUrl: string,
+  //): Promise<void> {
+  //  return toFileStream(stream, otpAuthUrl);
   //}
 
-  isTwoFactorAuthCodeValid(twoFactorAuthCode: string, secret: string) {
-    return authenticator.verify({
-      token: twoFactorAuthCode,
-      secret: secret,
-    });
-  }
-
-  //async generateJWT(
-  //  userId: number,
-  //  auth42Status: boolean,
-  //  otpStatus: boolean,
-  //): Promise<string> {
-  //  try {
-  //    const user = await this.userService.findUserById(userId);
-
-  //    const payload: Payload = {
-  //      id: user.id,
-  //      username: user.username,
-  //      auth42Status,
-  //      otpStatus,
-  //    };
-
-  //    const token = await this.jwtService.sign(payload);
-  //    this.userService.updateUserToken(userId, token);
-  //    return token;
-  //  } catch (e) {
-  //    throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //  }
+  //isTwoFactorAuthCodeValid(twoFactorAuthCode: string, secret: string) {
+  //  return authenticator.verify({
+  //    token: twoFactorAuthCode,
+  //    secret: secret,
+  //  });
   //}
 }
-
-//async signUp(authCredentialsDto: AuthCredentialsDto):Promise<void>{
-//    //try{
-//        const {username, password} = authCredentialsDto;
-
-//        // const salt = await bcrypt.genSalt();
-//        // const hashedPassword = await bcrypt.hash(password, salt);
-
-//        const user = this.userRepository.create({username, password});
-//      //  await this.userRepository.save(authCredentialsDto);
-//      await this.userRepository.save(user);
-//        // } catch (error){
-//        //     if (error.code == '23505'){
-//        //         throw new ConflictException('Exishting username');
-//        //     }
-//        //     else {
-//        //         console.log('here');
-
-//        //         throw new InternalServerErrorException();
-//        //     }
-//        //     //console.log('error',error);
-//        // }
-
-//}

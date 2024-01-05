@@ -3,50 +3,166 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { GamePlayers } from "./entity/game.players.entity";
 import { Game } from "./entity/game.entity";
-import { Status } from "./entity/game.enum";
-import { GameDto } from "./dto/game.dto";
+import { ChannelPolicy, GameMode, GameType, Status } from "./entity/game.enum";
+import { GameChannelListDto, GameDto, UserInfoDto } from "./dto/game.dto";
+import { Redis } from "ioredis";
+import * as bcrypt from "bcrypt";
+
+//npm i bcrypt @types/bcrypt --save
 
 @Injectable()
 export class GameService {
   constructor(
     @InjectRepository(Game)
-    private gameRepository: Repository<Game>,
+    private RedisClient: Redis,
   ) {}
 
-  async createGame(gameDto: GameDto): Promise<void> {
+  async createGame(req: any): Promise<void> {
     try {
-      const { type, mode } = gameDto;
-      const newGame = {
-        type: type,
-        mode: mode,
-        status: Status.READY,
-        created_at: new Date(),
-        minimum_speed: null,
-        average_speed: null,
-        maximum_speed: null,
-        number_of_rounds: null,
-        number_of_bounces: null,
-        ended_at: null,
-      };
-      await this.gameRepository.save(newGame);
+      const GameInfo = this.RedisClient.lrange(`Game: ${req.title}`, 0, -1);
+      const password = await bcrypt.hash(req.password, 10);
+
+      if ((await GameInfo).find((title) => title === req.title)) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "이미 존재하는 방입니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      } else if (req.title.length > 20) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "방 제목은 20자 이하여야 합니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      await this.RedisClient.hset(`Game: ${req.title}`, "title", req.title);
+      await this.RedisClient.hset(`Game: ${req.title}`, "password", password);
+      await this.RedisClient.hset(
+        `${req.title}`,
+        "ChannelPolicy",
+        req.ChannelPolicy.toString(),
+      );
+      await this.RedisClient.hset(
+        `Game: ${req.title}`,
+        "mode",
+        req.mode.toString(),
+      );
+      await this.RedisClient.hset(
+        `Game: ${req.title}`,
+        "creator",
+        req.nickname.toString(),
+      );
+      await this.RedisClient.hset(
+        `Game: ${req.title}`,
+        "GameType",
+        req.gametype,
+      );
+      await this.RedisClient.hset(
+        `Game: ${req.title}`,
+        "GameMode",
+        req.gamemode,
+      );
     } catch (error) {
       throw error;
     }
   }
 
-  async finishGame(game_id: number): Promise<void> {
+  async enterGame(req: any): Promise<string[] | HttpException> {
     try {
-      const game = await this.gameRepository.findOne({
-        where: { id: game_id },
-      });
-      if (!game)
+      const GameInfo = await this.RedisClient.lrange(
+        `Game: ${req.title}`,
+        0,
+        -1,
+      );
+      if (GameInfo.length === 0) {
         throw new HttpException(
-          "게임을 찾을 수 없습니다.",
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "존재하지 않는 방입니다.",
+          },
           HttpStatus.BAD_REQUEST,
         );
-      // 게임 통계 저장 부분 추가 필요
-      game.status = Status.DONE;
-      await this.gameRepository.save(game);
+      }
+
+      const checkIds = GameInfo.filter((value) =>
+        /^user nickname: \d+$/.test(value),
+      );
+      if (req.password && req.ChannelPolicy === ChannelPolicy.PRIVATE) {
+        const isMatch = await bcrypt.compare(req.password, (await GameInfo)[1]);
+        if (!isMatch) {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "비밀번호가 일치하지 않습니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+      for (let i = 0; i < (await checkIds).length; i++) {
+        if ((await GameInfo)[i] === req.user.nickname) {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "이미 존재하는 방입니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
+      }
+      await this.RedisClient.rpush(
+        `Game: ${req.title}`,
+        `user nickname: ${req.nickname}`,
+      );
+      return GameInfo;
+    } catch (error) {
+      throw error;
+    }
+  }
+
+  async getGameRooms(req: any): Promise<GameChannelListDto[] | HttpException> {
+    try {
+      const keys = await this.RedisClient.keys("Game:");
+
+      const filteredKeys = keys.filter((key) => key.startsWith("Game:"));
+
+      if (filteredKeys.length === 0) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "존재하는 채널이 없습니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const channels: GameChannelListDto[] = [];
+
+      for (let i = 0; i < keys.length; i++) {
+        const game = await this.RedisClient.hgetall(filteredKeys[i]);
+
+        //get game list
+        const users: UserInfoDto = {
+          nickname: game.nickname,
+          avatar: game.avatar,
+        };
+
+        const channelinfo: GameChannelListDto = {
+          title: game.title,
+          channelPolicy: game.channelPolicy as ChannelPolicy,
+          password: game.password,
+          creator: users,
+          gameType: game.GameType as GameType,
+          gameMode: game.GameMode as GameMode,
+        };
+
+        channels.push(channelinfo);
+      }
+      return channels;
     } catch (error) {
       throw error;
     }

@@ -3,7 +3,7 @@ import { UserBlock } from "src/user/entity/user.block.entity";
 import { UserFriend } from "src/user/entity/user.friend.entity";
 import { User } from "../user/entity/user.entity";
 import { channels } from "src/channel/channel_entity/channels.entity";
-import { channel_user } from "src/channel/channel_entity/channel.user.entity";
+import { channelUser } from "src/channel/channel_entity/channel.user.entity";
 import { Game } from "src/game/entity/game.entity";
 import { GamePlayers } from "src/game/entity/game.players.entity";
 import { DmChannels } from "src/dm/entity/dm.channels.entity";
@@ -19,7 +19,7 @@ export const typeORMConfig: TypeOrmModuleOptions = {
     __dirname + "../**/*.entity.{js,ts}",
     User,
     channels,
-    channel_user,
+    channelUser,
     UserBlock,
     UserFriend,
     Game,

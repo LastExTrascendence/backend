@@ -30,15 +30,23 @@ export class AuthController {
 
   @Get("/login")
   @UseGuards(FortyTwoAuthGuard)
-  login() {
-    this.logger.log(`Called ${AuthController.name} ${this.login.name}`);
+  async FortyTwoAuth(@Res() res: Response) {
+    this.logger.log(`Called ${AuthController.name} ${this.FortyTwoAuth.name}`);
+    try {
+      res.status(301).redirect(`http://10.19.239.198:3000/auth/redirect`);
+    } catch (error) {
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
   }
+  //301 혹은 영구이동(Permanently Moved)는 해당 URL이 영구적으로 새로운 URL로 변경되었음을 나타냅니다.
+  //검색엔진은 301 요청을 만나면 컨텐트가 새로운 URL로 영원히 이동했다고 판단합니다.
+  //https://nsinc.tistory.com/168
 
   @Get("/redirect")
   @UseGuards(FortyTwoAuthGuard)
   async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
     // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
-    // 가능하다면 정적 문자열들(http://localhost:3333...)을 env로 관리하기
+    // 가능하다면 정적 문자열들(http://10.19.239.198:3333...)을 env로 관리하기
     //
 
     this.logger.debug(`Called ${AuthController.name} ${this.redirect.name}`);
@@ -66,70 +74,29 @@ export class AuthController {
     }
   }
 
-  // @Get("/redirect")
-  // @UseGuards(FortyTwoAuthGuard, JWTAuthGuard)
-  // async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
-  //   try {
-  //     if (req.user) {
-  //       const token = await this.authService.login(req.user);
-  //       if (!token) {
-  //         const payload = {
-  //           intra_name: req.user.intra_name,
-  //           email: req.user.email,
-  //         };
-  //         const access_token = this.jwtService.sign(payload);
-  //         res.cookie("access_token", access_token);
-
-  //         res.status(301).redirect(`http://localhost:3333/register`);
-  //       } else {
-  //         res.cookie("access_token", token.access_token);
-
-  //         // two_fa 확인 후 리다이렉트 여부
-
-  //         // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-  //         res.status(301).redirect(`http://localhost:3333`);
-  //       }
-  //     } else {
-  //       res.status(301).redirect(`http://localhost:3333`);
-  //     }
-  //   } catch (error) {
-  //     return new HttpException(error.message, HttpStatus.BAD_REQUEST);
-  //   }
-  // }
-  //@Post('/otp')
-  //async setOtpCookie(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-  //    const body = req.body;
-  //    if (body.otp && body.secret) {
-  //    const isValid = this.authService.isTwoFactorAuthCodeValid(body.otp, body.secret);
-  //    console.log('isValid', isValid);
-  //    if (isValid) {
-  //        res.cookie('two_factor_auth', true, {
-  //        httpOnly: false,
-  //        });
-  //    }
-  //    res.status(302).redirect(`${process.env.HOST}:${process.env.CLIENT_PORT}`);
-  //    }
-  //}
-
-  //@Post('/otp/on')
+  //@Post("/otp/generate")
   //@UseGuards(JWTAuthGuard)
-  //updateOtpOn(@Req() req: any): Promise<object> | HttpException {
+  //async generateOtp(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  //  this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
   //  try {
-  //    return this.authService.onOtp(req.user);
-  //  } catch (e) {
-  //    return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //    const user = await this.userService.findUserByNickname(req.user.nickname);
+  //    if (!user) {
+  //      return new HttpException("User not found", HttpStatus.NOT_FOUND);
+  //    }
+  //    const otp = await this.authService.generateOtp(user);
+  //    if (!otp) {
+  //      return new HttpException(
+  //        "OTP generation failed",
+  //        HttpStatus.BAD_REQUEST,
+  //      );
+  //    }
+  //    res.cookie("two_factor_auth", otp);
+  //    res.status(200).json({ otp });
+  //  } catch (error) {
+  //    return new HttpException(error.message, HttpStatus.BAD_REQUEST);
   //  }
   //}
 
-  //@Post('/otp/off')
-  //@UseGuards(JWTAuthGuard)
-  //updateOtpOff(@Req() req: any): Promise<object> | HttpException {
-  //  try {
-  //    return this.authService.offOtp(req.user.userId);
-  //  } catch (e) {
-  //    return new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //  }
-  //}
   //@Get('/42logout')
   //logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
   //    res.clearCookie('two_factor_auth');
@@ -146,8 +113,8 @@ export class AuthController {
   //  }
 }
 
-//finduser=> o => jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-//finduser=> X => res.status(302).redirect(`http://localhost:3333/register`); => nickname, avatar, bio => Post('/create') => createuser => user 새로 생성하고 db 저장
-// => jwt Token => cookie => res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+//finduser=> o => jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
+//finduser=> X => res.status(302).redirect(`http://10.19.239.198:3333/register`); => nickname, avatar, bio => Post('/create') => createuser => user 새로 생성하고 db 저장
+// => jwt Token => cookie => res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
 
-//jwt Token => cookie =>res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
+//jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
