@@ -84,8 +84,8 @@ export class DmGateway
     const RedisPayload = {
       name: name,
       time: new Date(),
-      sender: payload.sender,
-      receiver: receiver.id,
+      sender: sender.nickname,
+      receiver: receiver.nickname,
       content: payload.content,
     };
 
@@ -174,8 +174,8 @@ export class DmGateway
     payload: {
       name: string;
       time: Date;
-      sender: number;
-      receiver: number;
+      sender: string;
+      receiver: string;
       content: string;
     },
   ) {
