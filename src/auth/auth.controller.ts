@@ -18,10 +18,15 @@ import { AuthService } from "./auth.service";
 import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
 import { JWTSignGuard } from "./jwt/jwtSign.guard";
+import * as config from "config";
+import { User } from "src/decorator/user.decorator";
+import { UserSessionDto } from "src/user/dto/user.dto";
+
+const FEConfig = config.get("FE");
 
 @Controller("auth")
 export class AuthController {
-  private logger = new Logger("AuthController");
+  private logger = new Logger(AuthController.name);
   constructor(
     private authService: AuthService,
     private readonly userService: UserService,
@@ -30,44 +35,32 @@ export class AuthController {
 
   @Get("/login")
   @UseGuards(FortyTwoAuthGuard)
-  async FortyTwoAuth(@Res() res: Response) {
-    this.logger.log(`Called ${AuthController.name} ${this.FortyTwoAuth.name}`);
-    try {
-      res.status(301).redirect(`http://10.19.239.198:3000/auth/redirect`);
-    } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
-    }
+  async login() {
+    // NOTE: Cannot reach here
+    this.logger.log(`Called ${AuthController.name} ${this.login.name}`);
   }
-  //301 혹은 영구이동(Permanently Moved)는 해당 URL이 영구적으로 새로운 URL로 변경되었음을 나타냅니다.
-  //검색엔진은 301 요청을 만나면 컨텐트가 새로운 URL로 영원히 이동했다고 판단합니다.
-  //https://nsinc.tistory.com/168
 
-  @Get("/redirect")
-  @UseGuards(FortyTwoAuthGuard)
-  async redirect(@Req() req: any, @Res({ passthrough: true }) res: any) {
+  @Get("/login/callback")
+  @UseGuards(FortyTwoAuthGuard, JWTSignGuard)
+  async loginCallback(@Res() res: Response, @User() user: UserSessionDto) {
     // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
-    // 가능하다면 정적 문자열들(http://10.19.239.198:3333...)을 env로 관리하기
-    //
-
-    this.logger.debug(`Called ${AuthController.name} ${this.redirect.name}`);
+    // 가능하다면 정적 문자열들(http://localhost:3333, http://10.19.239.198:3333...)을 env로 관리하기
+    this.logger.debug(
+      `Called ${AuthController.name} ${this.loginCallback.name}`,
+    );
     try {
-      // const tmp = await this.userService.findUserByName(req.user.intra_name);
-      const token = await this.authService.login(req.user);
+      const token = await this.authService.login(user);
       if (!token) {
         const payload = {
-          intra_name: req.user.intra_name,
-          email: req.user.email,
+          intra_name: user.intra_name,
+          email: user.email,
         };
         const access_token = this.jwtService.sign(payload);
         res.cookie("access_token", access_token);
-
-        res.status(301).redirect(`http://localhost:3333/register`);
+        res.status(301).redirect(`${FEConfig.get("domain")}/register`);
       } else {
         res.cookie("access_token", token.access_token);
-
-        // two_fa 확인 후 리다이렉트 여부
-        // res.status(301).redirect(`http://localhost:3333/auth/login/otp`);
-        res.status(301).redirect(`http://localhost:3333`);
+        res.status(301).redirect(`${FEConfig.get("domain")}`);
       }
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
