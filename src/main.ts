@@ -9,7 +9,7 @@ async function bootstrap() {
   dotenv.config(); // .env 파일 로드
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors({
-    origin: "http://localhost:3333",
+    origin: "http://10.19.239.198:3333",
     credentials: true,
     preflightContinue: false,
   });

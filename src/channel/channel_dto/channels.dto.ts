@@ -1,13 +1,22 @@
 import { BaseEntity } from "typeorm";
 import { Channel_Status } from "../channel.enum";
 
-export class Channels_dto {
+export class ChannelDto extends BaseEntity {
   id: number;
-  name: string;
-  type: Channel_Status;
-  description: string;
-  created_at: Date;
-  deleted_at: Date;
+  title: string;
+  password: ChannelPolicy;
+  user: UserInfoDto;
+  maxUser: number;
+}
+
+export class ChatChannelConnectDto {
+  title: string;
+  password: string;
+  user: {
+    nickname: string;
+    avatar: string;
+  };
+  maxUser: number;
 }
 
 export enum ChannelPolicy {
@@ -20,21 +29,21 @@ export interface UserInfoDto {
   avatar: string;
 }
 
-export interface ChannelDto {
-  title: string;
-  ChannelPolicy: ChannelPolicy;
-  password: string | null;
-  creator: UserInfoDto;
-}
+//export interface ChannelDto {
+//  title: string;
+//  ChannelPolicy: ChannelPolicy;
+//  password: string | null;
+//  creator: UserInfoDto;
+//}
 
-export interface ChatChannelListDto extends Channels_dto {
-  title: string;
-  ChannelPolicy: ChannelPolicy;
-  password: string | null;
-  creator: UserInfoDto;
-  curUser: number;
-  maxUser: number;
-}
+//export interface ChatChannelListDto extends ChannelDto {
+//  title: string;
+//  ChannelPolicy: ChannelPolicy;
+//  password: string | null;
+//  creator: UserInfoDto;
+//  curUser: number;
+//  maxUser: number;
+//}
 
 export enum ChatChannelUserRole {
   CREATOR = "CREATOR",
@@ -42,7 +51,7 @@ export enum ChatChannelUserRole {
   USER = "USER",
 }
 
-// 채팅채널 리스트 보여줄 시
+//// 채팅채널 리스트 보여줄 시
 export interface ChatChannelUserDto {
   avatar: string; // base64
   nickname: string;

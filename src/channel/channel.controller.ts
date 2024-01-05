@@ -20,7 +20,10 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import { ChannelsService } from "./channel.service";
-import { ChatChannelInfoDto } from "./channel_dto/channels.dto";
+import {
+  ChatChannelConnectDto,
+  ChatChannelInfoDto,
+} from "./channel_dto/channels.dto";
 
 @Controller("channel")
 export class ChannelController {
@@ -34,21 +37,22 @@ export class ChannelController {
 
   @Post("/create")
   async createChannel(
-    @Req() req: any, // ChatChannelInfoDto
-    @Res() res: any,
+    @Body() chatChannelConnectDto: ChatChannelConnectDto,
+    //@Req() req: any, // ChatChannelInfoDto{{}}
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(
         `Called ${ChannelController.name} ${this.createChannel.name}`,
       );
 
-      const password = await this.channelsService.createChannel(req);
+      //const password =
+      await this.channelsService.createChannel(chatChannelConnectDto);
 
       // Redirect with JSON payload in the request body
-      res.redirect("/channel/enter", 301, {
-        req: req,
-        password: password,
-      });
+      //res.redirect("/channel/enter", 301, {
+      //  req: req,
+      //  password: password,
+      //});
     } catch (error) {
       this.logger.error(error);
       throw error;

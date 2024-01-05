@@ -8,7 +8,7 @@ export class SocketClient implements OnModuleInit {
   public socketClient: Socket;
 
   constructor() {
-    this.socketClient = io("http://localhost:83");
+    this.socketClient = io("http://10.19.239.198:83");
   }
 
   onModuleInit() {

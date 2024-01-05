@@ -1,5 +1,6 @@
 import { HttpException, Logger } from "@nestjs/common";
 import {
+  MessageBody,
   OnGatewayConnection,
   OnGatewayDisconnect,
   OnGatewayInit,
@@ -12,8 +13,14 @@ import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
 import { DmDto } from "./dto/dm.dto";
 import { DmService } from "./dm.service";
+import { format } from "date-fns";
 
 //path, endpoint
+
+function showTime(currentDate: Date) {
+  const formattedTime = format(currentDate, "h:mm a");
+  return formattedTime;
+}
 
 @WebSocketGateway(83, { namespace: "dm", cors: true })
 export class DmGateway
@@ -44,14 +51,19 @@ export class DmGateway
   }
 
   @SubscribeMessage("msgToServer")
-  async handleMessage(payload: {
-    sender: number;
-    receiver: string;
-    content: string;
-  }): Promise<void> {
+  async handleMessage(
+    @MessageBody()
+    payload: {
+      time: Date;
+      sender: number;
+      receiver: string;
+      content: string;
+    },
+  ): Promise<void> {
     //DB에 저장
     //1. UserDB에서 sender, receiver가 있는지 확인
     //sender, receiver
+    console.log(payload);
     const sender = await this.userService.findUserById(payload.sender);
     const receiver = await this.userService.findUserByNickname(
       payload.receiver,
@@ -72,7 +84,7 @@ export class DmGateway
     if (!(await this.dmService.getdmchannelByName(name))) {
       const dm_channel = {
         name: name,
-        created_at: new Date(),
+        created_at: payload.time,
         deleted_at: null,
       };
       this.dmService.createdmchannel(dm_channel);
@@ -83,7 +95,7 @@ export class DmGateway
     // Save the new message to Redis
     const RedisPayload = {
       name: name,
-      time: new Date(),
+      time: showTime(payload.time),
       sender: sender.nickname,
       receiver: receiver.nickname,
       content: payload.content,
@@ -124,15 +136,17 @@ export class DmGateway
       payload.receiver,
     );
 
+    //객체 배열로 변경
+
     if (chats) {
       for (const idx in chats) {
-        const split = chats[idx].split(":");
+        const split = chats[idx].split("|");
         if (split.length > 4)
           this.server.to(client.id).emit("msgToClient", {
             time: split[0],
             sender: split[1],
             receiver: split[2],
-            content: split.slice(3 - split.length).join(":"),
+            content: split.slice(3 - split.length).join("|"),
           });
         else {
           this.server.to(client.id).emit("msgToClient", {
@@ -173,7 +187,7 @@ export class DmGateway
     redisClient: Redis,
     payload: {
       name: string;
-      time: Date;
+      time: string;
       sender: string;
       receiver: string;
       content: string;
@@ -185,7 +199,7 @@ export class DmGateway
 
     redisClient.rpush(
       `${payload.name}`,
-      `${payload.time}:${payload.sender}:${payload.receiver}:${payload.content}`,
+      `${payload.time}|${payload.sender}|${payload.receiver}|${payload.content}`,
     );
   }
 }
