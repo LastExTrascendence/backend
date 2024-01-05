@@ -14,6 +14,7 @@ import { UserService } from "src/user/user.service";
 import { PassportModule } from "@nestjs/passport";
 import * as config from "config";
 import { JwtModule } from "@nestjs/jwt";
+import { ChannelController } from "./channel.controller";
 
 const jwtConfig = config.get("jwt");
 
@@ -28,6 +29,7 @@ const jwtConfig = config.get("jwt");
     }),
     TypeOrmModule.forFeature([User, channels, channelUser]),
   ],
+  controllers: [ChannelController],
   providers: [
     UserService,
     ChannelGateWay,

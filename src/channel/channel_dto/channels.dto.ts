@@ -6,17 +6,16 @@ export class ChannelDto extends BaseEntity {
   title: string;
   password: ChannelPolicy;
   user: UserInfoDto;
-  maxUser: number;
+  maxuser: number;
 }
 
 export class ChatChannelConnectDto {
+  id: number;
   title: string;
   password: string;
-  user: {
-    nickname: string;
-    avatar: string;
-  };
-  maxUser: number;
+  nickname: string;
+  avatar: string;
+  maxuser: number;
 }
 
 export enum ChannelPolicy {
