@@ -59,8 +59,8 @@ export class GameController {
   async getRooms(
     @Req() req: any,
   ): Promise<GameChannelListDto[] | HttpException> {
+    this.logger.debug(`Called ${GameController.name} ${this.getRooms.name}`);
     try {
-      this.logger.debug(`Called ${GameController.name} ${this.getRooms.name}`);
       return await this.gameService.getGameRooms(req);
     } catch (error) {
       this.logger.error(error);

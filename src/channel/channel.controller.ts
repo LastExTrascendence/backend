@@ -70,10 +70,10 @@ export class ChannelController {
   async getChannels(
     @Req() req: any,
   ): Promise<ChatChannelInfoDto[] | HttpException> {
+    this.logger.debug(
+      `Called ${ChannelController.name} ${this.getChannels.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${ChannelController.name} ${this.getChannels.name}`,
-      );
       return await this.channelsService.getChannels(req);
     } catch (error) {
       this.logger.error(error);
