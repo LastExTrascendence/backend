@@ -65,6 +65,8 @@ export class ChannelsService {
         chatChannelListDto.creator.nickname,
       );
 
+      console.log(createInfo);
+
       const newChannel = {
         title: chatChannelListDto.title,
         channelPolicy: ChannelPolicy.PUBLIC,
@@ -189,13 +191,11 @@ export class ChannelsService {
     }
   }
 
-  async getChannels(req: any): Promise<ChatChannelInfoDto[] | HttpException> {
+  async getChannels(req: any): Promise<ChatChannelListDto[] | HttpException> {
     try {
-      const keys = await this.RedisClient.keys("Channel:");
+      const keys = await this.RedisClient.keys("*");
 
-      const filteredKeys = keys.filter((key) => key.startsWith("Channel:"));
-
-      if (filteredKeys.length === 0) {
+      if (keys.length === 0) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -205,46 +205,45 @@ export class ChannelsService {
         );
       }
 
-      const channels: ChatChannelInfoDto[] = [];
+      const channelsInfo = await this.channelsRepository.find();
 
-      for (let i = 0; i < keys.length; i++) {
-        const channel = await this.RedisClient.hgetall(filteredKeys[i]);
+      const totalChannels = [];
 
-        const users: ChatChannelUserDto = {
-          avatar: channel.avatar,
-          nickname: channel.nickname,
-          role: channel.role as ChatChannelUserRole,
+      for (let i = 0; i < channelsInfo.length; i++) {
+        const channel = {
+          title: channelsInfo[i].title,
+          channelPolicy: channelsInfo[i].channelPolicy,
+          creator: {
+            nickname: channelsInfo[i].creatorNick,
+            avatar: channelsInfo[i].creatorAvatar,
+          },
+          curUser: channelsInfo[i].curUser,
+          maxUser: channelsInfo[i].maxUser,
         };
 
-        const channelinfo: ChatChannelInfoDto = {
-          title: channel.title,
-          channelPolicy: channel.channelPolicy as ChannelPolicy,
-          users: users,
-        };
-
-        channels.push(channelinfo);
+        totalChannels.push(channel);
       }
-      return channels;
+
+      return totalChannels;
     } catch (error) {
       throw error;
     }
   }
-
-  //async createdbchannel(data : any) : Promise<void> {
-  //    // this.channelsRepository.save(data);
-  //    await this.channelsRepository.createdbchannel(data);
-  //}
-
-  //async getdbchannel(name : string) : Promise<channels> {
-  //    return this.channelsRepository.getdbchannel(name);
-  //}
-
-  //async getdbchannel_id(name : string) : Promise<number> {
-  //    return this.channelsRepository.getdbchannel_id(name);
-  //}
-
-  // async getUserschannel(channel_id : string, user_name : string)
-  // {
-  //     return this.channelsRepository.getUserschannel(channel_id, user_name);
-  // }
 }
+//async createdbchannel(data : any) : Promise<void> {
+//    // this.channelsRepository.save(data);
+//    await this.channelsRepository.createdbchannel(data);
+//}
+
+//async getdbchannel(name : string) : Promise<channels> {
+//    return this.channelsRepository.getdbchannel(name);
+//}
+
+//async getdbchannel_id(name : string) : Promise<number> {
+//    return this.channelsRepository.getdbchannel_id(name);
+//}
+
+// async getUserschannel(channel_id : string, user_name : string)
+// {
+//     return this.channelsRepository.getUserschannel(channel_id, user_name);
+// }
