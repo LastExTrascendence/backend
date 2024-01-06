@@ -14,8 +14,8 @@ import { UserService } from "src/user/user.service";
 import { PassportModule } from "@nestjs/passport";
 import * as config from "config";
 import { JwtModule } from "@nestjs/jwt";
-import { AuthModule } from "src/auth/auth.module";
 import { ChannelController } from "./channel.controller";
+import { AuthModule } from "src/auth/auth.module";
 
 const jwtConfig = config.get("jwt");
 
