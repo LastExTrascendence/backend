@@ -41,7 +41,7 @@ export class ChannelDto {
 
 export class ChatChannelListDto extends ChannelDto {
   title: string;
-  channelPolicy: typeof ChannelPolicy;
+  channelPolicy: ChannelPolicy;
   password: string | null;
   creator: UserInfoDto;
   curUser: number;
@@ -72,6 +72,6 @@ export class ChatChannelUserDto {
 
 export class ChatChannelInfoDto {
   title: string;
-  ChannelPolicy: ChannelPolicy;
+  channelPolicy: ChannelPolicy;
   users: ChatChannelUserDto[];
 }

@@ -4,7 +4,6 @@ import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { channels } from "./channel_entity/channels.entity";
 import { Repository } from "typeorm";
 import {
-  ChatChannelInfoDto,
   ChatChannelUserDto,
   ChatChannelListDto,
 } from "./channel_dto/channels.dto";
@@ -35,7 +34,7 @@ export class ChannelsService {
 
   async createChannel(
     chatChannelListDto: ChatChannelListDto,
-  ): Promise<number | HttpException> {
+  ): Promise<any | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
         `${chatChannelListDto.title}`,
@@ -113,10 +112,19 @@ export class ChannelsService {
           await bcrypt.hash(chatChannelListDto.password, 10),
         );
       }
+
+      const totalChannel = {
+        title: chatChannelListDto.title,
+        password: null,
+        creator: chatChannelListDto.creator,
+        curUser: 0,
+        maxUser: chatChannelListDto.maxUser,
+        channelPolicy: chatChannelListDto.channelPolicy,
+      };
       //await this.RedisClient.rpush(`${req.name}`, `user id: ${req.user_id}`);
       // 피그마에 따라 프론트에서 받아야할 데이터 추후 수정 필요
       // name, creator, 채널 내 유저 수 (유저 수 / 방 정원), type
-      return newChannelInfo.id;
+      return totalChannel;
     } catch (error) {
       throw error;
     }
@@ -173,13 +181,11 @@ export class ChannelsService {
     }
   }
 
-  async getChannels(req: any): Promise<ChatChannelInfoDto[] | HttpException> {
+  async getChannels(req: any): Promise<ChatChannelUserDto[] | HttpException> {
     try {
-      const keys = await this.RedisClient.keys("Channel:");
+      const rooms: channels[] = await this.channelsRepository.find();
 
-      const filteredKeys = keys.filter((key) => key.startsWith("Channel:"));
-
-      if (filteredKeys.length === 0) {
+      if (!rooms) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -188,27 +194,20 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
+      console.log(rooms);
 
-      const channels: ChatChannelInfoDto[] = [];
+      const channels: ChatChannelUserDto[] = [];
 
-      for (let i = 0; i < keys.length; i++) {
-        const channel = await this.RedisClient.hgetall(filteredKeys[i]);
-
-        const users: ChatChannelUserDto[] = [
-          {
-            avatar: channel.avatar,
-            nickname: channel.nickname,
-            role: channel.role as ChatChannelUserRole,
-          },
-        ];
-
-        const channelinfo: ChatChannelInfoDto = {
-          title: channel.title,
-          ChannelPolicy: channel.channelPolicy as ChannelPolicy,
-          users: users,
+      for (let i = 0; i < rooms.length; i++) {
+        let roomInfo = {
+          avatar: rooms[i].creatorAvatar,
+          nickname: rooms[i].creatorNick,
+          role:
+            rooms[i].creatorNick === req.nickname
+              ? ChatChannelUserRole.CREATOR
+              : ChatChannelUserRole.USER,
         };
-
-        channels.push(channelinfo);
+        channels.push(roomInfo);
       }
       return channels;
     } catch (error) {
