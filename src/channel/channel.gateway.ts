@@ -19,6 +19,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./channel_entity/channel.user.entity";
 import { format } from "date-fns";
+import { ChatChannelUserRole } from "./channel.enum";
 
 //방에 있는 사람들 속성
 
@@ -81,6 +82,21 @@ export class ChannelGateWay {
       const channelInfo = await this.channelRepository.findOne({
         where: { title: channelTitle },
       });
+
+      const newEnterUser = {
+        userId: data.userId,
+        channelId: channelTitle.id,
+        role:
+          channelInfo.creatorNick === userId
+            ? ChatChannelUserRole.CREATOR
+            : ChatChannelUserRole.USER,
+        mute: false,
+        ban: false,
+        createdAt: new Date(),
+        deletedAt: null,
+      };
+
+      await this.channelUserRepository.save(newEnterUser);
 
       const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
