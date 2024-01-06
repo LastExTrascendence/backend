@@ -31,11 +31,10 @@ export class ChannelController {
     @Body() chatChannelConnectDto: ChatChannelConnectDto,
     //@Req() req: any, // ChatChannelInfoDto{{}}
   ): Promise<void | HttpException> {
+    this.logger.debug(
+      `Called ${ChannelController.name} ${this.createChannel.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${ChannelController.name} ${this.createChannel.name}`,
-      );
-
       //const password =
       await this.channelsService.createChannel(chatChannelConnectDto);
 
@@ -52,7 +51,7 @@ export class ChannelController {
 
   @Post("/enter")
   async enterChannel(
-    @Body("req") req: any,
+    @Body() req: any,
     @Body("password") password: string,
   ): Promise<void | HttpException> {
     try {

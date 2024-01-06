@@ -21,7 +21,7 @@ export class channels extends BaseEntity {
   title: string;
 
   @Column()
-  channelPolicy: ChannelPolicy;
+  channelpolicy: ChannelPolicy;
 
   @Column()
   creator: string;
@@ -30,10 +30,10 @@ export class channels extends BaseEntity {
   avatar: string;
 
   @Column({ nullable: true })
-  curUser: number;
+  curuser: number;
 
   @Column()
-  maxUser: number;
+  maxuser: number;
 
   @Column()
   created_at: Date;
