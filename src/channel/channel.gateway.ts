@@ -77,15 +77,15 @@ export class ChannelGateWay {
 
     //인터페이스 배열
     try {
-      const { userId, channelTitle } = data;
+      const { userId, title } = data;
 
       const channelInfo = await this.channelRepository.findOne({
-        where: { title: channelTitle },
+        where: { title: title },
       });
 
       const newEnterUser = {
         userId: data.userId,
-        channelId: channelTitle.id,
+        channelId: title.id,
         role:
           channelInfo.creatorNick === userId
             ? ChatChannelUserRole.CREATOR
@@ -115,7 +115,7 @@ export class ChannelGateWay {
         };
         TotalUserInfo.push(UserInfo);
       }
-      console.log(`${userId}님이 코드: ${channelTitle}방에 접속했습니다.`);
+      console.log(`${userId}님이 코드: ${title}방에 접속했습니다.`);
       console.log(`${userId}님이 입장했습니다.`);
       const comeOn = `${userId}님이 입장했습니다.`;
       this.server.emit("userList", TotalUserInfo);
