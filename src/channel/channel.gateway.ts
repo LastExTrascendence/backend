@@ -11,8 +11,6 @@ import { UserDto } from "src/user/dto/user.dto";
 import { channel_user_dto } from "./channel_dto/channel.user.dto";
 import { channels } from "./channel_entity/channels.entity";
 import { ChannelsService } from "./channel.service";
-import { ChannelDto, ChatChannelUserRole } from "./channel_dto/channels.dto";
-import { Channel_Status } from "./channel.enum";
 import { SaveOptions, RemoveOptions } from "typeorm";
 import { Redis } from "ioredis";
 import { Repository } from "typeorm";

@@ -1,4 +1,10 @@
-export enum Channel_Status {
-    PUBLIC = 'PUBLIC',
-    PRIVATE = 'PRIVATE'
+export enum ChannelPolicy {
+  PUBLIC = "PUBLIC",
+  PRIVATE = "PRIVATE",
+}
+
+export enum ChatChannelUserRole {
+  CREATOR = "CREATOR",
+  OPERATOR = "OPERATOR",
+  USER = "USER",
 }

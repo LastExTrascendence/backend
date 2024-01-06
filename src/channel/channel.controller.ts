@@ -21,8 +21,9 @@ import {
 } from "@nestjs/common";
 import { ChannelsService } from "./channel.service";
 import {
-  ChatChannelConnectDto,
+  ChannelDto,
   ChatChannelInfoDto,
+  ChatChannelListDto,
 } from "./channel_dto/channels.dto";
 
 @Controller("channel")
@@ -37,7 +38,7 @@ export class ChannelController {
 
   @Post("/create")
   async createChannel(
-    @Body() chatChannelConnectDto: ChatChannelConnectDto,
+    @Body() chatChannelListDto: ChatChannelListDto,
     //@Req() req: any, // ChatChannelInfoDto{{}}
   ): Promise<void | HttpException> {
     try {
@@ -46,7 +47,7 @@ export class ChannelController {
       );
 
       //const password =
-      await this.channelsService.createChannel(chatChannelConnectDto);
+      await this.channelsService.createChannel(chatChannelListDto);
 
       // Redirect with JSON payload in the request body
       //res.redirect("/channel/enter", 301, {

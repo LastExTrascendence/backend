@@ -5,9 +5,9 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { Channel_Status } from "../channel.enum";
 import { channelUser } from "./channel.user.entity";
-import { ChannelPolicy, ChatChannelUserDto } from "../channel_dto/channels.dto";
+import { ChatChannelUserDto, UserInfoDto } from "../channel_dto/channels.dto";
+import { ChannelPolicy } from "../channel.enum";
 
 @Entity()
 export class channels extends BaseEntity {
@@ -24,10 +24,10 @@ export class channels extends BaseEntity {
   channelPolicy: ChannelPolicy;
 
   @Column()
-  creator: string;
+  creatorNick: string;
 
   @Column({ nullable: true })
-  avatar: string;
+  creatorAvatar: string;
 
   @Column({ nullable: true })
   curUser: number;
@@ -36,8 +36,8 @@ export class channels extends BaseEntity {
   maxUser: number;
 
   @Column()
-  created_at: Date;
+  createdAt: Date;
 
   @Column({ nullable: true })
-  deleted_at: Date;
+  deletedAt: Date;
 }
