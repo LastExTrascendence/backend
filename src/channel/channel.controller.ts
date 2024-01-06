@@ -10,8 +10,10 @@ import {
 } from "@nestjs/common";
 import { ChannelsService } from "./channel.service";
 import {
-  ChatChannelConnectDto,
   ChatChannelInfoDto,
+  ChatChannelListDto,
+  ChatChannelUserDto,
+  UserVerify,
 } from "./channel_dto/channels.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
@@ -28,21 +30,14 @@ export class ChannelController {
 
   @Post("/create")
   async createChannel(
-    @Body() chatChannelConnectDto: ChatChannelConnectDto,
+    @Body() chatChannelListDto: ChatChannelListDto,
     //@Req() req: any, // ChatChannelInfoDto{{}}
   ): Promise<void | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.createChannel.name}`,
     );
     try {
-      //const password =
-      await this.channelsService.createChannel(chatChannelConnectDto);
-
-      // Redirect with JSON payload in the request body
-      //res.redirect("/channel/enter", 301, {
-      //  req: req,
-      //  password: password,
-      //});
+      await this.channelsService.createChannel(chatChannelListDto);
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -51,21 +46,20 @@ export class ChannelController {
 
   @Post("/enter")
   async enterChannel(
-    @Body() req: any,
-    @Body("password") password: string,
+    @Body() userVerify: UserVerify,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(
         `Called ${ChannelController.name} ${this.enterChannel.name}`,
       );
-      await this.channelsService.enterChannel(req, password);
+      await this.channelsService.enterChannel(userVerify);
     } catch (error) {
       this.logger.error(error);
       throw error;
     }
   }
 
-  @Get("/rooms")
+  @Get("")
   async getChannels(
     @Req() req: any,
   ): Promise<ChatChannelInfoDto[] | HttpException> {

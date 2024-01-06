@@ -8,11 +8,8 @@ import {
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { UserDto } from "src/user/dto/user.dto";
-import { channelUserDto } from "./channel_dto/channel.user.dto";
 import { channels } from "./channel_entity/channels.entity";
 import { ChannelsService } from "./channel.service";
-import { ChannelDto, ChatChannelUserRole } from "./channel_dto/channels.dto";
-import { Channel_Status } from "./channel.enum";
 import { SaveOptions, RemoveOptions } from "typeorm";
 import { Redis } from "ioredis";
 import { Repository } from "typeorm";
@@ -21,6 +18,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./channel_entity/channel.user.entity";
 import { format } from "date-fns";
+import { ChatChannelUserRole } from "./channel.enum";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 //방에 있는 사람들 속성
@@ -79,54 +77,45 @@ export class ChannelGateWay {
 
     //인터페이스 배열
     try {
-      const { userId, channelTitle } = data;
+      const { userId, title } = data;
 
       const channelInfo = await this.channelRepository.findOne({
-        where: { title: channelTitle },
+        where: { title: title },
       });
 
-      const channelUsers = await this.channelUserRepository.find({
+      const newEnterUser = {
+        userId: data.userId,
+        channelId: title.id,
+        role:
+          channelInfo.creatorNick === userId
+            ? ChatChannelUserRole.CREATOR
+            : ChatChannelUserRole.USER,
+        mute: false,
+        ban: false,
+        createdAt: new Date(),
+        deletedAt: null,
+      };
+
+      await this.channelUserRepository.save(newEnterUser);
+
+      const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
       });
 
       const TotalUserInfo = [];
 
-      for (let i = 0; i < channelUsers.length; i++) {
-        let findUser = await this.userService.findUserById(
-          channelUsers[i].userId,
-        );
-        const userInfo = {
-          id: channelUsers[i].userId,
-          nickname: findUser.nickname,
-          avatar: findUser.avatar,
-          role: channelUsers[i].role,
-          mute: channelUsers[i].mute,
+      for (let i = 0; i < userInfo.length; i++) {
+        const user = await this.userService.findUserById(userInfo[i].userId);
+        const UserInfo = {
+          id: user.id,
+          nickname: user.nickname,
+          avatar: user.avatar,
+          role: userInfo[i].role,
+          mute: false,
         };
-        TotalUserInfo.push(userInfo);
+        TotalUserInfo.push(UserInfo);
       }
-
-      //const roomInfo = await this.channelRepository.findOne({
-      //  where: { title: channelTitle },
-      //});
-      //const userInfo = await this.userService.findUserById(userId);
-      //if (!roomInfo) {
-      //  const UserInfo = {
-      //    id: userInfo.id,
-      //    nickname: userInfo.nickname,
-      //    avatar: userInfo.avatar,
-      //    role: ChatChannelUserRole.CREATOR,
-      //    mute: false,
-      //  };
-      //} else {
-      //  const UserInfo = {
-      //    id: user.id,
-      //    nickname: user.nickname,
-      //    avatar: user.avatar,
-      //    role: roomInfo.Users.role,
-      //    mute: false,
-      //  };
-      //}
-      console.log(`${userId}님이 코드: ${channelTitle}방에 접속했습니다.`);
+      console.log(`${userId}님이 코드: ${title}방에 접속했습니다.`);
       console.log(`${userId}님이 입장했습니다.`);
       const comeOn = `${userId}님이 입장했습니다.`;
       this.server.emit("userList", TotalUserInfo);

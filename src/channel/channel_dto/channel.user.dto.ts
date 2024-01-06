@@ -1,8 +1,8 @@
-export interface channelUserDto {
+export interface channel_user_dto {
   id: number;
   userId: string;
   channelId: number;
   role: string;
-  created_at: Date;
-  deleted_at: Date;
+  createdAt: Date;
+  deletedAt: Date;
 }

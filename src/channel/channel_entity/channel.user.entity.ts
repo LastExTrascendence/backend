@@ -6,11 +6,9 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { Channel_Status } from "../channel.enum";
+import { ChatChannelUserRole } from "../channel.enum";
 import { channels } from "./channels.entity";
 import { channel } from "diagnostics_channel";
-import { ChatChannelUserRole } from "../channel_dto/channels.dto";
-
 @Entity()
 export class channelUser extends BaseEntity {
   @PrimaryGeneratedColumn()
@@ -35,8 +33,11 @@ export class channelUser extends BaseEntity {
   mute: boolean;
 
   @Column()
-  created_at: Date;
+  ban: boolean;
+
+  @Column()
+  createdAt: Date;
 
   @Column({ nullable: true })
-  deleted_at: Date;
+  deletedAt: Date;
 }
