@@ -12,7 +12,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import { Status } from "./entity/user.enum";
+import { UserStatus } from "./entity/user.enum";
 import { GamePlayers } from "src/game/entity/game.players.entity";
 import { UserProfileDto } from "./dto/user.profile.dto";
 
@@ -27,12 +27,13 @@ export class UserService {
   async createUser(
     UserSessionDto: UserSessionDto,
   ): Promise<{ access_token: string }> {
+    this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
     const { intra_name, nickname, avatar, email } = UserSessionDto;
     const newUser = {
       intra_name: intra_name,
       nickname: nickname,
       avatar: avatar,
-      status: Status.OFFLINE,
+      status: UserStatus.OFFLINE,
       email: email,
       two_fa: false,
       created_at: new Date(),
@@ -40,7 +41,6 @@ export class UserService {
     };
 
     try {
-      this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
       await this.userRepository.save(newUser);
       const payload = { username: UserSessionDto.nickname };
       return { access_token: await this.jwtService.sign(payload) };
@@ -51,7 +51,7 @@ export class UserService {
   }
 
   async updateUser(UserDto: UserDto): Promise<void> {
-    UserDto.status = Status.ONLINE;
+    UserDto.status = UserStatus.ONLINE;
   }
 
   async findUserByNickname(nickname: string): Promise<User> {

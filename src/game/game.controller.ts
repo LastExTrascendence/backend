@@ -1,29 +1,21 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpException,
-  HttpStatus,
   Logger,
-  Param,
-  ParseArrayPipe,
-  ParseIntPipe,
   Post,
-  Put,
-  Query,
   Req,
   Res,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
-  ValidationPipe,
 } from "@nestjs/common";
 import { GameChannelListDto, GameDto, GamePlayersDto } from "./dto/game.dto";
 import { GamePlayerService } from "./game.players.service";
 import { GameService } from "./game.service";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 @Controller("game")
+@UseGuards(JWTAuthGuard)
 export class GameController {
   private logger = new Logger(GameController.name);
   constructor(private gameService: GameService) {}
@@ -67,8 +59,8 @@ export class GameController {
   async getRooms(
     @Req() req: any,
   ): Promise<GameChannelListDto[] | HttpException> {
+    this.logger.debug(`Called ${GameController.name} ${this.getRooms.name}`);
     try {
-      this.logger.debug(`Called ${GameController.name} ${this.getRooms.name}`);
       return await this.gameService.getGameRooms(req);
     } catch (error) {
       this.logger.error(error);

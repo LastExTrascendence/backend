@@ -1,4 +1,4 @@
-import { Logger, OnModuleInit } from "@nestjs/common";
+import { Logger, OnModuleInit, UseGuards } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -21,6 +21,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./channel_entity/channel.user.entity";
 import { format } from "date-fns";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 //방에 있는 사람들 속성
 
@@ -38,6 +39,7 @@ function showTime(currentDate: Date) {
   //   credentials: true
   // }
 })
+@UseGuards(JWTAuthGuard)
 export class ChannelGateWay {
   private logger = new Logger("ChannelGateWay");
   constructor(
@@ -47,7 +49,6 @@ export class ChannelGateWay {
     private readonly channelRepository: Repository<channels>,
     @InjectRepository(channelUser)
     private readonly channelUserRepository: Repository<channelUser>,
-    //private readonly channelUserSerivce: ChannelUserService,
     private redisClient: Redis,
   ) {}
 

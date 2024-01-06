@@ -1,4 +1,4 @@
-import { HttpException, Logger } from "@nestjs/common";
+import { HttpException, Logger, UseGuards } from "@nestjs/common";
 import {
   MessageBody,
   OnGatewayConnection,
@@ -14,6 +14,7 @@ import { UserService } from "src/user/user.service";
 import { DmDto } from "./dto/dm.dto";
 import { DmService } from "./dm.service";
 import { format } from "date-fns";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 //path, endpoint
 
@@ -23,6 +24,7 @@ function showTime(currentDate: Date) {
 }
 
 @WebSocketGateway(83, { namespace: "dm", cors: true })
+@UseGuards(JWTAuthGuard)
 export class DmGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {

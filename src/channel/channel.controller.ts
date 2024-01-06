@@ -1,31 +1,22 @@
 import {
   Body,
   Controller,
-  Delete,
   Get,
   HttpException,
-  HttpStatus,
   Logger,
-  Param,
-  ParseArrayPipe,
-  ParseIntPipe,
   Post,
-  Put,
-  Query,
   Req,
-  Res,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
-  ValidationPipe,
 } from "@nestjs/common";
 import { ChannelsService } from "./channel.service";
 import {
   ChatChannelConnectDto,
   ChatChannelInfoDto,
 } from "./channel_dto/channels.dto";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 @Controller("channel")
+@UseGuards(JWTAuthGuard)
 export class ChannelController {
   private logger = new Logger(ChannelController.name);
   constructor(private channelsService: ChannelsService) {}
@@ -78,10 +69,10 @@ export class ChannelController {
   async getChannels(
     @Req() req: any,
   ): Promise<ChatChannelInfoDto[] | HttpException> {
+    this.logger.debug(
+      `Called ${ChannelController.name} ${this.getChannels.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${ChannelController.name} ${this.getChannels.name}`,
-      );
       return await this.channelsService.getChannels(req);
     } catch (error) {
       this.logger.error(error);
