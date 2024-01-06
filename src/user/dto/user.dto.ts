@@ -2,7 +2,7 @@ import { IsString, Matches, MaxLength, MinLength } from "class-validator";
 import { UserStatus } from "../entity/user.enum";
 
 /**
- * @description 유저의 기본 정보를 담은 DTO
+ * @description 유저 정보를 담은 DTO
  *
  * @param {string} nickname - 유저의 LET 닉네임
  * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
@@ -31,6 +31,20 @@ export class UserSessionDto extends UserDto {
   intra_name: string;
   iat?: number;
   ext?: number;
+}
+
+/**
+ * @description 유저의 기본 정보를 담은 DTO
+ * @param {id} id - 유저의 고유 ID
+ * @param {string} nickname - 유저의 LET 닉네임
+ * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
+ * @param {UserStatus} status - 유저 접속상태
+ */
+export class UserInfoDto {
+  id: number;
+  nickname: string | null;
+  avatar: string | null;
+  status: UserStatus;
 }
 
 export class UserBlockDto {
