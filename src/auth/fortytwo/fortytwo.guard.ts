@@ -10,9 +10,3 @@ export class FortyTwoAuthGuard extends AuthGuard("fortytwo") {
     return user;
   }
 }
-
-@Injectable()
-export class JWTAuthGuard extends AuthGuard("jwt") {}
-
-@Injectable()
-export class loginAuthGuard extends AuthGuard("login") {}

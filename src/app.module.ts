@@ -1,21 +1,33 @@
 import { MiddlewareConsumer, Module, NestModule } from "@nestjs/common";
-import { typeORMConfig } from "./configs/typeorm.config";
+import TypeOrmConfigService from "./configs/typeorm.config";
 import { TypeOrmModule } from "@nestjs/typeorm";
+import { DataSource } from "typeorm";
+import { addTransactionalDataSource } from "typeorm-transactional";
 import { AuthModule } from "./auth/auth.module";
 import { UserModule } from "./user/user.module";
-import { JwtStrategy } from "./auth/strategy/jwt.strategy";
 import { ChannelModule } from "./channel/channel.module";
 import { SocketModule } from "./channel/socket/socket.module";
 import { SessionMiddleware } from "./middleware/session-middleware";
-// import { ChatGateway } from './channel/channel.gateway';
-import { ChannelGateWay } from "./channel/channel.gateway";
-import { ChannelsService } from "./channel/channel.service";
 import { DmModule } from "./dm/dm.module";
 import { GameModule } from "./game/game.module";
+import { ConfigModule } from "@nestjs/config";
 
 @Module({
   imports: [
-    TypeOrmModule.forRoot(typeORMConfig),
+    ConfigModule.forRoot({
+      load: [],
+      isGlobal: true, // TODO: remove after
+    }),
+    TypeOrmModule.forRootAsync({
+      imports: [ConfigModule],
+      useClass: TypeOrmConfigService,
+      async dataSourceFactory(options) {
+        if (!options) {
+          throw new Error("No options");
+        }
+        return addTransactionalDataSource(new DataSource(options));
+      },
+    }),
     AuthModule,
     UserModule,
     ChannelModule,

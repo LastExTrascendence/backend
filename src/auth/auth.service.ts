@@ -31,7 +31,7 @@ export class AuthService {
   //     access_token: this.jwtService.sign(payload),
   //   };
   // }
-  async login(user: User): Promise<{
+  async login(user: any): Promise<{
     access_token: string;
     avatar: string;
     two_fa: boolean;

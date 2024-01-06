@@ -17,19 +17,14 @@ import { GameService } from "src/game/game.service";
 import { GamePlayers } from "src/game/entity/game.players.entity";
 import { GameModule } from "src/game/game.module";
 import { ChannelsService } from "src/channel/channel.service";
+import { AuthModule } from "src/auth/auth.module";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
 
 @Module({
   imports: [
-    PassportModule.register({ defaultStrategy: "jwt" }),
-    JwtModule.register({
-      secret: process.env.JWT_SECRET || jwtConfig.secret,
-      signOptions: {
-        expiresIn: jwtConfig.expiresIn,
-      },
-    }),
+    forwardRef(() => AuthModule),
     TypeOrmModule.forFeature([User, UserFriend, UserBlock]),
     GameModule,
   ],

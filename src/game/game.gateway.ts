@@ -1,4 +1,4 @@
-import { Logger, OnModuleInit } from "@nestjs/common";
+import { Logger, OnModuleInit, UseGuards } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -17,6 +17,7 @@ import { Redis } from "ioredis";
 import { GameDto } from "./dto/game.dto";
 import { Mode, Role, Status } from "./entity/game.enum";
 import { GamePlayers } from "./entity/game.players.entity";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 
 @WebSocketGateway(85, {
   namespace: "game",
@@ -27,8 +28,9 @@ import { GamePlayers } from "./entity/game.players.entity";
   //   credentials: true
   // }
 })
+@UseGuards(JWTAuthGuard)
 export class GameGateWay {
-  private logger = new Logger("GameGameWay");
+  private logger = new Logger(GameGateWay.name);
   constructor(
     private readonly gameService: GameService,
     private readonly gamePlayerService: GamePlayerService,

@@ -5,20 +5,15 @@ import {
   Get,
   HttpException,
   HttpStatus,
-  Inject,
   Logger,
   Param,
-  ParseArrayPipe,
-  ParseIntPipe,
   Post,
   Put,
-  Query,
   Req,
   UploadedFile,
   UseGuards,
   UseInterceptors,
   ValidationPipe,
-  forwardRef,
 } from "@nestjs/common";
 import {
   UserBlockDto,
@@ -28,7 +23,6 @@ import {
 } from "./dto/user.dto";
 import { UserService } from "./user.service";
 import { User } from "./entity/user.entity";
-import { JWTAuthGuard, loginAuthGuard } from "src/auth/auth.guard";
 import { FileInterceptor } from "@nestjs/platform-express";
 import { FriendService } from "./user.friend.service";
 import { UserFriend } from "./entity/user.friend.entity";
@@ -38,6 +32,8 @@ import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.players.service";
 import { UserProfileDto } from "./dto/user.profile.dto";
+import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
+import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 
 @Controller("user")
 export class UserController {
@@ -52,11 +48,11 @@ export class UserController {
 
   //신규 유저 정보 DB 저장
   @Post("/create")
-  // @UseGuards(loginAuthGuard)
+  @UseGuards(JWTUserCreationGuard)
   createUser(
     @Headers() headers: any,
     @Body(ValidationPipe) userDto: UserDto,
-  ): Promise<{ access_token: string }> {
+  ): Promise<{ access_token: string }> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
@@ -68,14 +64,13 @@ export class UserController {
     try {
       return this.userService.createUser(userSessionDto);
     } catch (error) {
-      this.logger.error(error);
-      throw error;
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
-    return null;
   }
 
   //특정 유저의 특정 한 유저 친구 추가
   @Post("/friend/add")
+  @UseGuards(JWTAuthGuard)
   addFriend(
     @Body(ValidationPipe) regist: UserFriendDto,
   ): Promise<UserFriend> | HttpException {
@@ -92,6 +87,7 @@ export class UserController {
 
   //특정 유저의 모든 친구 정보 확인
   @Get("/friend/find/all")
+  @UseGuards(JWTAuthGuard)
   findAllFriend(@Req() req: UserFriendDto) {
     try {
       this.logger.debug(
@@ -105,6 +101,7 @@ export class UserController {
 
   //사용자가 특정 한 유저 친구 정보 확인
   @Get("/friend/find/one")
+  @UseGuards(JWTAuthGuard)
   findFriendById(@Req() req: UserFriendDto) {
     try {
       this.logger.debug(
@@ -125,6 +122,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 친구 삭제
   @Delete("/friend/remove")
+  @UseGuards(JWTAuthGuard)
   deleteFriend(@Req() req: any) {
     try {
       this.logger.debug(
@@ -138,6 +136,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 차단
   @Post("/block/add")
+  @UseGuards(JWTAuthGuard)
   addBlock(
     @Body(ValidationPipe) regist: UserBlockDto,
   ): Promise<UserBlock> | HttpException {
@@ -151,6 +150,7 @@ export class UserController {
 
   //특정 유저의 모든 차단한 유저 정보 확인
   @Get("/block/find/all")
+  @UseGuards(JWTAuthGuard)
   findblock(@Req() req: any) {
     try {
       this.logger.debug(`Called ${UserController.name} ${this.findblock.name}`);
@@ -163,6 +163,7 @@ export class UserController {
 
   //특정 유저의 특정 한 친구 정보 확인
   @Get("/block/find/one")
+  @UseGuards(JWTAuthGuard)
   findBlockById(@Req() req: any) {
     try {
       this.logger.debug(
@@ -176,6 +177,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 차단 해제
   @Delete("/block/remove")
+  @UseGuards(JWTAuthGuard)
   removeBlock(@Req() req: any) {
     try {
       this.logger.debug(
@@ -236,7 +238,8 @@ export class UserController {
   }
 
   //사용자의 특정 유저 프로필 검색
-  @Get("/profile/id")
+  @Get("/profile/:id")
+  @UseGuards(JWTAuthGuard)
   async getprofilebyid(
     @Req() req: any,
   ): Promise<UserProfileDto | HttpException> {
@@ -275,7 +278,8 @@ export class UserController {
   }
 
   //사용자의 특정유저 프로필 검색
-  @Get("/profile/nickname")
+  @Get("/profile/:nickname")
+  @UseGuards(JWTAuthGuard)
   async getProfileByNickname(
     @Req() req: any,
   ): Promise<UserProfileDto | HttpException> {
@@ -314,6 +318,7 @@ export class UserController {
 
   //사용자의 특정유저 검색
   @Get("/search/:nickname")
+  @UseGuards(JWTAuthGuard)
   async searchUserByNickname(
     @Param("nickname") nickname: string,
   ): Promise<UserDto[] | HttpException> {

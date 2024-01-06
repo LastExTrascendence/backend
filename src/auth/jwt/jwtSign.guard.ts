@@ -10,6 +10,7 @@ import { Observable } from "rxjs";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { UserSessionDto } from "src/user/dto/user.dto";
+import * as config from "config";
 
 @Injectable()
 export class JWTSignGuard implements CanActivate {
@@ -25,20 +26,18 @@ export class JWTSignGuard implements CanActivate {
   ): boolean | Promise<boolean> | Observable<boolean> {
     const req = context.switchToHttp().getRequest();
     const res = context.switchToHttp().getResponse();
-    return this.generateJWTToken(req, res);
+    return this.generateJWT(req, res);
   }
 
-  private generateJWTToken(request: Request, response: Response): boolean {
-    this.logger.verbose(
-      `Called ${JWTSignGuard.name} ${this.generateJWTToken.name}`,
-    );
+  private generateJWT(request: any, response: any): boolean {
+    this.logger.verbose(`Called ${JWTSignGuard.name} ${this.generateJWT.name}`);
     const user = request.user as UserSessionDto | undefined;
     if (user === undefined) {
-      this.logger.debug(`can't generate JWTToken`);
+      this.logger.debug(`cannot generate JWT`);
       return false;
     }
     const token = this.jwtService.sign(user);
-    this.logger.debug(`generete ${user.intra_name}'s token`);
+    this.logger.debug(`genereted ${user.intra_name}'s JWT`);
     if (this.configService.get<boolean>("is_local") === true) {
       response.cookie("access_token", token);
     } else {
@@ -46,7 +45,7 @@ export class JWTSignGuard implements CanActivate {
       const cookieOptions: CookieOptions = {
         expires,
         httpOnly: false,
-        domain: "localhost:3333",
+        domain: config.get("FE").get("domain"),
       };
       response.cookie("access_token", token, cookieOptions);
     }

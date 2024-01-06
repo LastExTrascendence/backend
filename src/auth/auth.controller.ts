@@ -13,7 +13,6 @@ import {
   Logger,
 } from "@nestjs/common";
 import { Response } from "express";
-import { FortyTwoAuthGuard, JWTAuthGuard } from "./auth.guard";
 import { AuthService } from "./auth.service";
 import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
@@ -21,8 +20,7 @@ import { JWTSignGuard } from "./jwt/jwtSign.guard";
 import * as config from "config";
 import { User } from "src/decorator/user.decorator";
 import { UserSessionDto } from "src/user/dto/user.dto";
-
-const FEConfig = config.get("FE");
+import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -40,27 +38,26 @@ export class AuthController {
     this.logger.log(`Called ${AuthController.name} ${this.login.name}`);
   }
 
+  // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
+  // 가능하다면 정적 문자열들(http://localhost:3333, http://10.19.239.198:3333...)을 env로 관리하기
   @Get("/login/callback")
   @UseGuards(FortyTwoAuthGuard, JWTSignGuard)
-  async loginCallback(@Res() res: Response, @User() user: UserSessionDto) {
-    // 서비스 로직으로 숨기기 (컨트롤러에서 비즈니스 로직이 드러나고 있음)
-    // 가능하다면 정적 문자열들(http://localhost:3333, http://10.19.239.198:3333...)을 env로 관리하기
+  async loginCallback(
+    @Res({ passthrough: true }) res: Response,
+    @User() user: UserSessionDto,
+  ) {
     this.logger.debug(
       `Called ${AuthController.name} ${this.loginCallback.name}`,
     );
+    const url = `http://${config.get("FE").get("domain")}:${config
+      .get("FE")
+      .get("port")}`;
     try {
       const token = await this.authService.login(user);
       if (!token) {
-        const payload = {
-          intra_name: user.intra_name,
-          email: user.email,
-        };
-        const access_token = this.jwtService.sign(payload);
-        res.cookie("access_token", access_token);
-        res.status(301).redirect(`${FEConfig.get("domain")}/register`);
+        return res.redirect(`${url}/register`);
       } else {
-        res.cookie("access_token", token.access_token);
-        res.status(301).redirect(`${FEConfig.get("domain")}`);
+        return res.redirect(`${url}`);
       }
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -68,7 +65,7 @@ export class AuthController {
   }
 
   //@Post("/otp/generate")
-  //@UseGuards(JWTAuthGuard)
+  //@UseGuards(JwtAuthGuard)
   //async generateOtp(@Req() req: any, @Res({ passthrough: true }) res: any) {
   //  this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
   //  try {
@@ -91,6 +88,7 @@ export class AuthController {
   //}
 
   //@Get('/42logout')
+  // @UseGuards(JWTAuthGuard)
   //logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
   //    res.clearCookie('two_factor_auth');
   //    res.cookie('access_token', '', {

@@ -1,9 +1,4 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  UnauthorizedException,
-} from "@nestjs/common";
+import { Injectable, Logger, UnauthorizedException } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { InjectRepository } from "@nestjs/typeorm";
 import { ExtractJwt, Strategy } from "passport-jwt";
@@ -11,10 +6,10 @@ import { User } from "../../user/entity/user.entity";
 import * as Config from "config";
 import { Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
-import axios from "axios";
 
 @Injectable()
-export class loginStrategy extends PassportStrategy(Strategy, "login") {
+export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
+  private logger = new Logger(JwtStrategy.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private jwtService: JwtService,
@@ -25,14 +20,17 @@ export class loginStrategy extends PassportStrategy(Strategy, "login") {
     });
   }
 
-  async validate(access_token: string): Promise<User | HttpException> {
-    try {
-      const req = await axios.get("https://api.intra.42.fr/v2/me", {
-        headers: { Authorization: `Bearer ${access_token}` }, //authentication code
-      });
-      return req.data.login;
-    } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+  async validate(payload): Promise<User> {
+    this.logger.verbose(
+      `Called ${JwtStrategy.name} ${this.validate.name} by ${payload.intra_name}`,
+    );
+    const { intra_name } = payload;
+    const user: User = await this.userRepository.findOne({
+      where: { intra_name },
+    });
+    if (!user) {
+      throw new UnauthorizedException();
     }
+    return user;
   }
 }

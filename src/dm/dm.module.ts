@@ -8,9 +8,10 @@ import { User } from "src/user/entity/user.entity";
 import { UserService } from "src/user/user.service";
 import { DmService } from "./dm.service";
 import { JwtService } from "@nestjs/jwt";
+import { AuthModule } from "src/auth/auth.module";
 
 @Module({
-  imports: [Redis, TypeOrmModule.forFeature([DmChannels, User])],
+  imports: [AuthModule, Redis, TypeOrmModule.forFeature([DmChannels, User])],
   providers: [
     DmGateway,
     Redis,

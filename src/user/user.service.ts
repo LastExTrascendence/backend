@@ -27,6 +27,7 @@ export class UserService {
   async createUser(
     UserSessionDto: UserSessionDto,
   ): Promise<{ access_token: string }> {
+    this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
     const { intra_name, nickname, avatar, email } = UserSessionDto;
     const newUser = {
       intra_name: intra_name,
@@ -40,7 +41,6 @@ export class UserService {
     };
 
     try {
-      this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
       await this.userRepository.save(newUser);
       const payload = { username: UserSessionDto.nickname };
       return { access_token: await this.jwtService.sign(payload) };

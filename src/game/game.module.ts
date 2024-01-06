@@ -9,6 +9,7 @@ import { GamePlayers } from "./entity/game.players.entity";
 import { GameController } from "./game.controller";
 import { UserModule } from "src/user/user.module";
 import { Redis } from "ioredis";
+import { AuthModule } from "src/auth/auth.module";
 
 @Module({
   imports: [TypeOrmModule.forFeature([Game, GamePlayers])],
