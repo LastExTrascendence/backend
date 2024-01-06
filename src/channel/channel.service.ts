@@ -196,16 +196,20 @@ export class ChannelsService {
       }
       console.log(rooms);
 
-      const channels: ChatChannelUserDto[] = [];
+      const channels = [];
 
       for (let i = 0; i < rooms.length; i++) {
         let roomInfo = {
-          avatar: rooms[i].creatorAvatar,
-          nickname: rooms[i].creatorNick,
-          role:
-            rooms[i].creatorNick === req.nickname
-              ? ChatChannelUserRole.CREATOR
-              : ChatChannelUserRole.USER,
+          id: rooms[i].id,
+          title: rooms[i].title,
+          channelPolicy: rooms[i].channelPolicy,
+          password: null,
+          creator: {
+            nickname: rooms[i].creatorNick,
+            avatar: rooms[i].creatorAvatar,
+          },
+          maxUser: rooms[i].maxUser,
+          curUser: rooms[i].curUser,
         };
         channels.push(roomInfo);
       }

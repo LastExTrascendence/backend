@@ -30,7 +30,7 @@ export class ChannelController {
   private logger = new Logger(ChannelController.name);
   constructor(private channelsService: ChannelsService) {}
   //게임 방 조회
-  @Get()
+  @Get("/")
   async getChannels(
     @Req() req: any,
   ): Promise<ChatChannelUserDto[] | HttpException> {
