@@ -82,47 +82,23 @@ export class ChannelGateWay {
         where: { title: channelTitle },
       });
 
-      const channelUsers = await this.channelUserRepository.find({
+      const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
       });
 
       const TotalUserInfo = [];
 
-      for (let i = 0; i < channelUsers.length; i++) {
-        let findUser = await this.userService.findUserById(
-          channelUsers[i].userId,
-        );
-        const userInfo = {
-          id: channelUsers[i].userId,
-          nickname: findUser.nickname,
-          avatar: findUser.avatar,
-          role: channelUsers[i].role,
-          mute: channelUsers[i].mute,
+      for (let i = 0; i < userInfo.length; i++) {
+        const user = await this.userService.findUserById(userInfo[i].userId);
+        const UserInfo = {
+          id: user.id,
+          nickname: user.nickname,
+          avatar: user.avatar,
+          role: userInfo[i].role,
+          mute: false,
         };
-        TotalUserInfo.push(userInfo);
+        TotalUserInfo.push(UserInfo);
       }
-
-      //const roomInfo = await this.channelRepository.findOne({
-      //  where: { title: channelTitle },
-      //});
-      //const userInfo = await this.userService.findUserById(userId);
-      //if (!roomInfo) {
-      //  const UserInfo = {
-      //    id: userInfo.id,
-      //    nickname: userInfo.nickname,
-      //    avatar: userInfo.avatar,
-      //    role: ChatChannelUserRole.CREATOR,
-      //    mute: false,
-      //  };
-      //} else {
-      //  const UserInfo = {
-      //    id: user.id,
-      //    nickname: user.nickname,
-      //    avatar: user.avatar,
-      //    role: roomInfo.Users.role,
-      //    mute: false,
-      //  };
-      //}
       console.log(`${userId}님이 코드: ${channelTitle}방에 접속했습니다.`);
       console.log(`${userId}님이 입장했습니다.`);
       const comeOn = `${userId}님이 입장했습니다.`;

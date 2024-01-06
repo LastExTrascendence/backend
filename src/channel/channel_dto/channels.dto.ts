@@ -75,3 +75,16 @@ export class ChatChannelInfoDto {
   channelPolicy: ChannelPolicy;
   users: ChatChannelUserDto[];
 }
+
+/**
+ * @description enter 시 필요한 정보
+ *
+ * @param {string} title - 채널의 제목
+ * @param {string} password - 채널의 비밀번호
+ * @param {string} nickname - 채널의 LET 닉네임
+ */
+export class UserVerify {
+  title: string;
+  password: string | null;
+  nickname: string;
+}

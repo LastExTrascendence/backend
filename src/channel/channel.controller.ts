@@ -23,6 +23,7 @@ import { ChannelsService } from "./channel.service";
 import {
   ChatChannelListDto,
   ChatChannelUserDto,
+  UserVerify,
 } from "./channel_dto/channels.dto";
 
 @Controller("channel")
@@ -64,14 +65,13 @@ export class ChannelController {
   //게임 방 입장
   @Post("/enter")
   async enterChannel(
-    @Body("req") req: any,
-    @Body("password") password: string,
+    @Body() userVerify: UserVerify,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(
         `Called ${ChannelController.name} ${this.enterChannel.name}`,
       );
-      await this.channelsService.enterChannel(req, password);
+      await this.channelsService.enterChannel(userVerify);
     } catch (error) {
       this.logger.error(error);
       throw error;
