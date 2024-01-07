@@ -19,7 +19,7 @@ import { UserService } from "src/user/user.service";
 import { channelUser } from "./channel_entity/channel.user.entity";
 import { format } from "date-fns";
 import { ChatChannelUserRole } from "./channel.enum";
-import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
+import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 
 //방에 있는 사람들 속성
 
@@ -37,7 +37,7 @@ function showTime(currentDate: Date) {
   //   credentials: true
   // }
 })
-@UseGuards(JWTAuthGuard)
+@UseGuards(JWTWebSocketGuard)
 export class ChannelGateWay {
   private logger = new Logger("ChannelGateWay");
   constructor(
