@@ -11,6 +11,7 @@ import { SessionMiddleware } from "./middleware/session-middleware";
 import { DmModule } from "./dm/dm.module";
 import { GameModule } from "./game/game.module";
 import { ConfigModule } from "@nestjs/config";
+import { DmGateway } from "./dm/dm.gateway";
 
 @Module({
   imports: [
@@ -36,7 +37,7 @@ import { ConfigModule } from "@nestjs/config";
     GameModule,
   ],
   controllers: [],
-  providers: [SessionMiddleware],
+  providers: [SessionMiddleware, DmGateway],
 })
 export class AppModule implements NestModule {
   constructor(public sessionMiddleware: SessionMiddleware) {}

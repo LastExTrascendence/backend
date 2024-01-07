@@ -12,8 +12,11 @@ import { JwtService } from "@nestjs/jwt";
 import { UserService } from "src/user/user.service";
 import { authenticator } from "otplib";
 import axios from "axios";
+import { toFileStream } from "qrcode";
 
 import * as Config from "config";
+import { config } from "dotenv";
+import { Redis } from "ioredis";
 
 @Injectable()
 export class AuthService {
@@ -23,6 +26,7 @@ export class AuthService {
     private userService: UserService,
     private jwtService: JwtService,
     @InjectRepository(User) private userRepository: Repository<User>,
+    private redisService: Redis,
   ) {}
 
   // login(user: User): { access_token: string } {
@@ -67,43 +71,28 @@ export class AuthService {
     }
   }
 
-  //public async generateTwoFactorAuthenticationSecret(
-  //  user: User,
-  //): Promise<object> {
-  //  // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
-  //  const secret = authenticator.generateSecret();
+  public async generateOtp(user: User): Promise<string> {
+    // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
+    const secret = authenticator.generateSecret();
 
-  //  // accountName + issuer + secret 을 활용하여 인증 코드 갱신을 위한 인증 앱 주소 설정
-  //  const otpAuthUrl = authenticator.keyuri(
-  //    user.email,
-  //    Config.get("jwt.secret"),
-  //    //this.configService.get("TWO_FACTOR_AUTHENTICATION_APP_NAME"),
-  //    secret,
-  //  );
+    // accountName + issuer + secret 을 활용하여 인증 코드 갱신을 위한 인증 앱 주소 설정
+    const otpAuthUrl = authenticator.keyuri(
+      user.email,
+      Config.get("jwt.secret"),
+      //this.configService.get("TWO_FACTOR_AUTHENTICATION_APP_NAME"),
+      secret,
+    );
 
-  //  // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
-  //  await this.userService.setTwoFactorAuthenticationSecret(secret, user.id);
+    // Redis에 시크릿 키 저장
+    await this.redisService.set(`TWOFA|${user.id}`, secret);
 
-  //  // 생성 객체 리턴
-  //  return {
-  //    secret,
-  //    otpAuthUrl,
-  //  };
-  //}
+    // 생성 객체 리턴
+    return otpAuthUrl;
+  }
 
-  //// qrcode의 toFileStream()을 사용해 QR 이미지를 클라이언트에게 응답
-  //// 이때, Express의 Response 객체를 받아옴으로써 클라이언트에게 응답할 수 있다.
-  //public async pipeQrCodeStream(
-  //  stream: Response,
-  //  otpAuthUrl: string,
-  //): Promise<void> {
-  //  return toFileStream(stream, otpAuthUrl);
-  //}
-
-  //isTwoFactorAuthCodeValid(twoFactorAuthCode: string, secret: string) {
-  //  return authenticator.verify({
-  //    token: twoFactorAuthCode,
-  //    secret: secret,
-  //  });
-  //}
+  // qrcode의 toFileStream()을 사용해 QR 이미지를 클라이언트에게 응답
+  // 이때, Express의 Response 객체를 받아옴으로써 클라이언트에게 응답할 수 있다.
+  public async pipeQrCode(stream: Response, otpAuthUrl: string): Promise<void> {
+    return toFileStream(stream, otpAuthUrl);
+  }
 }

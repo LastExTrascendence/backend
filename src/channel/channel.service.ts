@@ -100,7 +100,7 @@ export class ChannelsService {
       await this.channelUserRepository.save(userInfo);
 
       await this.RedisClient.hset(
-        `${chatChannelListDto.title}`,
+        `Channel|${chatChannelListDto.title}`,
         "title",
         chatChannelListDto.title,
       );
@@ -211,6 +211,7 @@ export class ChannelsService {
 
       for (let i = 0; i < channelsInfo.length; i++) {
         const channel = {
+          id: channelsInfo[i].id,
           title: channelsInfo[i].title,
           channelPolicy: channelsInfo[i].channelPolicy,
           creator: {
