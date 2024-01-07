@@ -11,10 +11,10 @@ import {
 import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
-import { DmDto } from "./dto/dm.dto";
+
 import { DmService } from "./dm.service";
 import { format } from "date-fns";
-import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
+import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 
 //path, endpoint
 
@@ -24,11 +24,11 @@ function showTime(currentDate: Date) {
 }
 
 @WebSocketGateway(83, { namespace: "dm", cors: true })
-@UseGuards(JWTAuthGuard)
+@UseGuards(JWTWebSocketGuard)
 export class DmGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
-  private static readonly logger = new Logger(DmGateway.name);
+  private logger = new Logger(DmGateway.name);
 
   @WebSocketServer()
   server: Server;
@@ -39,17 +39,17 @@ export class DmGateway
   ) {}
 
   afterInit() {
-    DmGateway.logger.debug(`Socket Server Init Complete`);
+    this.logger.debug(`Socket Server Init Complete`);
   }
 
   async handleConnection(client: Socket) {
-    DmGateway.logger.debug(
+    this.logger.verbose(
       `${client.id}(${client.handshake.query["username"]}) is connected!`,
     );
   }
 
   handleDisconnect(client: Socket) {
-    DmGateway.logger.debug(`${client.id} is disconnected...`);
+    this.logger.verbose(`${client.id} is disconnected...`);
   }
 
   @SubscribeMessage("msgToServer")
@@ -62,10 +62,10 @@ export class DmGateway
       content: string;
     },
   ): Promise<void> {
+    this.logger.debug(`Received message: ${payload.content}`);
     //DB에 저장
     //1. UserDB에서 sender, receiver가 있는지 확인
     //sender, receiver
-    console.log(payload);
     const sender = await this.userService.findUserById(payload.sender);
     const receiver = await this.userService.findUserByNickname(
       payload.receiver,
