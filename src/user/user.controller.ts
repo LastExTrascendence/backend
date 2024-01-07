@@ -8,11 +8,8 @@ import {
   Logger,
   Param,
   Post,
-  Put,
   Req,
-  UploadedFile,
   UseGuards,
-  UseInterceptors,
   ValidationPipe,
 } from "@nestjs/common";
 import {
@@ -24,7 +21,6 @@ import {
 } from "./dto/user.dto";
 import { UserService } from "./user.service";
 // import { User } from "./entity/user.entity";
-import { FileInterceptor } from "@nestjs/platform-express";
 import { FriendService } from "./user.friend.service";
 import { UserFriend } from "./entity/user.friend.entity";
 import { BlockService } from "./user.block.service";
@@ -105,11 +101,10 @@ export class UserController {
   @Get("/friend/find/one")
   @UseGuards(JWTAuthGuard)
   findFriendById(@Req() req: UserFriendDto) {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.findFriendById.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${UserController.name} ${this.findFriendById.name}`,
-      );
-
       // Call your service method to check if the users are friends
       const areFriends = this.friendService.findFriend(
         req.user_id,
@@ -126,10 +121,10 @@ export class UserController {
   @Delete("/friend/remove")
   @UseGuards(JWTAuthGuard)
   deleteFriend(@Req() req: any) {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.deleteFriend.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${UserController.name} ${this.deleteFriend.name}`,
-      );
       return this.friendService.removeFriend(req.user_id, req.friend_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
@@ -142,8 +137,8 @@ export class UserController {
   addBlock(
     @Body(ValidationPipe) regist: UserBlockDto,
   ): Promise<UserBlock> | HttpException {
+    this.logger.debug(`Called ${UserController.name} ${this.addBlock.name}`);
     try {
-      this.logger.debug(`Called ${UserController.name} ${this.addBlock.name}`);
       return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -154,8 +149,8 @@ export class UserController {
   @Get("/block/find/all")
   @UseGuards(JWTAuthGuard)
   findblock(@Req() req: any) {
+    this.logger.debug(`Called ${UserController.name} ${this.findblock.name}`);
     try {
-      this.logger.debug(`Called ${UserController.name} ${this.findblock.name}`);
       const user_id = req.user_id;
       return this.blockService.findBlockAll(user_id);
     } catch (error) {
@@ -167,10 +162,10 @@ export class UserController {
   @Get("/block/find/one")
   @UseGuards(JWTAuthGuard)
   findBlockById(@Req() req: any) {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.findBlockById.name}`,
+    );
     try {
-      this.logger.debug(
-        `Called ${UserController.name} ${this.findBlockById.name}`,
-      );
       return this.blockService.findBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -181,10 +176,8 @@ export class UserController {
   @Delete("/block/remove")
   @UseGuards(JWTAuthGuard)
   removeBlock(@Req() req: any) {
+    this.logger.debug(`Called ${UserController.name} ${this.removeBlock.name}`);
     try {
-      this.logger.debug(
-        `Called ${UserController.name} ${this.removeBlock.name}`,
-      );
       return this.blockService.removeBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
@@ -259,59 +252,62 @@ export class UserController {
   // }
 
   //사용자의 특정 유저 프로필 검색
-  @Get("/profile/:id")
-  @UseGuards(JWTAuthGuard)
-  async getprofilebyid(
-    @Req() req: any,
-  ): Promise<UserProfileDto | HttpException> {
-    try {
-      const UserInfo = await this.userService.findUserById(req.user_id);
-      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
-        req.user_id,
-      );
-      //첫번째 인자는, 사용자의 id, 두번째 인자는, 찾고자하는 user의 id
-      const UserFriendInfo = await this.friendService.findFriend(
-        req.user_id,
-        req.friend_id,
-      );
+  // @Get("/profile/:id")
+  // @UseGuards(JWTAuthGuard)
+  // async getprofilebyid(
+  //   @Req() req: any,
+  // ): Promise<UserProfileDto | HttpException> {
+  //   this.logger.debug(
+  //     `Called ${UserController.name} ${this.getprofilebyid.name}`,
+  //   );
+  //   try {
+  //     const UserInfo = await this.userService.findUserById(req.user_id);
+  //     const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+  //       req.user_id,
+  //     );
+  //     //첫번째 인자는, 사용자의 id, 두번째 인자는, 찾고자하는 user의 id
+  //     const UserFriendInfo = await this.friendService.findFriend(
+  //       req.user_id,
+  //       req.friend_id,
+  //     );
 
-      const Userprofile: UserProfileDto = {
-        id: UserInfo.id,
-        intra_name: UserInfo.intra_name,
-        nickname: UserInfo.nickname,
-        avatar: UserInfo.avatar,
-        email: UserInfo.email,
-        games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
-        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
-        is_friend: UserFriendInfo ? true : false,
-        at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
-      };
-      this.logger.debug(
-        `Called ${UserController.name} ${this.getprofilebyid.name}`,
-      );
-      return Userprofile;
-    } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
-    }
-  }
+  //     const Userprofile: UserProfileDto = {
+  //       id: UserInfo.id,
+  //       intra_name: UserInfo.intra_name,
+  //       nickname: UserInfo.nickname,
+  //       avatar: UserInfo.avatar,
+  //       email: UserInfo.email,
+  //       games: UserGameInfo.length,
+  //       wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+  //       loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+  //       is_friend: UserFriendInfo ? true : false,
+  //       at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
+  //     };
+  //     return Userprofile;
+  //   } catch (e) {
+  //     return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //   }
+  // }
 
-  //사용자의 특정유저 프로필 검색
+  //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/profile/:nickname")
   @UseGuards(JWTAuthGuard)
   async getProfileByNickname(
-    @Req() req: any,
+    @Param("nickname") nickname: string,
+    @User() user: UserSessionDto,
   ): Promise<UserProfileDto | HttpException> {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.getProfileByNickname.name}`,
+    );
     try {
-      const UserInfo = await this.userService.findUserByNickname(req.nickname);
+      const UserInfo = await this.userService.findUserByNickname(nickname);
       const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
         UserInfo.id,
       );
       const UserFriendInfo = await this.friendService.findFriend(
+        user.id,
         UserInfo.id,
-        req.friend_id,
       );
-
       const Userprofile: UserProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
@@ -324,12 +320,9 @@ export class UserController {
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
       };
-      this.logger.debug(
-        `Called ${UserController.name} ${this.getProfileByNickname.name}`,
-      );
       return Userprofile;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
