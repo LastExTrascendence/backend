@@ -1,36 +1,21 @@
-import {
-  ConflictException,
-  Injectable,
-  InternalServerErrorException,
-  Logger,
-} from "@nestjs/common";
+import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { User } from "../user/entity/user.entity";
 import { JwtService } from "@nestjs/jwt";
-//import { AuthCredentialsDto } from './dto/auth-credential.dto';
 import { UserService } from "src/user/user.service";
-import { authenticator } from "otplib";
-import axios from "axios";
-
 import * as Config from "config";
 
 @Injectable()
 export class AuthService {
   private jwtConfig = Config.get("jwt");
-  private logger = new Logger("AuthService");
+  private logger = new Logger(AuthService.name);
   constructor(
     private userService: UserService,
     private jwtService: JwtService,
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
-  // login(user: User): { access_token: string } {
-  //   const payload = { username: user.IntraId};
-  //   return {
-  //     access_token: this.jwtService.sign(payload),
-  //   };
-  // }
   async login(user: any): Promise<{
     access_token: string;
     avatar: string;
