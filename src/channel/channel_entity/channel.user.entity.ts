@@ -7,8 +7,19 @@ import {
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { ChatChannelUserRole } from "../channel.enum";
-import { channels } from "./channels.entity";
-import { channel } from "diagnostics_channel";
+/**
+ * @description 채널 유저에 대한 엔터티
+ *
+ * @param {number} id - 채널 유저의 고유 ID
+ * @param {number} userId - 채널 유저의 고유 ID
+ * @param {number} channelId - 채널 유저가 속한 채널의 고유 ID
+ * @param {ChatChannelUserRole} role - 채널 유저의 권한
+ * @param {boolean} mute - 채널 유저의 뮤트 여부
+ * @param {boolean} ban - 채널 유저의 밴 여부
+ * @param {Date} createdAt - 채널 유저의 생성 시간
+ * @param {Date} deletedAt - 채널 유저의 삭제 시간
+ */
+
 @Entity()
 export class channelUser extends BaseEntity {
   @PrimaryGeneratedColumn()
@@ -18,13 +29,8 @@ export class channelUser extends BaseEntity {
   @Column()
   userId: number;
 
-  //@ManyToOne(() => channels, channels => channels.id, {eager: true})
-  //channel_id: channels[];
-
   @Column()
   channelId: number;
-  // @ManyToOne(() => channels, channel => channel.channel_users, { eager: true })
-  // channel_id: channels;
 
   @Column()
   role: ChatChannelUserRole;

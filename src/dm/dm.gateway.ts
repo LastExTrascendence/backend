@@ -12,7 +12,7 @@ import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
 
-import { DmService } from "./dm.service";
+//import { DmService } from "./dm.service";
 import { format } from "date-fns";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 
@@ -35,7 +35,7 @@ export class DmGateway
   constructor(
     private redisClient: Redis,
     private userService: UserService,
-    private dmService: DmService,
+    //private dmService: DmService,
   ) {}
 
   afterInit() {
@@ -83,14 +83,14 @@ export class DmGateway
       name = sender.id + "," + receiver.id;
     }
 
-    if (!(await this.dmService.getdmchannelByName(name))) {
-      const dm_channel = {
-        name: name,
-        created_at: payload.time,
-        deleted_at: null,
-      };
-      this.dmService.createdmchannel(dm_channel);
-    }
+    //if (!(await this.dmService.getdmchannelByName(name))) {
+    //  const dm_channel = {
+    //    name: name,
+    //    created_at: payload.time,
+    //    deleted_at: null,
+    //  };
+    //  this.dmService.createdmchannel(dm_channel);
+    //}
 
     //3. Dm 메시지 저장
 
@@ -112,17 +112,9 @@ export class DmGateway
       content: RedisPayload.content,
     };
 
-    // Broadcast the message to all connected clients
     this.server.emit("msgToClient", ClientPayload);
-    // this.server.emit("comeOn" + channel_name, comeOn);
     return name;
   }
-
-  //interface Message {
-  //  sender: number; // mystate id
-  //  receiver: string; // receiver nickname
-  //  content: string; //
-  //}
 
   @SubscribeMessage("getRedis")
   async giveRedis(
@@ -139,27 +131,31 @@ export class DmGateway
     );
 
     //객체 배열로 변경
+    const totalMessages = [];
 
     if (chats) {
       for (const idx in chats) {
         const split = chats[idx].split("|");
-        if (split.length > 4)
-          this.server.to(client.id).emit("msgToClient", {
+        if (split.length > 4) {
+          const message = {
             time: split[0],
             sender: split[1],
             receiver: split[2],
             content: split.slice(3 - split.length).join("|"),
-          });
-        else {
-          this.server.to(client.id).emit("msgToClient", {
+          };
+          totalMessages.push(message);
+        } else {
+          const message = {
             time: split[0],
             sender: split[1],
             receiver: split[2],
             content: split[3],
-          });
+          };
+          totalMessages.push(message);
         }
       }
     }
+    this.server.to(client.id).emit("msgToClient", totalMessages);
   }
 
   private async fetchChatHistory(

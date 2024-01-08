@@ -65,8 +65,6 @@ export class ChannelsService {
         chatChannelListDto.creator.nickname,
       );
 
-      console.log(createInfo);
-
       const newChannel = {
         title: chatChannelListDto.title,
         channelPolicy: ChannelPolicy.PUBLIC,
@@ -211,6 +209,7 @@ export class ChannelsService {
 
       for (let i = 0; i < channelsInfo.length; i++) {
         const channel = {
+          id: channelsInfo[i].id,
           title: channelsInfo[i].title,
           channelPolicy: channelsInfo[i].channelPolicy,
           creator: {

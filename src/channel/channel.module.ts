@@ -25,21 +25,7 @@ const jwtConfig = config.get("jwt");
     TypeOrmModule.forFeature([User, channels, channelUser]),
   ],
   controllers: [ChannelController],
-  providers: [
-    UserService,
-    ChannelGateWay,
-    ChannelsService,
-    //ChannelsRepository,
-    Redis,
-    //ChannelUserRepository,
-    //ChannelUserService,
-  ],
-  exports: [
-    ChannelsService,
-    //ChannelsRepository,
-    Redis,
-    //ChannelUserRepository,
-    //ChannelUserService,
-  ],
+  providers: [UserService, ChannelGateWay, ChannelsService, Redis],
+  exports: [ChannelsService, Redis],
 })
 export class ChannelModule {}

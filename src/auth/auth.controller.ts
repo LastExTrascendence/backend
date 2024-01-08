@@ -6,6 +6,9 @@ import {
   HttpException,
   HttpStatus,
   Logger,
+  Post,
+  Req,
+  Body,
 } from "@nestjs/common";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
@@ -59,48 +62,36 @@ export class AuthController {
     }
   }
 
-  //@Post("/otp/generate")
-  //@UseGuards(JwtAuthGuard)
-  //async generateOtp(@Req() req: any, @Res({ passthrough: true }) res: any) {
-  //  this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
-  //  try {
-  //    const user = await this.userService.findUserByNickname(req.user.nickname);
-  //    if (!user) {
-  //      return new HttpException("User not found", HttpStatus.NOT_FOUND);
-  //    }
-  //    const otp = await this.authService.generateOtp(user);
-  //    if (!otp) {
-  //      return new HttpException(
-  //        "OTP generation failed",
-  //        HttpStatus.BAD_REQUEST,
-  //      );
-  //    }
-  //    res.cookie("two_factor_auth", otp);
-  //    res.status(200).json({ otp });
-  //  } catch (error) {
-  //    return new HttpException(error.message, HttpStatus.BAD_REQUEST);
-  //  }
-  //}
-
-  //@Get('/42logout')
-  // @UseGuards(JWTAuthGuard)
-  //logout(@Req() req: any, @Res({ passthrough: true }) res: Response) {
-  //    res.clearCookie('two_factor_auth');
-  //    res.cookie('access_token', '', {
-  //      httpOnly: false,
-  //    });
-  //    // userState를 logout으로 바꾸는 usersService 부르기
-  //    if (req.query?.userID) {
-  //      this.userService.updateUserState(req.query.userID, 'logout');
-  //    } else {
-  //      console.log('logout: no user ID in query');
-  //    }
-  //    res.status(302).redirect(`${process.env.HOST}:${process.env.CLIENT_PORT}`);
-  //  }
+  @Post("/otp/generate")
+  //@UseGuards(JWTSignGuard)
+  async generateOtp(
+    @Body() user: UserSessionDto,
+    @Res({ passthrough: true }) res: any,
+  ) {
+    this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
+    try {
+      const userInfo = await this.userService.findUserByNickname(user.nickname);
+      if (!userInfo) {
+        return new HttpException(
+          "해당 유저가 존재하지 않습니다.",
+          HttpStatus.NOT_FOUND,
+        );
+      } else if (userInfo.two_fa === false) {
+        return new HttpException(
+          "2FA 기능이 활성화 되어있지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const otp = await this.authService.generateOtp(userInfo);
+      if (!otp) {
+        return new HttpException(
+          "OTP 생성이 실패했습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      return await this.authService.pipeQrCode(res, otp);
+    } catch (error) {
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
 }
-
-//finduser=> o => jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
-//finduser=> X => res.status(302).redirect(`http://10.19.239.198:3333/register`); => nickname, avatar, bio => Post('/create') => createuser => user 새로 생성하고 db 저장
-// => jwt Token => cookie => res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
-
-//jwt Token => cookie =>res.status(301).redirect(`http://10.19.239.198:3333/auth/login/otp`);
