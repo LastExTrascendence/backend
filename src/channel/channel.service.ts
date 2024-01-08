@@ -89,7 +89,7 @@ export class ChannelsService {
         userId: createInfo.id,
         channelId: newChannelInfo.id,
         role: ChatChannelUserRole.CREATOR,
-        mute: false,
+        mute: null,
         ban: false,
         createdAt: new Date(),
         deletedAt: null,
