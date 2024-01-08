@@ -26,6 +26,14 @@ function showTime(currentDate: Date) {
   return formattedTime;
 }
 
+function isMoreThan30SecondsAgo(targetTime: Date): boolean {
+  const currentTime = new Date();
+  const timeDifferenceInSeconds =
+    (currentTime.getTime() - targetTime.getTime()) / 1000;
+
+  return timeDifferenceInSeconds > 30;
+}
+
 @WebSocketGateway(81, {
   namespace: "chat",
   cors: true,
@@ -184,23 +192,34 @@ export class ChannelGateWay {
         where: { userId: data.sender, channelId: channelInfo.id },
       });
 
-      if (userInfo.mute === true) {
-        throw new Error("뮤트 상태입니다.");
+      if (userInfo.mute) {
+        if (isMoreThan30SecondsAgo(userInfo.mute)) {
+          await this.channelUserRepository.update(
+            { userId: data.sender, channelId: channelInfo.id },
+            { mute: null },
+          );
+          this.server.emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: data.content,
+          });
+        } else
+          this.server.to(client.id).emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: "뮤트 상태입니다.",
+          });
       }
-
-      this.server.emit("msgToClient", {
-        time: showTime(data.time),
-        sender: senderInfo.nickname,
-        content: data.content,
-      });
     } catch (error) {
       console.log(error);
     }
   }
 
-  //userId : number
   //title : string
-  //changeId : number
+  //userId : number
+  //changeId : string
+
+  //바꾼후 모든 유저 리스트를 보내준다.
   @SubscribeMessage("changeRole")
   async changeRole(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
@@ -235,9 +254,9 @@ export class ChannelGateWay {
     }
   }
 
-  //userId : number
   //title : string
-  //kickId : number
+  //userId : number
+  //kickId : string
   @SubscribeMessage("kick")
   async kickSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
@@ -273,9 +292,9 @@ export class ChannelGateWay {
     }
   }
 
-  //userId : number
   //title : string
-  //banId : number
+  //userId : number
+  //banId : string
   @SubscribeMessage("ban")
   async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
@@ -317,7 +336,7 @@ export class ChannelGateWay {
 
   //userId : number
   //title : string
-  //muteId : number
+  //muteId : string
   @SubscribeMessage("mute")
   async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {

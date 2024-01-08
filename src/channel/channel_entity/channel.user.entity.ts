@@ -35,8 +35,8 @@ export class channelUser extends BaseEntity {
   @Column()
   role: ChatChannelUserRole;
 
-  @Column()
-  mute: boolean;
+  @Column({ nullable: true })
+  mute: Date;
 
   @Column()
   ban: boolean;
