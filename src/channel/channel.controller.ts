@@ -39,12 +39,12 @@ export class ChannelController {
   async createChannel(
     @Body() chatChannelListDto: ChatChannelListDto,
     //@Req() req: any, // ChatChannelInfoDto{{}}
-  ): Promise<void | HttpException> {
+  ): Promise<ChatChannelListDto | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.createChannel.name}`,
     );
     try {
-      await this.channelsService.createChannel(chatChannelListDto);
+      return await this.channelsService.createChannel(chatChannelListDto);
     } catch (error) {
       this.logger.error(error);
       throw error;
