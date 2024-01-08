@@ -108,7 +108,7 @@ export class ChannelGateWay {
       } else {
         const newEnterUser = {
           userId: data.userId,
-          channelId: title.id,
+          channelId: channelInfo.id,
           role:
             channelInfo.creatorNick === userId
               ? ChatChannelUserRole.CREATOR
@@ -166,8 +166,8 @@ export class ChannelGateWay {
     //this.channelUserSerivce.createuser(channelUser);
   }
 
+  //time : 시간
   //title : string 요청
-
   //sender : number
   //content : string
 
