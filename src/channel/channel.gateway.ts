@@ -223,7 +223,7 @@ export class ChannelGateWay {
 
   //title : string
   //userId : number
-  //changeId : string
+  //changeNick : string
 
   //바꾼후 모든 유저 리스트를 보내준다.
   @SubscribeMessage("changeRole")
@@ -262,7 +262,7 @@ export class ChannelGateWay {
 
   //title : string
   //userId : number
-  //kickId : string
+  //kickNick : string
   @SubscribeMessage("kick")
   async kickSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
@@ -300,7 +300,7 @@ export class ChannelGateWay {
 
   //title : string
   //userId : number
-  //banId : string
+  //banNick : string
   @SubscribeMessage("ban")
   async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
@@ -342,7 +342,7 @@ export class ChannelGateWay {
 
   //title : string
   //userId : number
-  //muteId : string
+  //muteNick : string
   @SubscribeMessage("mute")
   async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
