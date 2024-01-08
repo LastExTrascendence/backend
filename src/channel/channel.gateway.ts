@@ -156,22 +156,6 @@ export class ChannelGateWay {
     } catch (error) {
       console.log(error);
     }
-
-    //방에 없다
-
-    //try {
-    //  if (!roomInfo) {
-    //    await this.redisClient.rpush(channelTitle, userId);
-    //  } else if (roomInfo.length > 2) {
-    //    throw new Error("방이 꽉 찼습니다.");
-    //  } else if (roomInfo && roomInfo.includes(userId)) {
-    //    throw new Error("이미 방에 있습니다.");
-    //  }
-    //} catch (error) {
-    //  console.log(error);
-    //}
-
-    //this.channelUserSerivce.createuser(channelUser);
   }
 
   //time : 시간
@@ -239,22 +223,40 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
+      const changeUser = await this.userService.findUserByNickname(changeId);
+
       const changeUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: changeId, channelId: channelInfo.id },
+        where: { userId: changeUser.id, channelId: channelInfo.id },
       });
 
       if (changeUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
+      } else if (changeUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("채널 생성자는 절대 권력입니다.");
       }
 
-      if (userInfo.role === ChatChannelUserRole.CREATOR) {
+      if (
+        (userInfo.role === ChatChannelUserRole.CREATOR ||
+          userInfo.role === ChatChannelUserRole.OPERATOR) &&
+        changeUserInfo.role === ChatChannelUserRole.USER
+      ) {
         await this.channelUserRepository.update(
-          { userId: userId, channelId: channelInfo.id },
+          { userId: changeUserInfo.id, channelId: channelInfo.id },
           { role: ChatChannelUserRole.OPERATOR },
         );
-      } else {
-        throw new Error("방장이 아닙니다.");
+      } else if (
+        (userInfo.role === ChatChannelUserRole.CREATOR ||
+          userInfo.role === ChatChannelUserRole.OPERATOR) &&
+        changeUserInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { role: ChatChannelUserRole.USER },
+        );
       }
+      return await this.channelUserRepository.find({
+        where: { channelId: channelInfo.id },
+      });
     } catch (error) {
       console.log(error);
     }
@@ -276,8 +278,10 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
+      const kickUser = await this.userService.findUserByNickname(kickId);
+
       const kickUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: kickId, channelId: channelInfo.id },
+        where: { userId: kickUser.id, channelId: channelInfo.id },
       });
 
       if (kickUserInfo) {
@@ -290,8 +294,9 @@ export class ChannelGateWay {
       ) {
         const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
-      } else {
-        throw new Error("방장이 아닙니다.");
+        return await this.channelUserRepository.find({
+          where: { channelId: channelInfo.id },
+        });
       }
     } catch (error) {
       console.log(error);
@@ -304,7 +309,7 @@ export class ChannelGateWay {
   @SubscribeMessage("ban")
   async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
-      const { userId, title, banId } = data;
+      const { userId, title, banNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -314,8 +319,10 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
+      const banUser = await this.userService.findUserByNickname(banNick);
+
       const banUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: banId, channelId: channelInfo.id },
+        where: { userId: banUser.id, channelId: channelInfo.id },
       });
 
       if (banUserInfo) {
@@ -327,14 +334,15 @@ export class ChannelGateWay {
         userInfo.role === ChatChannelUserRole.OPERATOR
       ) {
         await this.channelUserRepository.update(
-          { userId: userId, channelId: channelInfo.id },
+          { userId: banUser.id, channelId: channelInfo.id },
           { ban: true },
         );
-        const targetClient = this.connectedClients.get(userId);
+        const targetClient = this.connectedClients.get(banUser.id);
         targetClient.disconnect(true);
-      } else {
-        throw new Error("권한이 없습니다.");
       }
+      return await this.channelUserRepository.find({
+        where: { channelId: channelInfo.id },
+      });
     } catch (error) {
       console.log(error);
     }
