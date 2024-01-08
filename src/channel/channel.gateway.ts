@@ -340,13 +340,13 @@ export class ChannelGateWay {
     }
   }
 
-  //userId : number
   //title : string
+  //userId : number
   //muteId : string
   @SubscribeMessage("mute")
   async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
     try {
-      const { userId, title, muteId } = data;
+      const { title, userId, muteId } = data;
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -356,8 +356,10 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
+      const muteUser = await this.userService.findUserByNickname(muteId);
+
       const muteUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: muteId, channelId: channelInfo.id },
+        where: { userId: muteUser.id, channelId: channelInfo.id },
       });
 
       if (muteUserInfo) {
