@@ -40,6 +40,7 @@ export class ChannelDto {
  */
 
 export class ChatChannelListDto {
+  id: number;
   title: string;
   channelPolicy: ChannelPolicy;
   password: string | null;

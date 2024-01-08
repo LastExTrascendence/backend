@@ -51,12 +51,38 @@ export class ChannelGateWay {
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }
-  handleConnection(client: Socket) {
+
+  //query
+  //userId : number
+  // title : string
+  async handleConnection(client: Socket) {
+    this.logger.debug(`Socket Connected`);
+
     const userId = Array.isArray(client.handshake.query.userId)
       ? parseInt(client.handshake.query.userId[0], 10)
       : parseInt(client.handshake.query.userId, 10);
-    //const userId = parseInt(client.handshake.query.userId, 10);
+
+    const title = Array.isArray(client.handshake.query.title)
+      ? client.handshake.query.title[0]
+      : (client.handshake.query.title as string);
+
+    const channelInfo = await this.channelRepository.findOne({
+      where: { title: title },
+    });
+
+    const userInfo = await this.channelUserRepository.findOne({
+      where: { userId: userId, channelId: channelInfo.id },
+    });
+
     this.connectedClients.set(userId, client);
+
+    if (userInfo.ban === true) {
+      const targetClient = this.connectedClients.get(userId);
+      targetClient.disconnect(true);
+      throw new Error("밴 상태입니다.");
+    }
+
+    //const userId = parseInt(client.handshake.query.userId, 10);
   }
 
   async handleDisconnect(
@@ -164,12 +190,26 @@ export class ChannelGateWay {
     //this.channelUserSerivce.createuser(channelUser);
   }
 
+  //title : string 요청
+
   //sender : number
   //content : string
 
   @SubscribeMessage("msgToServer")
   async sendMessage(@MessageBody() data: any, @ConnectedSocket() client) {
     const senderInfo = await this.userService.findUserById(data.sender);
+
+    const channelInfo = await this.channelRepository.findOne({
+      where: { title: data.title },
+    });
+
+    const userInfo = await this.channelUserRepository.findOne({
+      where: { userId: data.sender, channelId: channelInfo.id },
+    });
+
+    if (userInfo.mute === true) {
+      throw new Error("뮤트 상태입니다.");
+    }
 
     this.server.emit("msgToClient", {
       time: showTime(data.time),
@@ -200,4 +240,61 @@ export class ChannelGateWay {
       throw new Error("방장이 아닙니다.");
     }
   }
+
+  @SubscribeMessage("ban")
+  async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+    const { userId, title } = data;
+
+    const channelInfo = await this.channelRepository.findOne({
+      where: { title: title },
+    });
+
+    const userInfo = await this.channelUserRepository.findOne({
+      where: { userId: userId, channelId: channelInfo.id },
+    });
+
+    if (
+      userInfo.role === ChatChannelUserRole.CREATOR ||
+      userInfo.role === ChatChannelUserRole.OPERATOR
+    ) {
+      await this.channelUserRepository.update(
+        { userId: userId, channelId: channelInfo.id },
+        { ban: true },
+      );
+      const targetClient = this.connectedClients.get(userId);
+      targetClient.disconnect(true);
+    } else {
+      throw new Error("방장이 아닙니다.");
+    }
+  }
+
+  @SubscribeMessage("mute")
+  async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+    const { userId, title } = data;
+
+    const channelInfo = await this.channelRepository.findOne({
+      where: { title: title },
+    });
+
+    const userInfo = await this.channelUserRepository.findOne({
+      where: { userId: userId, channelId: channelInfo.id },
+    });
+
+    if (
+      userInfo.role === ChatChannelUserRole.CREATOR ||
+      userInfo.role === ChatChannelUserRole.OPERATOR
+    ) {
+      await this.channelUserRepository.update(
+        { userId: userId, channelId: channelInfo.id },
+        { mute: true },
+      );
+    } else {
+      throw new Error("방장이 아닙니다.");
+    }
+  }
 }
+
+//DM DB저장 삭제
+//Channel Gateway 구조 변경(map)
+//ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
+//channel GateWay KICK, BAN, MUTE 구현

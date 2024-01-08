@@ -111,7 +111,8 @@ export class ChannelsService {
         );
       }
 
-      const retChannelInfo: ChatChannelListDto = {
+      const retChannelInfo = {
+        id: newChannelInfo.id,
         title: newChannel.title,
         password: null,
         channelPolicy: newChannel.channelPolicy,
