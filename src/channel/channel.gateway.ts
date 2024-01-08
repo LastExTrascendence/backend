@@ -55,34 +55,8 @@ export class ChannelGateWay {
   //query
   //userId : number
   // title : string
-  async handleConnection(client: Socket) {
+  async handleConnection(Socket: Socket) {
     this.logger.debug(`Socket Connected`);
-
-    const userId = Array.isArray(client.handshake.query.userId)
-      ? parseInt(client.handshake.query.userId[0], 10)
-      : parseInt(client.handshake.query.userId, 10);
-
-    const title = Array.isArray(client.handshake.query.title)
-      ? client.handshake.query.title[0]
-      : (client.handshake.query.title as string);
-
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: title },
-    });
-
-    const userInfo = await this.channelUserRepository.findOne({
-      where: { userId: userId, channelId: channelInfo.id },
-    });
-
-    this.connectedClients.set(userId, client);
-
-    if (userInfo.ban === true) {
-      const targetClient = this.connectedClients.get(userId);
-      targetClient.disconnect(true);
-      throw new Error("밴 상태입니다.");
-    }
-
-    //const userId = parseInt(client.handshake.query.userId, 10);
   }
 
   async handleDisconnect(
@@ -109,12 +83,9 @@ export class ChannelGateWay {
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
-    //1. 채널 주인/ 관리자
-    //2. DB에 담겨있는 채널 멤버들의 정보
-
-    //인터페이스 배열
     try {
       const { userId, title } = data;
+      this.connectedClients.set(userId, Socket);
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -125,6 +96,11 @@ export class ChannelGateWay {
       });
 
       if (currentUserInfo) {
+        if (currentUserInfo.ban === true) {
+          const targetClient = this.connectedClients.get(userId);
+          targetClient.disconnect(true);
+          throw new Error("밴 상태입니다.");
+        }
         await this.channelUserRepository.update(
           { userId: userId, channelId: channelInfo.id },
           { createdAt: new Date(), deletedAt: null },
@@ -197,99 +173,185 @@ export class ChannelGateWay {
 
   @SubscribeMessage("msgToServer")
   async sendMessage(@MessageBody() data: any, @ConnectedSocket() client) {
-    const senderInfo = await this.userService.findUserById(data.sender);
+    try {
+      const senderInfo = await this.userService.findUserById(data.sender);
 
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: data.title },
-    });
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: data.title },
+      });
 
-    const userInfo = await this.channelUserRepository.findOne({
-      where: { userId: data.sender, channelId: channelInfo.id },
-    });
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: data.sender, channelId: channelInfo.id },
+      });
 
-    if (userInfo.mute === true) {
-      throw new Error("뮤트 상태입니다.");
+      if (userInfo.mute === true) {
+        throw new Error("뮤트 상태입니다.");
+      }
+
+      this.server.emit("msgToClient", {
+        time: showTime(data.time),
+        sender: senderInfo.nickname,
+        content: data.content,
+      });
+    } catch (error) {
+      console.log(error);
     }
-
-    this.server.emit("msgToClient", {
-      time: showTime(data.time),
-      sender: senderInfo.nickname,
-      content: data.content,
-    });
   }
 
+  //userId : number
+  //title : string
+  //changeId : number
+  @SubscribeMessage("changeRole")
+  async changeRole(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const { userId, title, changeId } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      const changeUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: changeId, channelId: channelInfo.id },
+      });
+
+      if (changeUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (userInfo.role === ChatChannelUserRole.CREATOR) {
+        await this.channelUserRepository.update(
+          { userId: userId, channelId: channelInfo.id },
+          { role: ChatChannelUserRole.OPERATOR },
+        );
+      } else {
+        throw new Error("방장이 아닙니다.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  //userId : number
+  //title : string
+  //kickId : number
   @SubscribeMessage("kick")
   async kickSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
-    const { userId, title } = data;
+    try {
+      const { userId, title, kickId } = data;
 
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: title },
-    });
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
 
-    const userInfo = await this.channelUserRepository.findOne({
-      where: { userId: userId, channelId: channelInfo.id },
-    });
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
 
-    if (
-      userInfo.role === ChatChannelUserRole.CREATOR ||
-      userInfo.role === ChatChannelUserRole.OPERATOR
-    ) {
-      const targetClient = this.connectedClients.get(userId);
-      targetClient.disconnect(true);
-    } else {
-      throw new Error("방장이 아닙니다.");
+      const kickUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: kickId, channelId: channelInfo.id },
+      });
+
+      if (kickUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+      } else {
+        throw new Error("방장이 아닙니다.");
+      }
+    } catch (error) {
+      console.log(error);
     }
   }
 
+  //userId : number
+  //title : string
+  //banId : number
   @SubscribeMessage("ban")
   async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
-    const { userId, title } = data;
+    try {
+      const { userId, title, banId } = data;
 
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: title },
-    });
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
 
-    const userInfo = await this.channelUserRepository.findOne({
-      where: { userId: userId, channelId: channelInfo.id },
-    });
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
 
-    if (
-      userInfo.role === ChatChannelUserRole.CREATOR ||
-      userInfo.role === ChatChannelUserRole.OPERATOR
-    ) {
-      await this.channelUserRepository.update(
-        { userId: userId, channelId: channelInfo.id },
-        { ban: true },
-      );
-      const targetClient = this.connectedClients.get(userId);
-      targetClient.disconnect(true);
-    } else {
-      throw new Error("방장이 아닙니다.");
+      const banUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: banId, channelId: channelInfo.id },
+      });
+
+      if (banUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: userId, channelId: channelInfo.id },
+          { ban: true },
+        );
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+      } else {
+        throw new Error("권한이 없습니다.");
+      }
+    } catch (error) {
+      console.log(error);
     }
   }
 
+  //userId : number
+  //title : string
+  //muteId : number
   @SubscribeMessage("mute")
   async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
-    const { userId, title } = data;
+    try {
+      const { userId, title, muteId } = data;
 
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: title },
-    });
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
 
-    const userInfo = await this.channelUserRepository.findOne({
-      where: { userId: userId, channelId: channelInfo.id },
-    });
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
 
-    if (
-      userInfo.role === ChatChannelUserRole.CREATOR ||
-      userInfo.role === ChatChannelUserRole.OPERATOR
-    ) {
-      await this.channelUserRepository.update(
-        { userId: userId, channelId: channelInfo.id },
-        { mute: true },
-      );
-    } else {
-      throw new Error("방장이 아닙니다.");
+      const muteUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: muteId, channelId: channelInfo.id },
+      });
+
+      if (muteUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: muteId, channelId: channelInfo.id },
+          { mute: true },
+        );
+      } else {
+        throw new Error("권한이 없습니다.");
+      }
+    } catch (error) {
+      console.log(error);
     }
   }
 }
