@@ -209,6 +209,12 @@ export class ChannelGateWay {
             sender: senderInfo.nickname,
             content: "뮤트 상태입니다.",
           });
+      } else {
+        this.server.emit("msgToClient", {
+          time: showTime(data.time),
+          sender: senderInfo.nickname,
+          content: data.content,
+        });
       }
     } catch (error) {
       console.log(error);
