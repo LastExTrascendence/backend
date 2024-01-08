@@ -121,7 +121,7 @@ export class ChannelGateWay {
             channelInfo.creatorNick === userId
               ? ChatChannelUserRole.CREATOR
               : ChatChannelUserRole.USER,
-          mute: false,
+          mute: null,
           ban: false,
           createdAt: new Date(),
           deletedAt: null,
@@ -142,7 +142,7 @@ export class ChannelGateWay {
           nickname: user.nickname,
           avatar: user.avatar,
           role: userInfo[i].role,
-          mute: false,
+          mute: null,
         };
         TotalUserInfo.push(UserInfo);
       }
