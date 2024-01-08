@@ -372,7 +372,7 @@ export class ChannelGateWay {
       ) {
         await this.channelUserRepository.update(
           { userId: muteId, channelId: channelInfo.id },
-          { mute: true },
+          { mute: new Date() },
         );
       } else {
         throw new Error("권한이 없습니다.");
