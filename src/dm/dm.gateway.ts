@@ -60,7 +60,7 @@ export class DmGateway
       content: string;
     },
   ): Promise<void> {
-    this.logger.debug(`Received message: ${payload.content}`);
+    this.logger.verbose(`Received message: ${payload.content}`);
     //1. UserDB에서 sender, receiver가 있는지 확인
     const sender = await this.userService.findUserById(payload.sender);
     const receiver = await this.userService.findUserByNickname(
