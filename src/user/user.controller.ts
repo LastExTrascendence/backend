@@ -8,6 +8,7 @@ import {
   Logger,
   Param,
   Post,
+  Put,
   Req,
   UseGuards,
   ValidationPipe,
@@ -28,7 +29,7 @@ import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.players.service";
-import { UserProfileDto } from "./dto/user.profile.dto";
+import { UpdateUserInfoDto, UserProfileDto } from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
@@ -208,8 +209,12 @@ export class UserController {
   //사용자 본인 정보 (프로필 페이지) 확인
   @Get("/me/profile")
   @UseGuards(JWTAuthGuard)
-  async findMe(@Req() req: any): Promise<UserProfileDto | HttpException> {
-    this.logger.debug(`Called ${UserController.name} ${this.findMe.name}`);
+  async getMyProfileInfo(
+    @Req() req: any,
+  ): Promise<UserProfileDto | HttpException> {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.getMyProfileInfo.name}`,
+    );
     try {
       const UserInfo = await this.userService.findUserById(req.user.id);
       const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
@@ -235,21 +240,21 @@ export class UserController {
   }
 
   //사용자의 닉네임, 프로필 사진, 2FA 설정 변경
-  // @Put("/me/update")
-  // @UseGuards(JWTAuthGuard)
-  // @UseInterceptors(FileInterceptor("file"))
-  // updateME(
-  //   @Req() req: any,
-  //   @UploadedFile() file: Express.Multer.File,
-  // ): Promise<User> | HttpException {
-  //   try {
-  //     this.logger.debug(`Called ${UserController.name} ${this.updateME.name}`);
-  //     this.checkNickname(req.user.nickname);
-  //     return this.userService.updateUserProfile(req.user, file);
-  //   } catch (error) {
-  //     return new HttpException(error.message, HttpStatus.BAD_REQUEST);
-  //   }
-  // }
+  @Put("/me/update")
+  @UseGuards(JWTAuthGuard)
+  async updateMyInfo(
+    @User() user: UserSessionDto,
+    @Body(ValidationPipe) updateUserInfoDto: UpdateUserInfoDto,
+  ): Promise<void | HttpException> {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.updateMyInfo.name}`,
+    );
+    try {
+      this.userService.updateUserProfile(user.nickname, updateUserInfoDto);
+    } catch (error) {
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
 
   //사용자의 특정 유저 프로필 검색
   // @Get("/profile/:id")
@@ -290,6 +295,45 @@ export class UserController {
   // }
 
   //특정 유저의 공개 프로필 검색 (닉네임)
+  @Get("/info/:nickname")
+  @UseGuards(JWTAuthGuard)
+  async getInfoByNickname(
+    @Param("nickname") nickname: string,
+    @User() user: UserSessionDto,
+  ): Promise<UserProfileDto | HttpException> {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.getInfoByNickname.name}`,
+    );
+    try {
+      const UserInfo = await this.userService.findUserByNickname(nickname);
+      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+        UserInfo.id,
+      );
+      console.log(user);
+      console.log(nickname);
+      const UserFriendInfo = await this.friendService.findFriend(
+        user.id,
+        UserInfo.id,
+      );
+      const Userprofile: UserProfileDto = {
+        id: UserInfo.id,
+        intra_name: UserInfo.intra_name,
+        nickname: UserInfo.nickname,
+        avatar: UserInfo.avatar,
+        email: UserInfo.email,
+        games: UserGameInfo.length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+        is_friend: UserFriendInfo ? true : false,
+        at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
+      };
+      return Userprofile;
+    } catch (e) {
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/profile/:nickname")
   @UseGuards(JWTAuthGuard)
   async getProfileByNickname(
@@ -304,10 +348,10 @@ export class UserController {
       const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
         UserInfo.id,
       );
-      const UserFriendInfo = await this.friendService.findFriend(
-        user.id,
-        UserInfo.id,
-      );
+      const UserFriendInfo =
+        user.id === UserInfo.id
+          ? null
+          : await this.friendService.findFriend(user.id, UserInfo.id);
       const Userprofile: UserProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,

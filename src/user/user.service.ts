@@ -1,20 +1,11 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from "@nestjs/common";
-// import { UserRepository } from './user.repository';
+import { Injectable, Logger } from "@nestjs/common";
 import { UserDto, UserSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { UserStatus } from "./entity/user.enum";
-import { GamePlayers } from "src/game/entity/game.players.entity";
-import { UserProfileDto } from "./dto/user.profile.dto";
+import { UpdateUserInfoDto } from "./dto/user.profile.dto";
 
 @Injectable()
 export class UserService {
@@ -81,23 +72,16 @@ export class UserService {
   }
 
   async updateUserProfile(
-    userDto: UserDto,
-    file: Express.Multer.File,
-    //profileUrl: string,
+    oldNickname: string,
+    updateUserInfoDto: UpdateUserInfoDto,
   ): Promise<User> {
-    const { id, nickname, avatar, two_fa } = userDto;
-    const user = await this.userRepository.findOne({ where: { id } });
+    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    const user = await this.userRepository.findOne({
+      where: { nickname: oldNickname },
+    });
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
-    let photoData = null;
-    if (file) {
-      photoData = file.buffer;
-    }
-    //} else if (profileUrl) {
-    //  photoData = profileUrl;
-    //}
-    //user.avatar = photoData;
     await this.userRepository.save(user);
     return user;
   }

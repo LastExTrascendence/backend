@@ -1,9 +1,17 @@
-import { IsString, Matches, MaxLength, MinLength } from "class-validator";
+import {
+  IsBase64,
+  IsBoolean,
+  IsEmail,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 import { UserStatus } from "../entity/user.enum";
 
 /**
  * @description 유저 정보를 담은 DTO
- *
+ * @param {number} id - 유저의 고유 ID
  * @param {string} nickname - 유저의 LET 닉네임
  * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
  * @param {string} email - 유저의 42 Intra Email
@@ -12,10 +20,22 @@ import { UserStatus } from "../entity/user.enum";
  */
 export class UserDto {
   id: number;
+
+  @IsString()
+  @MinLength(4)
+  @MaxLength(16)
+  @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
   nickname: string | null;
+
+  @IsBase64()
   avatar: string | null;
+
+  @IsEmail()
   email: string;
+
+  @IsBoolean()
   two_fa: boolean;
+
   status: UserStatus;
 }
 

@@ -1,9 +1,9 @@
 import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, VerifyCallback } from "passport-42";
+import { UserStatus } from "src/user/entity/user.enum";
 import * as config from "config";
 import { UserSessionDto } from "src/user/dto/user.dto";
-import { UserStatus } from "src/user/entity/user.enum";
 
 const ftConfig = config.get("FORTYTWO");
 
