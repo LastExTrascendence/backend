@@ -5,10 +5,10 @@ import { User } from "../user/entity/user.entity";
 import { JwtService } from "@nestjs/jwt";
 import { UserService } from "src/user/user.service";
 import * as Config from "config";
-import { authenticator } from "otplib";
+import { authenticator, totp } from "otplib";
 import { Redis } from "ioredis";
-import { toFileStream } from "qrcode";
-import { UserSessionDto } from "src/user/dto/user.dto";
+import * as qr from "qrcode";
+import { createReadStream, createWriteStream } from "fs";
 
 @Injectable()
 export class AuthService {
@@ -58,39 +58,53 @@ export class AuthService {
   }
 
   public async generateOtp(user: User): Promise<string> {
-    // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
-    const secret = authenticator.generateSecret();
+    try {
+      // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
+      const secret = authenticator.generateSecret();
 
-    console.log(secret);
+      const otpConfig = Config.get("OTP");
 
-    const otpConfig = Config.get("OTP");
+      // accountName + issuer + secret 을 활용하여 인증 코드 갱신을 위한 인증 앱 주소 설정
+      const otpAuthUrl = authenticator.keyuri(
+        user.email,
+        otpConfig.TWO_FACTOR_AUTHENTICATION_APP_NAME,
+        secret,
+      );
 
-    console.log(otpConfig.TWO_FACTOR_AUTHENTICATION_APP_NAME);
+      if (!otpAuthUrl) throw new Error("OTP Auth Url is not generated");
 
-    // accountName + issuer + secret 을 활용하여 인증 코드 갱신을 위한 인증 앱 주소 설정
-    const otpAuthUrl = authenticator.keyuri(
-      user.email,
-      otpConfig.TWO_FACTOR_AUTHENTICATION_APP_NAME,
-      secret,
-    );
+      // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
+      await this.redisService.set(`OTP|${user.id}`, secret);
 
-    // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
-    await this.redisService.set(`OTP|${user.id}`, secret);
+      const qrCodeBuffer = await qr.toBuffer(otpAuthUrl);
+      const writeStream = createWriteStream(`./qr-codes/${user.id}_qrcode.png`);
+      writeStream.write(qrCodeBuffer);
 
-    // 생성 객체 리턴
-    return otpAuthUrl;
+      // 생성 객체 리턴
+      return otpAuthUrl;
+    } catch (error) {
+      throw error;
+    }
   }
 
-  // qrcode의 toFileStream()을 사용해 QR 이미지를 클라이언트에게 응답
-  // 이때, Express의 Response 객체를 받아옴으로써 클라이언트에게 응답할 수 있다.
-  public async pipeQrCode(stream: Response, otpAuthUrl: string): Promise<void> {
-    return toFileStream(stream, otpAuthUrl);
-  }
+  public async verifyOtp(user: User, otp: string): Promise<boolean> {
+    try {
+      // Retrieve the stored secret key from Redis
+      const storedSecret = await this.redisService.get(`OTP|${user.id}`);
 
-  //isTwoFactorAuthCodeValid(twoFactorAuthCode: string, secret: string) {
-  //  return authenticator.verify({
-  //    token: twoFactorAuthCode,
-  //    secret: secret,
-  //  });
-  //}
+      if (!storedSecret) {
+        throw new Error("Secret key not found for the user");
+      }
+
+      // Verify the provided OTP against the stored secret
+      const isValid = authenticator.verify({
+        token: otp,
+        secret: storedSecret,
+      });
+
+      return isValid;
+    } catch (error) {
+      throw error;
+    }
+  }
 }

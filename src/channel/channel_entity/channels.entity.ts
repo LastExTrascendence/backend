@@ -33,7 +33,7 @@ export class channels extends BaseEntity {
   channelPolicy: ChannelPolicy;
 
   @Column()
-  creatorNick: string;
+  creatorId: number;
 
   @Column({ nullable: true })
   creatorAvatar: string;
