@@ -10,6 +10,7 @@ import { UserService } from "src/user/user.service";
 import { UserModule } from "src/user/user.module";
 import { JwtStrategy } from "./jwt/jwt.strategy";
 import { FortyTwoStrategy } from "./fortytwo/fortytwo.strategy";
+import { Redis } from "ioredis";
 
 const jwtConfig = config.get("jwt");
 
@@ -26,7 +27,7 @@ const jwtConfig = config.get("jwt");
     TypeOrmModule.forFeature([User]),
   ],
   controllers: [AuthController],
-  providers: [UserService, JwtStrategy, AuthService, FortyTwoStrategy],
+  providers: [UserService, JwtStrategy, AuthService, FortyTwoStrategy, Redis],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}

@@ -7,19 +7,17 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { UserDto } from "src/user/dto/user.dto";
 import { channels } from "./channel_entity/channels.entity";
 import { ChannelsService } from "./channel.service";
-import { SaveOptions, RemoveOptions } from "typeorm";
 import { Redis } from "ioredis";
 import { Repository } from "typeorm";
-import { User } from "src/user/entity/user.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./channel_entity/channel.user.entity";
 import { format } from "date-fns";
 import { ChatChannelUserRole } from "./channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
+import { parse } from "path";
 
 //방에 있는 사람들 속성
 
@@ -28,14 +26,17 @@ function showTime(currentDate: Date) {
   return formattedTime;
 }
 
+function isMoreThan30SecondsAgo(targetTime: Date): boolean {
+  const currentTime = new Date();
+  const timeDifferenceInSeconds =
+    (currentTime.getTime() - targetTime.getTime()) / 1000;
+
+  return timeDifferenceInSeconds > 30;
+}
+
 @WebSocketGateway(81, {
   namespace: "chat",
   cors: true,
-  // cors: {
-  //   origin: "http://10.19.239.198:3000",
-  //   methods: ["GET", "POST"],
-  //   credentials: true
-  // }
 })
 @UseGuards(JWTWebSocketGuard)
 export class ChannelGateWay {
@@ -50,20 +51,38 @@ export class ChannelGateWay {
     private redisClient: Redis,
   ) {}
 
-  handleRoomCreation(roomName: string) {
-    throw new Error("Method not implemented.");
-  }
   @WebSocketServer()
   server: Server;
 
-  wsClients = [];
+  private connectedClients: Map<number, Socket> = new Map();
 
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }
-  handleConnection(Socket: Socket) {}
 
-  handleDisconnect(Socket: Socket) {}
+  //query
+  //userId : number
+  // title : string
+  async handleConnection(Socket: Socket) {
+    this.logger.debug(`Socket Connected`);
+  }
+
+  async handleDisconnect(
+    @MessageBody() data: any,
+    @ConnectedSocket() Socket: Socket,
+  ) {
+    this.logger.debug(`Socket Disconnected`);
+    const channelInfo = await this.channelRepository.findOne({
+      where: { title: data.title },
+    });
+
+    await this.channelUserRepository.update(
+      { channelId: channelInfo.id, userId: data.userId },
+      { deletedAt: new Date() },
+    );
+
+    this.connectedClients.delete(data.userId);
+  }
 
   //----------------------------------------------
 
@@ -72,31 +91,43 @@ export class ChannelGateWay {
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
-    //1. 채널 주인/ 관리자
-    //2. DB에 담겨있는 채널 멤버들의 정보
-
-    //인터페이스 배열
     try {
       const { userId, title } = data;
+      this.connectedClients.set(userId, Socket);
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
       });
 
-      const newEnterUser = {
-        userId: data.userId,
-        channelId: title.id,
-        role:
-          channelInfo.creatorNick === userId
-            ? ChatChannelUserRole.CREATOR
-            : ChatChannelUserRole.USER,
-        mute: false,
-        ban: false,
-        createdAt: new Date(),
-        deletedAt: null,
-      };
+      const currentUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
 
-      await this.channelUserRepository.save(newEnterUser);
+      if (currentUserInfo) {
+        if (currentUserInfo.ban === true) {
+          const targetClient = this.connectedClients.get(userId);
+          targetClient.disconnect(true);
+          throw new Error("밴 상태입니다.");
+        }
+        await this.channelUserRepository.update(
+          { userId: userId, channelId: channelInfo.id },
+          { createdAt: new Date(), deletedAt: null },
+        );
+      } else {
+        const newEnterUser = {
+          userId: data.userId,
+          channelId: channelInfo.id,
+          role:
+            channelInfo.creatorNick === userId
+              ? ChatChannelUserRole.CREATOR
+              : ChatChannelUserRole.USER,
+          mute: null,
+          ban: false,
+          createdAt: new Date(),
+          deletedAt: null,
+        };
+        await this.channelUserRepository.save(newEnterUser);
+      }
 
       const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
@@ -111,188 +142,256 @@ export class ChannelGateWay {
           nickname: user.nickname,
           avatar: user.avatar,
           role: userInfo[i].role,
-          mute: false,
+          mute: null,
         };
         TotalUserInfo.push(UserInfo);
       }
+
+      console.log("TotalUserInfo", TotalUserInfo);
+
       console.log(`${userId}님이 코드: ${title}방에 접속했습니다.`);
       console.log(`${userId}님이 입장했습니다.`);
       const comeOn = `${userId}님이 입장했습니다.`;
       this.server.emit("userList", TotalUserInfo);
-      this.wsClients.push(Socket);
     } catch (error) {
       console.log(error);
     }
-
-    //방에 없다
-
-    //try {
-    //  if (!roomInfo) {
-    //    await this.redisClient.rpush(channelTitle, userId);
-    //  } else if (roomInfo.length > 2) {
-    //    throw new Error("방이 꽉 찼습니다.");
-    //  } else if (roomInfo && roomInfo.includes(userId)) {
-    //    throw new Error("이미 방에 있습니다.");
-    //  }
-    //} catch (error) {
-    //  console.log(error);
-    //}
-
-    //this.channelUserSerivce.createuser(channelUser);
   }
 
-  //채널에 사용자 추가
-  // const UserData = {
-  //   user_id: "12",
-  //   channel_id : channel_id,
-  //   role: 'User Description',
-  //   created_at: new Date(),
-  //   deleted_at: new Date()
-  // };
-  // await this.channelUserSerivce.createuser(UserData);
-
-  // this.channelsService.createdbchannel(channelData);
-
-  // if (await this.channelsService.getUserschannel(channel_id, user_id))
-  // {
-  //   this.logger.debug(`channel_id : ${channel_id} is already exist, in getdbchannelName`);
-  //     console.log('channel_id', channel_id)
-  //     const channelData = {
-  //       name: channel_id,
-  //       type: Channel_Status.PUBLIC,
-  //       description: 'Channel Description',
-  //       created_at: new Date(),
-  //       deleted_at: new Date()
-  //     };
-  //     this.channelsService.createdbchannel(channelData);
-  // }
-
-  private broadcast(event, client, message: any) {
-    for (let c of this.wsClients) {
-      if (client.id == c.id) continue;
-      c.to(client.id).emit(event, message);
-    }
-  }
-
+  //time : 시간
+  //title : string 요청
   //sender : number
   //content : string
 
   @SubscribeMessage("msgToServer")
   async sendMessage(@MessageBody() data: any, @ConnectedSocket() client) {
-    //console.log("data", data)
+    try {
+      const senderInfo = await this.userService.findUserById(data.sender);
 
-    const senderInfo = await this.userService.findUserById(data.sender);
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: data.title },
+      });
 
-    this.server.to(client.id).emit("msgToClient", {
-      time: showTime(data.time),
-      sender: senderInfo.nickname,
-      content: data.content,
-    });
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: data.sender, channelId: channelInfo.id },
+      });
 
-    //console.log("----------------------");
-    //console.log(`${client.id} : ${data}`);
-    //console.log("room", room);
-    //console.log("nickname", nickname);
-    //console.log("message", message);
-    //console.log("----------------------");
-    //this.broadcast(room, client, [nickname, message]);
+      if (userInfo.mute) {
+        if (isMoreThan30SecondsAgo(userInfo.mute)) {
+          await this.channelUserRepository.update(
+            { userId: data.sender, channelId: channelInfo.id },
+            { mute: null },
+          );
+          this.server.emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: data.content,
+          });
+        } else
+          this.server.to(client.id).emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: "뮤트 상태입니다.",
+          });
+      } else {
+        this.server.emit("msgToClient", {
+          time: showTime(data.time),
+          sender: senderInfo.nickname,
+          content: data.content,
+        });
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  //title : string
+  //userId : number
+  //changeNick : string
+
+  //바꾼후 모든 유저 리스트를 보내준다.
+  @SubscribeMessage("changeRole")
+  async changeRole(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const { userId, title, changeId } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      const changeUser = await this.userService.findUserByNickname(changeId);
+
+      const changeUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: changeUser.id, channelId: channelInfo.id },
+      });
+
+      if (changeUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      } else if (changeUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("채널 생성자는 절대 권력입니다.");
+      }
+
+      if (
+        (userInfo.role === ChatChannelUserRole.CREATOR ||
+          userInfo.role === ChatChannelUserRole.OPERATOR) &&
+        changeUserInfo.role === ChatChannelUserRole.USER
+      ) {
+        await this.channelUserRepository.update(
+          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { role: ChatChannelUserRole.OPERATOR },
+        );
+      } else if (
+        (userInfo.role === ChatChannelUserRole.CREATOR ||
+          userInfo.role === ChatChannelUserRole.OPERATOR) &&
+        changeUserInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { role: ChatChannelUserRole.USER },
+        );
+      }
+      return await this.channelUserRepository.find({
+        where: { channelId: channelInfo.id },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  //title : string
+  //userId : number
+  //kickNick : string
+  @SubscribeMessage("kick")
+  async kickSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const { userId, title, kickId } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      const kickUser = await this.userService.findUserByNickname(kickId);
+
+      const kickUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: kickUser.id, channelId: channelInfo.id },
+      });
+
+      if (kickUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+        return await this.channelUserRepository.find({
+          where: { channelId: channelInfo.id },
+        });
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  //title : string
+  //userId : number
+  //banNick : string
+  @SubscribeMessage("ban")
+  async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const { userId, title, banNick } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      const banUser = await this.userService.findUserByNickname(banNick);
+
+      const banUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: banUser.id, channelId: channelInfo.id },
+      });
+
+      if (banUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: banUser.id, channelId: channelInfo.id },
+          { ban: true },
+        );
+        const targetClient = this.connectedClients.get(banUser.id);
+        targetClient.disconnect(true);
+      }
+      return await this.channelUserRepository.find({
+        where: { channelId: channelInfo.id },
+      });
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  //title : string
+  //userId : number
+  //muteNick : string
+  @SubscribeMessage("mute")
+  async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const { title, userId, muteId } = data;
+
+      const channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
+      const userInfo = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      const muteUser = await this.userService.findUserByNickname(muteId);
+
+      const muteUserInfo = await this.channelUserRepository.findOne({
+        where: { userId: muteUser.id, channelId: channelInfo.id },
+      });
+
+      if (muteUserInfo) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      }
+
+      if (
+        userInfo.role === ChatChannelUserRole.CREATOR ||
+        userInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: muteId, channelId: channelInfo.id },
+          { mute: new Date() },
+        );
+      } else {
+        throw new Error("권한이 없습니다.");
+      }
+    } catch (error) {
+      console.log(error);
+    }
   }
 }
-// export class ChannelGateWay implements OnModuleInit{
-//   @WebSocketServer()
-//   server : Server;
 
-//   // wsClients = [];
-
-//   //NestJS 애플리케이션에서 Socket.io를 사용하여
-//   //서버 측 소켓 연결 이벤트를 처리하는 부분.
-//   //onModuleInit() 메서드는 NestJS에서 사용되는 라이프사이클 훅 중 하나.
-//   //해당 클래스가 초기화될 때 호출됩니다.
-//   onModuleInit() {
-//     //Socket.io의 서버 인스턴스에서 연결 이벤트를 처리하는 부분
-//     //클라이언트 측에서 소켓 연결이 발생할 때마다 이 코드가 실행
-//       this.server.on('connection', (socket) => {
-//         console.log('id', socket.id);
-//         console.log('onModue Connected to socket.io');
-//       })
-//   }
-
-//   //NestJS 내에서 Socket.io를 사용하여
-//   //특정 메시지('nmessage')를 구독하고, 해당 메시지를 처리하는 메서드
-//   @SubscribeMessage('nmessage')
-//   connectSomeone(@MessageBody() data: any) {
-//     console.log(data);
-//     const nickname = data.nickname;
-//     const room = data.room;
-//     console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
-//     //emit안에 onmessage 이벤트만 가지고 있는 사람에게(클라이언트) 메세지를 보냄.
-//     //'onmessage'라는 이벤트로 데이터를 송신.
-//     //이로 인해 클라이언트 측에서 'onmessage' 이벤트를 구독하고 있는 경우 해당 데이터를 수신.
-//     this.server.emit('onmessage', {
-//       msg: 'New Message',
-//       content : data,
-//     });
-//     // const [nickname, room] = data;
-//     // console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
-//     // const comeOn = `${nickname}님이 입장했습니다.`;
-//     // this.server.emit('comeOn' + room, comeOn);
-//     // this.wsClients.push(client);
-//   }
-
-//   private broadcast(event, client, message: any) {
-//     for (let c of this.wsClients) {
-//       if (client.id == c.id)
-//         continue;
-//       c.emit(event, message);
-//     }
-//   }
-
-//   afterInit() {
-//     console.log('init test'); //gateway가 실행될 때 가장 먼저 실행되는 함수이다.
-//   }
-
-//   @SubscribeMessage('send')
-//   sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-//     const [room, nickname, message] = data;
-//     console.log(`${client.id} : ${data}`);
-//     this.broadcast(room, client, [nickname, message]);
-//   }
-// }
-
-// import { ConnectedSocket, MessageBody, SubscribeMessage, WebSocketGateway, WebSocketServer } from '@nestjs/websockets';
-
-// @WebSocketGateway(83, { namespace : 'channel' })
-// export class ChannelGateWay {
-//   @WebSocketServer()
-//   server;
-
-//   wsClients = [];
-
-//   @SubscribeMessage('message')
-//   connectSomeone(@MessageBody() data: string, @ConnectedSocket() client) {
-//     // const [nickname, room] = data;
-//     // console.log(`${nickname}님이 코드: ${room}방에 접속했습니다.`);
-//     // const comeOn = `${nickname}님이 입장했습니다.`;
-//     // this.server.emit('comeOn' + room, comeOn);
-//     // this.wsClients.push(client);
-//   }
-
-// //   private broadcast(event, client, message: any) {
-// //     for (let c of this.wsClients) {
-// //       if (client.id == c.id)
-// //         continue;
-// //       c.emit(event, message);
-// //     }
-// //   }
-
-// //   afterInit() {
-// //     console.log('init test'); //gateway가 실행될 때 가장 먼저 실행되는 함수이다.
-// //   }
-
-// //   @SubscribeMessage('send')
-// //   sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-// //     const [room, nickname, message] = data;
-// //     console.log(`${client.id} : ${data}`);
-// //     this.broadcast(room, client, [nickname, message]);
-// //   }
-// }
+//DM DB저장 삭제
+//Channel Gateway 구조 변경(map)
+//ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
+//channel GateWay KICK, BAN, MUTE 구현

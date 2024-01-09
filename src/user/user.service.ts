@@ -56,12 +56,11 @@ export class UserService {
 
   async findUserByNickname(nickname: string): Promise<User> {
     const user = await this.userRepository.findOne({ where: { nickname } });
-    //const user = await this.boardRepository.findOne(id);
+    return user;
+  }
 
-    //front요청을 해서 정보를 받아서 그 기반으로 유저 생성해서 db담기
-    // if (!user){
-    //     throw new NotFoundException(`Can't find Board with id ${intra_name}`)
-    // }
+  async findUserByIntraname(intra_name: string): Promise<User> {
+    const user = await this.userRepository.findOne({ where: { intra_name } });
     return user;
   }
 

@@ -34,16 +34,17 @@ export class ChannelDto {
  * @param {string} title - 채널의 제목
  * @param {ChannelPolicy} ChannelPolicy - 채널의 공개 여부
  * @param {string} password - 채널의 비밀번호
- * @param {UserInfoDto} creator - 채널의 생성자 정보
+ * @param {number} creatorId - 채널의 생성자 정보
  * @param {number} curUser - 채널의 현재 유저 수
  * @param {number} maxUser - 채널의 최대 유저 수
  */
 
 export class ChatChannelListDto {
+  id: number;
   title: string;
   channelPolicy: ChannelPolicy;
   password: string | null;
-  creator: UserInfoDto;
+  creatorId: number;
   curUser: number;
   maxUser: number;
 }

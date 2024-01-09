@@ -61,11 +61,9 @@ export class ChannelsService {
         );
       }
 
-      const createInfo = await this.userService.findUserByNickname(
-        chatChannelListDto.creator.nickname,
+      const createInfo = await this.userService.findUserById(
+        chatChannelListDto.creatorId,
       );
-
-      console.log(createInfo);
 
       const newChannel = {
         title: chatChannelListDto.title,
@@ -91,7 +89,7 @@ export class ChannelsService {
         userId: createInfo.id,
         channelId: newChannelInfo.id,
         role: ChatChannelUserRole.CREATOR,
-        mute: false,
+        mute: null,
         ban: false,
         createdAt: new Date(),
         deletedAt: null,
@@ -113,14 +111,12 @@ export class ChannelsService {
         );
       }
 
-      const retChannelInfo: ChatChannelListDto = {
+      const retChannelInfo = {
+        id: newChannelInfo.id,
         title: newChannel.title,
         password: null,
         channelPolicy: newChannel.channelPolicy,
-        creator: {
-          nickname: createInfo.nickname,
-          avatar: createInfo.avatar,
-        },
+        creatorId: createInfo.id,
         curUser: 0,
         maxUser: chatChannelListDto.maxUser,
       };
@@ -211,6 +207,7 @@ export class ChannelsService {
 
       for (let i = 0; i < channelsInfo.length; i++) {
         const channel = {
+          id: channelsInfo[i].id,
           title: channelsInfo[i].title,
           channelPolicy: channelsInfo[i].channelPolicy,
           creator: {
