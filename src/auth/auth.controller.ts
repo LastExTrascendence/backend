@@ -17,7 +17,7 @@ import { JwtService } from "@nestjs/jwt";
 import { JWTSignGuard } from "./jwt/jwtSign.guard";
 import * as config from "config";
 import { User } from "src/decorator/user.decorator";
-import { UserSessionDto } from "src/user/dto/user.dto";
+import { UserOtpDto, UserSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 
 @Controller("auth")
@@ -65,12 +65,12 @@ export class AuthController {
   @Post("/otp/generate")
   //@UseGuards(JWTSignGuard)
   async generateOtp(
-    @Body() user: UserSessionDto,
+    @Body() user: UserOtpDto,
     @Res({ passthrough: true }) res: any,
   ) {
     this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
     try {
-      const userInfo = await this.userService.findUserByNickname(user.nickname);
+      const userInfo = await this.userService.findUserById(user.userId);
       if (!userInfo) {
         return new HttpException(
           "해당 유저가 존재하지 않습니다.",
@@ -83,15 +83,33 @@ export class AuthController {
         );
       }
       const otp = await this.authService.generateOtp(userInfo);
-      if (!otp) {
-        return new HttpException(
-          "OTP 생성이 실패했습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-      return await this.authService.pipeQrCode(res, otp);
+      res.json({ otp });
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post("/otp/verify")
+  async verifyOtp(
+    @Body() user: UserOtpDto,
+    @Res({ passthrough: true }) res: any,
+  ): Promise<void> {
+    try {
+      // Assuming you have a 'User' entity
+      const userInfo = await this.userService.findUserById(user.userId);
+
+      if (!user) {
+        throw new Error("User not found");
+      }
+
+      const isValid = await this.authService.verifyOtp(userInfo, user.otp);
+      if (isValid) {
+        res.status(HttpStatus.OK).json({ message: "OTP is valid" });
+      } else {
+        res.status(HttpStatus.UNAUTHORIZED).json({ error: "Invalid OTP" });
+      }
+    } catch (error) {
+      res.status(500).json({ error: error.message });
     }
   }
 }

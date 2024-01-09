@@ -68,7 +68,7 @@ export class ChannelsService {
       const newChannel = {
         title: chatChannelListDto.title,
         channelPolicy: ChannelPolicy.PUBLIC,
-        creatorNick: createInfo.nickname,
+        creatorId: createInfo.id,
         creatorAvatar: createInfo.avatar,
         curUser: 0,
         maxUser: chatChannelListDto.maxUser,
@@ -98,14 +98,14 @@ export class ChannelsService {
       await this.channelUserRepository.save(userInfo);
 
       await this.RedisClient.hset(
-        `${chatChannelListDto.title}`,
+        `CH|${chatChannelListDto.title}`,
         "title",
         chatChannelListDto.title,
       );
 
       if (chatChannelListDto.password) {
         await this.RedisClient.hset(
-          `${chatChannelListDto.title}`,
+          `CH|${chatChannelListDto.title}`,
           "password",
           await bcrypt.hash(chatChannelListDto.password, 10),
         );
@@ -211,7 +211,9 @@ export class ChannelsService {
           title: channelsInfo[i].title,
           channelPolicy: channelsInfo[i].channelPolicy,
           creator: {
-            nickname: channelsInfo[i].creatorNick,
+            nickname: (
+              await this.userService.findUserById(channelsInfo[i].creatorId)
+            ).nickname,
             avatar: channelsInfo[i].creatorAvatar,
           },
           curUser: channelsInfo[i].curUser,
@@ -227,20 +229,3 @@ export class ChannelsService {
     }
   }
 }
-//async createdbchannel(data : any) : Promise<void> {
-//    // this.channelsRepository.save(data);
-//    await this.channelsRepository.createdbchannel(data);
-//}
-
-//async getdbchannel(name : string) : Promise<channels> {
-//    return this.channelsRepository.getdbchannel(name);
-//}
-
-//async getdbchannel_id(name : string) : Promise<number> {
-//    return this.channelsRepository.getdbchannel_id(name);
-//}
-
-// async getUserschannel(channel_id : string, user_name : string)
-// {
-//     return this.channelsRepository.getUserschannel(channel_id, user_name);
-// }

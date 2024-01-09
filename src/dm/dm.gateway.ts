@@ -12,7 +12,6 @@ import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
 
-//import { DmService } from "./dm.service";
 import { format } from "date-fns";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 
@@ -35,7 +34,6 @@ export class DmGateway
   constructor(
     private redisClient: Redis,
     private userService: UserService,
-    //private dmService: DmService,
   ) {}
 
   afterInit() {
@@ -63,9 +61,7 @@ export class DmGateway
     },
   ): Promise<void> {
     this.logger.debug(`Received message: ${payload.content}`);
-    //DB에 저장
     //1. UserDB에서 sender, receiver가 있는지 확인
-    //sender, receiver
     const sender = await this.userService.findUserById(payload.sender);
     const receiver = await this.userService.findUserByNickname(
       payload.receiver,
@@ -74,7 +70,6 @@ export class DmGateway
     else if (!receiver) throw new HttpException("No receiver found", 404);
 
     //2. 둘다 있으면 저장 중복이면 저장 안함
-
     let name = null;
 
     if (sender.id > receiver.id) {
@@ -82,24 +77,13 @@ export class DmGateway
     } else {
       name = sender.id + "," + receiver.id;
     }
-
-    //if (!(await this.dmService.getdmchannelByName(name))) {
-    //  const dm_channel = {
-    //    name: name,
-    //    created_at: payload.time,
-    //    deleted_at: null,
-    //  };
-    //  this.dmService.createdmchannel(dm_channel);
-    //}
-
     //3. Dm 메시지 저장
 
-    // Save the new message to Redis
     const RedisPayload = {
       name: name,
       time: showTime(payload.time),
-      sender: sender.nickname,
-      receiver: receiver.nickname,
+      sender: sender.id,
+      receiver: receiver.id,
       content: payload.content,
     };
 
@@ -107,8 +91,8 @@ export class DmGateway
 
     const ClientPayload = {
       time: RedisPayload.time,
-      sender: RedisPayload.sender,
-      receiver: RedisPayload.receiver,
+      sender: sender.nickname,
+      receiver: receiver.nickname,
       content: RedisPayload.content,
     };
 
@@ -143,6 +127,13 @@ export class DmGateway
             receiver: split[2],
             content: split.slice(3 - split.length).join("|"),
           };
+          message.sender = (
+            await this.userService.findUserById(Number(split[1]))
+          ).nickname;
+          message.receiver = (
+            await this.userService.findUserById(Number(split[2]))
+          ).nickname;
+
           totalMessages.push(message);
         } else {
           const message = {
@@ -151,6 +142,12 @@ export class DmGateway
             receiver: split[2],
             content: split[3],
           };
+          message.sender = (
+            await this.userService.findUserById(Number(split[1]))
+          ).nickname;
+          message.receiver = (
+            await this.userService.findUserById(Number(split[2]))
+          ).nickname;
           totalMessages.push(message);
         }
       }
@@ -186,17 +183,13 @@ export class DmGateway
     payload: {
       name: string;
       time: string;
-      sender: string;
-      receiver: string;
+      sender: number;
+      receiver: number;
       content: string;
     },
   ) {
-    // Save the new message to Redis
-    //조건문 추가 -> 여기서 sender, receiver가 있는지 확인 후 없으면 저장 안함
-    //time:sender:receiver:content
-
     redisClient.rpush(
-      `${payload.name}`,
+      `DM|${payload.name}`,
       `${payload.time}|${payload.sender}|${payload.receiver}|${payload.content}`,
     );
   }

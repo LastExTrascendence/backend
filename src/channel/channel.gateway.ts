@@ -86,6 +86,8 @@ export class ChannelGateWay {
 
   //----------------------------------------------
 
+  //userId : number
+  //title : string
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
@@ -118,7 +120,7 @@ export class ChannelGateWay {
           userId: data.userId,
           channelId: channelInfo.id,
           role:
-            channelInfo.creatorNick === userId
+            channelInfo.creatorId === userId
               ? ChatChannelUserRole.CREATOR
               : ChatChannelUserRole.USER,
           mute: null,

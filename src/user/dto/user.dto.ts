@@ -47,6 +47,11 @@ export class UserInfoDto {
   status: UserStatus;
 }
 
+export class UserOtpDto {
+  userId: number;
+  otp: string;
+}
+
 export class UserBlockDto {
   id: number;
   user_id: number;

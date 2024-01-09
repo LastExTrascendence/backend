@@ -38,7 +38,6 @@ export class ChannelController {
   @Post("/create")
   async createChannel(
     @Body() chatChannelListDto: ChatChannelListDto,
-    //@Req() req: any, // ChatChannelInfoDto{{}}
   ): Promise<ChatChannelListDto | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.createChannel.name}`,
