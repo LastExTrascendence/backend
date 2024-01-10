@@ -80,7 +80,7 @@ export class ChatChannelListDto {
   password: string | null;
 
   @IsNumber()
-  creator: ChatUserInfoDto;
+  creatorId: number;
 
   @IsNumber()
   curUser: number;

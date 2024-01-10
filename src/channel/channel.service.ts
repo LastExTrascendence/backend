@@ -52,8 +52,8 @@ export class ChannelsService {
         );
       }
 
-      const createInfo = await this.userService.findUserByNickname(
-        chatChannelListDto.creator.nickname,
+      const createInfo = await this.userService.findUserById(
+        chatChannelListDto.creatorId,
       );
 
       const newChannel = {
@@ -95,10 +95,7 @@ export class ChannelsService {
         title: newChannel.title,
         channelPolicy: newChannel.channelPolicy,
         password: null,
-        creator: {
-          nickname: createInfo.nickname,
-          avatar: createInfo.avatar,
-        },
+        creatorId: newChannel.creatorId,
         curUser: 0,
         maxUser: chatChannelListDto.maxUser,
       };
