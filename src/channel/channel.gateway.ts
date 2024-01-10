@@ -57,21 +57,7 @@ export class ChannelGateWay {
     @ConnectedSocket() Socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
-    const channelInfo = await this.channelRepository.findOne({
-      where: { id: data.channelId },
-    });
-
-    await this.channelUserRepository.update(
-      { channelId: channelInfo.id, userId: data.userId },
-      { deletedAt: new Date() },
-    );
-
-    await this.channelRepository.update(
-      { id: data.channelId },
-      { curUser: channelInfo.curUser - 1 },
-    );
-
-    this.connectedClients.delete(data.userId);
+    //console.log(data.channelId, data.userId);
   }
 
   //----------------------------------------------
@@ -84,11 +70,11 @@ export class ChannelGateWay {
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
+    @ConnectedSocket() socket: Socket,
   ) {
     try {
       const { userId, title } = data;
-      this.connectedClients.set(userId, Socket);
+      this.connectedClients.set(userId, socket);
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -150,6 +136,8 @@ export class ChannelGateWay {
         TotalUserInfo.push(UserInfo);
       }
 
+      socket.join(channelInfo.id.toString());
+
       this.server.emit("userList", TotalUserInfo);
     } catch (error) {
       console.log(error);
@@ -180,7 +168,7 @@ export class ChannelGateWay {
             { userId: data.sender, channelId: channelInfo.id },
             { mute: null },
           );
-          this.server.emit("msgToClient", {
+          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: data.content,
@@ -383,6 +371,29 @@ export class ChannelGateWay {
       } else {
         throw new Error("권한이 없습니다.");
       }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  @SubscribeMessage("leaveChannel")
+  async leaveChannel(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const channelInfo = await this.channelRepository.findOne({
+        where: { id: data.channelId },
+      });
+
+      await this.channelUserRepository.update(
+        { channelId: channelInfo.id, userId: data.userId },
+        { deletedAt: new Date() },
+      );
+
+      await this.channelRepository.update(
+        { id: data.channelId },
+        { curUser: channelInfo.curUser - 1 },
+      );
+
+      this.connectedClients.delete(data.userId);
     } catch (error) {
       console.log(error);
     }
