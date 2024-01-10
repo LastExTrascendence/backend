@@ -190,7 +190,7 @@ export class ChannelGateWay {
             content: "뮤트 상태입니다.",
           });
       } else {
-        this.server.emit("msgToClient", {
+        this.server.to(channelInfo.id.toString()).emit("msgToClient", {
           time: showTime(data.time),
           sender: senderInfo.nickname,
           content: data.content,
