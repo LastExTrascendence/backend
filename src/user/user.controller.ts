@@ -50,8 +50,9 @@ export class UserController {
   @UseGuards(JWTUserCreationGuard)
   createUser(
     @Headers() headers: any,
+    @Req() response: any,
     @Body(ValidationPipe) userDto: UserDto,
-  ): Promise<{ access_token: string }> | HttpException {
+  ): Promise<void> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
@@ -61,7 +62,8 @@ export class UserController {
       email: decoded_token["email"],
     };
     try {
-      return this.userService.createUser(userSessionDto);
+      const token = this.userService.createUser(userSessionDto);
+      return response.cookie("access_token", token);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
