@@ -5,47 +5,60 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { GamePlayers } from "./game.players.entity";
-import { Mode, Status, Type } from "./game.enum";
+import {
+  GameChannelPolicy,
+  GameMode,
+  GameType,
+  GameStatus,
+} from "../enum/game.enum";
 
 @Entity()
-export class Game extends BaseEntity {
+export class games extends BaseEntity {
   @PrimaryGeneratedColumn()
-  //@OneToMany(() => GamePlayers, (GamePlayers) => GamePlayers.game_id, {
-  //  eager: false,
-  //})
   id: number;
 
-  // @OneToMany(() => channel_user, channel_user => channel_user.channel_id, { eager: false })
-  // channel_users: channel_user[];
+  @Column()
+  title: string;
 
   @Column()
-  type: Type;
+  gameChannelPolicy: GameChannelPolicy;
 
   @Column()
-  mode: Mode;
+  creatorId: number;
+
+  @Column({ nullable: true })
+  creatorAvatar: string;
 
   @Column()
-  status: Status;
-
-  @Column({ nullable: true })
-  minimum_speed: number;
-
-  @Column({ nullable: true })
-  average_speed: number;
-
-  @Column({ nullable: true })
-  maximum_speed: number;
-
-  @Column({ nullable: true })
-  number_of_rounds: number;
-
-  @Column({ nullable: true })
-  number_of_bounces: number;
+  gameType: GameType;
 
   @Column()
-  created_at: Date;
+  gameMode: GameMode;
+
+  @Column()
+  gameStatus: GameStatus;
 
   @Column({ nullable: true })
-  ended_at: Date;
+  minimumSpeed: number;
+
+  @Column({ nullable: true })
+  averageSpeed: number;
+
+  @Column({ nullable: true })
+  maximumSpeed: number;
+
+  @Column({ nullable: true })
+  numberOfRounds: number;
+
+  @Column({ nullable: true })
+  numberOfBounces: number;
+
+  @Column({ nullable: true })
+  playTime: number;
+
+  @Column()
+  createdAt: Date;
+
+  @Column({ nullable: true })
+  endedAt: Date;
 }

@@ -6,7 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { ChatChannelUserRole } from "../channel.enum";
+import { ChatChannelUserRole } from "../enum/channel.enum";
 /**
  * @description 채널 유저에 대한 엔터티
  *

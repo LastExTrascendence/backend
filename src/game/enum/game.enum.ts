@@ -1,22 +1,12 @@
-export enum Type {
+export enum GameChannelPolicy {
   PUBLIC = "PUBLIC",
   PRIVATE = "PRIVATE",
 }
 
-export enum Mode {
-  NORMAL = "NORMAL",
-  LADDER = "LADDER",
-}
-
-export enum Status {
+export enum GameStatus {
   READY = "READY",
   INGAME = "INGAME",
   DONE = "DONE",
-}
-
-export enum Role {
-  WINNER = "WINNER",
-  LOSER = "LOSER",
 }
 
 export enum GameType {
@@ -29,7 +19,7 @@ export enum GameMode {
   SPEED = "SPEED",
 }
 
-export enum ChannelPolicy {
-  PUBLIC = "PUBLIC",
-  PRIVATE = "PRIVATE",
+export enum GameUserRole {
+  WINNER = "WINNER",
+  LOSER = "LOSER",
 }

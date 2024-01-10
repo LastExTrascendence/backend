@@ -13,8 +13,6 @@ import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
 import { JwtService } from "@nestjs/jwt";
 import { UserStatus } from "./entity/user.enum";
-import { GamePlayers } from "src/game/entity/game.players.entity";
-import { UserProfileDto } from "./dto/user.profile.dto";
 
 @Injectable()
 export class UserService {

@@ -6,24 +6,23 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { Game } from "./game.entity";
-import { Role } from "./game.enum";
+import { GameUserRole } from "../enum/game.enum";
 
 @Entity()
-export class GamePlayers extends BaseEntity {
+export class gamePlayers extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   //@ManyToOne(() => Game, (game) => game.id, { eager: true })
   @Column()
-  game_id: number;
+  gameId: number;
 
   // @ManyToOne()
   @Column()
-  user_id: number;
+  userId: number;
 
   @Column()
-  role: Role;
+  gameUserRole: GameUserRole;
 
   @Column()
   score: number;
