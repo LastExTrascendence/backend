@@ -32,9 +32,9 @@ export class UserService {
     };
 
     try {
-      await this.userRepository.save(newUser);
-      const payload = { username: UserSessionDto.nickname };
-      return { access_token: await this.jwtService.sign(payload) };
+      const user = await this.userRepository.save(newUser);
+      // const payload = { username: UserSessionDto.nickname };
+      return { access_token: this.jwtService.sign(user) };
     } catch (error) {
       this.logger.error(error);
       throw error;
