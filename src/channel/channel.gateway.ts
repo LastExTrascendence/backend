@@ -50,13 +50,15 @@ export class ChannelGateWay {
     this.logger.debug(`Socket Connected`);
   }
 
+  //channelId : number
+  //userId : number
   async handleDisconnect(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
     const channelInfo = await this.channelRepository.findOne({
-      where: { title: data.title },
+      where: { id: data.channelId },
     });
 
     await this.channelUserRepository.update(
@@ -65,7 +67,7 @@ export class ChannelGateWay {
     );
 
     await this.channelRepository.update(
-      { title: data.title },
+      { id: data.channelId },
       { curUser: channelInfo.curUser - 1 },
     );
 
