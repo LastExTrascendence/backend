@@ -118,8 +118,11 @@ export class ChannelGateWay {
         );
       }
 
+      //channelUserRepository에 있는 유저를 생성일 순서대로 꺼내주셈
+
       const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
+        order: { createdAt: "ASC", deletedAt: null },
       });
 
       const TotalUserInfo = [];
