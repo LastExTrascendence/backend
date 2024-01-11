@@ -38,6 +38,7 @@ export class GameGateWay {
 
   private connectedClients: Map<number, Socket> = new Map();
   private disconnectTimeouts = new Map<number, NodeJS.Timeout>();
+  private gameQickMathing: Map<number, Socket> = new Map();
 
   afterInit() {
     this.logger.debug(`Socket Server Init`);
@@ -397,6 +398,74 @@ export class GameGateWay {
       socket.join(gameInfo.id.toString());
       this.server.emit("userList", TotalUserInfo);
     }
+  }
+
+  @SubscribeMessage("enteQuickMathing")
+  async quickMathingGame(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    const { userId } = data;
+    
+    //1. Redis에 클라이언트 저장
+    await this.redisClient.rpush("QS", userId);
+    // this.redisClient.lpop("QS");
+
+    //2. gameQickMathing(Map)에 클라이언트, socket 저장
+    this.gameQickMathing.set(data.userId, socket);
+
+    //3. 앞에 두 놈 매칭 잡아주기
+    if (this.gameQickMathing.size >= 2) {
+      
+      const firstUserId =  parseInt(await this.redisClient.lpop("QS"))
+      this.gameQickMathing.delete(firstUserId)
+      const secondUserId = parseInt(await this.redisClient.lpop("QS"))
+      this.gameQickMathing.delete(secondUserId)
+
+      const TotalUserInfo = [];
+
+      const firstUserInfo = await this.userService.findUserById(firstUserId)
+      const secondUserInfo = await this.userService.findUserById(secondUserId)
+
+      //첫 번째 친구 info 넣어주기
+      const UserInfo = {
+        id: firstUserInfo.id,
+        nickname: firstUserInfo.nickname,
+        avatar: firstUserInfo.avatar,
+      };
+      TotalUserInfo.push(UserInfo);
+
+      //두 번째 친구 넣어주기
+      const UserInfo2 = {
+        id: secondUserInfo.id,
+        nickname: secondUserInfo.nickname,
+        avatar: secondUserInfo.avatar,
+      };
+      TotalUserInfo.push(UserInfo2);
+
+      this.server.emit("userList", TotalUserInfo);
+    }
+    else
+    {
+      this.server.emit("userList", "현재 플레이거가 부족합니다. 기다려주세요");
+    }
+
+  }
+
+  @SubscribeMessage("exitquickmathing")
+  async exitMathingGame(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+
+    //1. Redis에서 userid를 통해 값 삭제
+    await this.redisClient.lrem("QS", 0, data.userId);
+
+    //2. gameQickMathing(Map)에서 클라이언트, socket 삭제
+    this.gameQickMathing.delete(data.userId);
+
+ 
+    socket.emit('msgToClient', 'Quickmathing 작업을 취소하였습니다.');
   }
 }
 

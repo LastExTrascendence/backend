@@ -9,6 +9,7 @@ import { Redis } from "ioredis";
 import { AuthModule } from "src/auth/auth.module";
 import { GamePlayerService } from "./game.players.service";
 import { UserService } from "src/user/user.service";
+import { BullModule } from "@nestjs/bull";
 
 @Module({
   imports: [
