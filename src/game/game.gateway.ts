@@ -212,6 +212,14 @@ export class GameGateWay {
     );
   }
 
+  @SubscribeMessage("ready")
+  async readyGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+    await this.gameRepository.update(
+      { title: data.title },
+      { gameStatus: GameStatus.READY },
+    );
+  }
+
   //title :string
   //userId : number
   //score : number
