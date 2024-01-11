@@ -72,7 +72,8 @@ export class DmGateway
     //2. 둘다 있으면 저장 중복이면 저장 안함
     let name = null;
 
-    if (sender.id > receiver.id) {
+    //나에게 보내기 기능 추가
+    if (sender.id >= receiver.id) {
       name = receiver.id + "," + sender.id;
     } else {
       name = sender.id + "," + receiver.id;

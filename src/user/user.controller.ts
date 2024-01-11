@@ -86,8 +86,9 @@ export class UserController {
   //특정 유저의 모든 친구 정보 확인
   @Get("/friend/find/all")
   @UseGuards(JWTAuthGuard)
-  findAllFriend(@Req() req: UserFriendDto) {
+  findAllFriend(@Req() req: any) {
     try {
+      console.log(req);
       this.logger.debug(
         `Called ${UserController.name} ${this.findAllFriend.name}`,
       );
@@ -100,7 +101,7 @@ export class UserController {
   //사용자가 특정 한 유저 친구 정보 확인
   @Get("/friend/find/one")
   @UseGuards(JWTAuthGuard)
-  findFriendById(@Req() req: UserFriendDto) {
+  findFriendById(@Req() req: any) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findFriendById.name}`,
     );
@@ -135,11 +136,14 @@ export class UserController {
   @Post("/block/add")
   @UseGuards(JWTAuthGuard)
   addBlock(
-    @Body(ValidationPipe) regist: UserBlockDto,
+    @Body(ValidationPipe) userBlockDto: UserBlockDto,
   ): Promise<UserBlock> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.addBlock.name}`);
     try {
-      return this.blockService.addBlock(regist.user_id, regist.blocked_user_id);
+      return this.blockService.addBlock(
+        userBlockDto.user_id,
+        userBlockDto.blocked_user_id,
+      );
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -212,7 +216,7 @@ export class UserController {
     this.logger.debug(`Called ${UserController.name} ${this.findMe.name}`);
     try {
       const UserInfo = await this.userService.findUserById(req.user.id);
-      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+      const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         req.user.id,
       );
 
@@ -225,8 +229,10 @@ export class UserController {
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
-        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+          .length,
+        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+          .length,
       };
       return Userprofile;
     } catch (e) {
@@ -301,7 +307,7 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
-      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+      const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );
       const UserFriendInfo = await this.friendService.findFriend(
@@ -315,8 +321,10 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
-        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+          .length,
+        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+          .length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
       };

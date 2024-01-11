@@ -1,4 +1,4 @@
-export enum ChannelPolicy {
+export enum ChatChannelPolicy {
   PUBLIC = "PUBLIC",
   PRIVATE = "PRIVATE",
 }

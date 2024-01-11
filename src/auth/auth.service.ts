@@ -8,7 +8,7 @@ import * as Config from "config";
 import { authenticator, totp } from "otplib";
 import { Redis } from "ioredis";
 import * as qr from "qrcode";
-import { createReadStream, createWriteStream } from "fs";
+import { createWriteStream } from "fs";
 
 @Injectable()
 export class AuthService {

@@ -1,4 +1,11 @@
-import { IsString, Matches, MaxLength, MinLength } from "class-validator";
+import {
+  IsNotEmpty,
+  IsNumber,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 /**
  * @description 소켓 통신으로 주고 받기 위한 DTO
@@ -9,7 +16,15 @@ import { IsString, Matches, MaxLength, MinLength } from "class-validator";
  */
 
 export class DmDto {
+  @IsNumber()
   sender: number; // mystate id
+
+  @IsString()
+  @IsNotEmpty()
   receiver: string; // receiver nickname
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(100)
   content: string; //
 }

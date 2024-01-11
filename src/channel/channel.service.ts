@@ -1,20 +1,15 @@
 import { InjectRepository } from "@nestjs/typeorm";
 //import { ChannelsRepository } from "./channels.repository";
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
-import { channels } from "./channel_entity/channels.entity";
+import { channels } from "./entity/channels.entity";
 import { Repository } from "typeorm";
-import {
-  ChannelDto,
-  ChatChannelInfoDto,
-  ChatChannelUserDto,
-  ChatChannelListDto,
-  UserVerify,
-} from "./channel_dto/channels.dto";
+import { ChatChannelListDto } from "./dto/channels.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
-import { channelUser } from "./channel_entity/channel.user.entity";
+import { channelUser } from "./entity/channel.user.entity";
 import { UserService } from "src/user/user.service";
-import { ChannelPolicy, ChatChannelUserRole } from "./channel.enum";
+import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
+import { ChannelUserVerify } from "./dto/channel.user.dto";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
 //2. 채널 입장 시 유저 정보를 channelsUser DB에 담기
@@ -30,16 +25,12 @@ export class ChannelsService {
     private RedisClient: Redis,
   ) {}
 
-  // constructor(
-  //     @InjectRepository(channels) private channelsRepository:Repository<channels>,
-  // ){ }
-
   async createChannel(
     chatChannelListDto: ChatChannelListDto,
   ): Promise<ChatChannelListDto | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
-        `${chatChannelListDto.title}`,
+        `CH|${chatChannelListDto.title}`,
         0,
         -1,
       );
@@ -67,7 +58,7 @@ export class ChannelsService {
 
       const newChannel = {
         title: chatChannelListDto.title,
-        channelPolicy: ChannelPolicy.PUBLIC,
+        channelPolicy: ChatChannelPolicy.PUBLIC,
         creatorId: createInfo.id,
         creatorAvatar: createInfo.avatar,
         curUser: 0,
@@ -76,7 +67,7 @@ export class ChannelsService {
         deletedAt: null,
       };
       if (chatChannelListDto.password) {
-        newChannel.channelPolicy = ChannelPolicy.PRIVATE;
+        newChannel.channelPolicy = ChatChannelPolicy.PRIVATE;
       }
 
       await this.channelsRepository.save(newChannel);
@@ -84,18 +75,6 @@ export class ChannelsService {
       const newChannelInfo = await this.channelsRepository.findOne({
         where: { title: newChannel.title },
       });
-
-      const userInfo = {
-        userId: createInfo.id,
-        channelId: newChannelInfo.id,
-        role: ChatChannelUserRole.CREATOR,
-        mute: null,
-        ban: false,
-        createdAt: new Date(),
-        deletedAt: null,
-      };
-
-      await this.channelUserRepository.save(userInfo);
 
       await this.RedisClient.hset(
         `CH|${chatChannelListDto.title}`,
@@ -114,9 +93,9 @@ export class ChannelsService {
       const retChannelInfo = {
         id: newChannelInfo.id,
         title: newChannel.title,
-        password: null,
         channelPolicy: newChannel.channelPolicy,
-        creatorId: createInfo.id,
+        password: null,
+        creatorId: newChannel.creatorId,
         curUser: 0,
         maxUser: chatChannelListDto.maxUser,
       };
@@ -127,10 +106,12 @@ export class ChannelsService {
     }
   }
 
-  async enterChannel(userVerify: UserVerify): Promise<void | HttpException> {
+  async enterChannel(
+    channelUserVerify: ChannelUserVerify,
+  ): Promise<void | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
-        `${userVerify.title}`,
+        `CH|${channelUserVerify.title}`,
         0,
         -1,
       );
@@ -143,13 +124,16 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
-      const checkIds = ChannelInfo.filter((value) =>
-        /^user nickname: \d+$/.test(value),
+
+      const ChatPassword = await this.RedisClient.hget(
+        `CH|${channelUserVerify.title}`,
+        "password",
       );
-      if (userVerify.password) {
+
+      if (channelUserVerify.password) {
         const isMatch = await bcrypt.compare(
-          userVerify.password,
-          (await ChannelInfo)[1],
+          channelUserVerify.password,
+          ChatPassword,
         );
         if (!isMatch) {
           throw new HttpException(
@@ -159,14 +143,22 @@ export class ChannelsService {
             },
             HttpStatus.BAD_REQUEST,
           );
+        } else {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "잘못된 접근입니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
         }
       }
 
       const user = await this.userService.findUserByNickname(
-        userVerify.nickname,
+        channelUserVerify.nickname,
       );
       const channel = await this.channelsRepository.findOne({
-        where: { title: userVerify.title, deletedAt: null },
+        where: { title: channelUserVerify.title, deletedAt: null },
       });
 
       const usefInfo = await this.channelUserRepository.findOne({
@@ -189,9 +181,9 @@ export class ChannelsService {
 
   async getChannels(req: any): Promise<ChatChannelListDto[] | HttpException> {
     try {
-      const keys = await this.RedisClient.keys("*");
+      const channelsInfo = await this.channelsRepository.find();
 
-      if (keys.length === 0) {
+      if (channelsInfo.length === 0) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -200,8 +192,6 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      const channelsInfo = await this.channelsRepository.find();
 
       const totalChannels = [];
 
