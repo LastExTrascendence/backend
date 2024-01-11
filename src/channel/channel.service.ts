@@ -213,6 +213,15 @@ export class ChannelsService {
         totalChannels.push(channel);
       }
 
+      //totalChannels을 createdAt 기준으로 정렬
+      totalChannels.sort((a, b) => {
+        return a.createdAt > b.createdAt
+          ? -1
+          : a.createdAt < b.createdAt
+            ? 1
+            : 0;
+      });
+
       return totalChannels;
     } catch (error) {
       throw error;
