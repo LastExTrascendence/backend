@@ -13,7 +13,7 @@ import { ChatChannelUserRole } from "../enum/channel.enum";
  * @param {number} id - 채널 유저의 고유 ID
  * @param {number} userId - 채널 유저의 고유 ID
  * @param {number} channelId - 채널 유저가 속한 채널의 고유 ID
- * @param {ChatChannelUserRole} role - 채널 유저의 권한
+ * @param {ChatChannelUserRole} role - 채널 유저의 권한 (CREATOR/USER)
  * @param {boolean} mute - 채널 유저의 뮤트 여부
  * @param {boolean} ban - 채널 유저의 밴 여부
  * @param {Date} createdAt - 채널 유저의 생성 시간

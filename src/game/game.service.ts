@@ -49,8 +49,8 @@ export class GameService {
         );
       }
 
-      const createInfo = await this.userService.findUserByNickname(
-        gameChannelListDto.creator.nickname,
+      const createInfo = await this.userService.findUserById(
+        gameChannelListDto.creatorId,
       );
 
       const newGame = {
@@ -104,10 +104,7 @@ export class GameService {
         title: newGame.title,
         channelPolicy: newGame.channelPolicy,
         password: null,
-        creator: {
-          nickname: createInfo.nickname,
-          avatar: createInfo.avatar,
-        },
+        creatorId: newGame.creatorId,
         gameType: gameChannelListDto.gameType,
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,

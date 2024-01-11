@@ -10,14 +10,14 @@ import { ChatChannelUserRole } from "../enum/channel.enum";
 /**
  * @description 채팅채널 리스트 보여줄 시
  *
- * @param {string} avatar - 채널의 프로필 사진 URL / Hash 값
+ * @param {string} avatar - 채널의 프로필 사진 Base64 값
  * @param {string} nickname - 채널의 LET 닉네임
- * @param {ChatChannelUserRole} role - 채널의 유저 권한
+ * @param {ChatChannelUserRole} role - 채널의 유저 권한 (CREATOR/USER)
  */
 
 export class ChatChannelUserDto {
   @IsString()
-  avatar: string; // base64
+  avatar: string;
 
   @IsString()
   @IsNotEmpty()

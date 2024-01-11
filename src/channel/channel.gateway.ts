@@ -393,6 +393,8 @@ export class ChannelGateWay {
         { curUser: channelInfo.curUser - 1 },
       );
 
+      client.leave(channelInfo.id.toString());
+
       this.connectedClients.delete(data.userId);
     } catch (error) {
       console.log(error);

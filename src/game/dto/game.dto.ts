@@ -1,6 +1,8 @@
 import {
+  IsEnum,
   IsNotEmpty,
   IsNumber,
+  IsObject,
   IsOptional,
   IsString,
   Matches,
@@ -18,27 +20,39 @@ import {
  * @description 게임유저의 기본 정보를 담은 DTO
  *
  * @param {string} nickname - 게임유저의 닉네임
- * @param {string} avatar - 게임유저의 프로필 사진 Base64 값
+ * @param {string | null} avatar - 게임유저의 프로필 사진 Base64 값
  */
 
 export class GameUserInfoDto {
+  @IsString()
   nickname: string;
-  avatar: string;
+
+  @IsOptional()
+  avatar: string | null;
 }
 
 /**
  * @description 게임채널 생성 시 필요한 DTO
  *
  * @param {string} title - 게임채널의 제목
- * @param {GameChannelPolicy} channelPolicy - 게임채널의 입장 권한
+ * @param {GameChannelPolicy} channelPolicy - 게임채널의 입장 권한 (PUBLIC/PRIVATE)
  * @param {string | null} password - 게임채널의 비밀번호
  * @param {GameUserInfoDto} creator - 게임채널의 생성자 정보
  */
 
 export class GameChannelDto {
+  @IsString()
+  @MinLength(1)
+  @MaxLength(12)
   title: string;
+
+  @IsEnum(GameChannelPolicy)
   channelPolicy: GameChannelPolicy;
+
+  @IsOptional()
   password: string | null;
+
+  @IsObject()
   creator: GameUserInfoDto;
 }
 
@@ -47,23 +61,40 @@ export class GameChannelDto {
  *
  * @Param {number} id - 게임채널의 ID
  * @param {string} title - 게임채널의 제목
+ * @param {GameChannelPolicy} channelPolicy - 게임채널의 입장 권한 (PUBLIC/PRIVATE)
  * @param {string | null} password - 게임채널의 비밀번호
- * @param {string} nickname - 게임유저의 닉네임
- * @param {GameUserInfoDto} creator - 게임채널의 생성자 정보
- * @param {GameType} gameType - 게임채널의 게임 타입
- * @param {GameMode} gameMode - 게임채널의 게임 모드
- * @param {GameStatus} gameStatus - 게임채널의 게임 상태
+ * @param {number} createId - 게임채널의 생성자 정보
+ * @param {GameType} gameType - 게임채널의 게임 타입 (NORMAL/LADDER)
+ * @param {GameMode} gameMode - 게임채널의 게임 모드 (NORMAL/SPEED)
+ * @param {GameStatus} gameStatus - 게임채널의 게임 상태 (READY/INGAME/DONE)
  */
 
 // 게임채널 리스트 보여줄 시
 export class GameChannelListDto {
+  @IsNumber()
   id: number;
+
+  @IsString()
+  @MinLength(1)
+  @MaxLength(20)
   title: string;
+
+  @IsEnum(GameChannelPolicy)
   channelPolicy: GameChannelPolicy;
+
+  @IsOptional()
   password: string | null;
-  creator: GameUserInfoDto;
+
+  @IsNumber()
+  creatorId: number;
+
+  @IsNumber()
   gameType: GameType;
+
+  @IsNumber()
   gameMode: GameMode;
+
+  @IsEnum(GameStatus)
   gameStatus: GameStatus;
 }
 
@@ -79,7 +110,7 @@ export class GameChannelListDto {
 export class GameUserVerifyDto {
   @IsString()
   @MinLength(1)
-  @MaxLength(20)
+  @MaxLength(12)
   title: string;
 
   @IsOptional()
