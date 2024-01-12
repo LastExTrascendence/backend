@@ -315,11 +315,9 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
-      const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
+      const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );
-      console.log(user);
-      console.log(nickname);
       const UserFriendInfo = await this.friendService.findFriend(
         user.id,
         UserInfo.id,
@@ -331,8 +329,10 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
-        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
+        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+          .length,
+        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+          .length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
       };
