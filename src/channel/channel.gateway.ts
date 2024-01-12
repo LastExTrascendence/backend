@@ -15,7 +15,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./entity/channel.user.entity";
 import { format } from "date-fns";
-import { ChatChannelUserRole } from "./enum/channel.enum";
+import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { parse } from "path";
 
@@ -75,6 +75,18 @@ export class ChannelGateWay {
     try {
       const { userId, title } = data;
 
+      //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
+      if (this.connectedClients.has(userId)) {
+        const beforeChannelInfo = await this.channelUserRepository.findOne({
+          where: { userId: userId, deletedAt: null },
+        });
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(beforeChannelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
+      }
+
+      //해당 유저를 채널에 넣는 로직
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
       });
@@ -83,21 +95,13 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
+      //해당 유저가 처음 들어왔는지, 아니면 다시 들어온건지 확인
+
       if (currentUserInfo) {
-        await this.channelRepository.update(
-          { title: title },
-          { curUser: channelInfo.curUser + 1 },
-        );
         await this.channelUserRepository.update(
           { userId: userId, channelId: channelInfo.id },
-          { createdAt: new Date(), deletedAt: null },
+          { role: ChatChannelUserRole.USER, deletedAt: null },
         );
-        if (currentUserInfo.ban === true) {
-          this.connectedClients.set(userId, socket);
-          const targetClient = this.connectedClients.get(userId);
-          targetClient.disconnect(true);
-          throw new Error("밴 상태입니다.");
-        }
       } else {
         const newEnterUser = {
           userId: data.userId,
@@ -112,48 +116,52 @@ export class ChannelGateWay {
           deletedAt: null,
         };
         await this.channelUserRepository.save(newEnterUser);
-        await this.channelRepository.update(
-          { title: title },
-          { curUser: channelInfo.curUser + 1 },
-        );
       }
 
       socket.join(channelInfo.id.toString());
+      this.connectedClients.set(userId, socket);
 
-      if (this.connectedClients.has(userId)) {
+      //입장불가
+      //1. 비밀번호 입력자가 아닌 경우
+      //2. 방의 인원수가 꽉 찬 경우
+      //3. 벤 상태인 경우
+
+      if (channelInfo.channelPolicy === ChatChannelPolicy.PRIVATE) {
+        const isPasswordCorrect = await this.redisClient.lrange(
+          `CH|${channelInfo.title}`,
+          0,
+          -1,
+        );
+
+        //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
+        const filter = isPasswordCorrect.filter((value) =>
+          value.startsWith("ACCESS|"),
+        );
+
+        //ACCESS 대상이 아닌경우
+        if (!filter) {
+          const targetClient = this.connectedClients.get(userId);
+          targetClient.disconnect(true);
+          socket.leave(channelInfo.id.toString());
+          this.connectedClients.delete(data.userId);
+        }
+        //비밀번호가 맞지 않는 경우
+        //밴 상태인 경우
+      } else if (
+        channelInfo.curUser > channelInfo.maxUser ||
+        currentUserInfo.ban
+      ) {
         const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
+        socket.leave(channelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
       }
 
-      const userInfo = await this.channelUserRepository.find({
-        where: { channelId: channelInfo.id, deletedAt: null },
-        order: { createdAt: "ASC" },
-      });
+      //현재 입장한 유저의 정보를 보내준다.
+      this.sendUserList(userId, channelInfo.id, socket);
 
-      const TotalUserInfo = [];
-
-      for (let i = 0; i < userInfo.length; i++) {
-        const user = await this.userService.findUserById(userInfo[i].userId);
-        const UserInfo = {
-          id: user.id,
-          nickname: user.nickname,
-          avatar: user.avatar,
-          role: userInfo[i].role,
-          mute: null,
-        };
-        TotalUserInfo.push(UserInfo);
-      }
-
-      //deleteaAt이 null인 유저만 보내준다.
-      const filterUserInfo = TotalUserInfo.filter(
-        (userInfo) => userInfo.deletedAt == null,
-      );
-      this.server.emit("userList", filterUserInfo);
-
-      this.connectedClients.set(userId, socket);
-      this.logger.debug(
-        `connectSomeone ${data.userId} ${data.title} ${this.connectedClients.size}`,
-      );
+      //현재 채널의 인원수를 업데이트 한다.
+      this.updateCurUser(title, channelInfo.id);
     } catch (error) {
       console.log(error);
     }
@@ -165,7 +173,10 @@ export class ChannelGateWay {
   //content : string
 
   @SubscribeMessage("msgToServer")
-  async sendMessage(@MessageBody() data: any, @ConnectedSocket() client) {
+  async sendMessage(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
       const senderInfo = await this.userService.findUserById(data.sender);
 
@@ -192,7 +203,7 @@ export class ChannelGateWay {
           this.server.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
-            content: "시귀봉진.",
+            content: "뮤트 상태입니다.",
           });
       } else {
         this.server.to(channelInfo.id.toString()).emit("msgToClient", {
@@ -211,12 +222,12 @@ export class ChannelGateWay {
   //changeNick : string
 
   //바꾼후 모든 유저 리스트를 보내준다.
-  @SubscribeMessage("changeRoleUser")
-  async changeRole(@MessageBody() data: any, @ConnectedSocket() client) {
+  @SubscribeMessage("changeRole")
+  async changeRole(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
-      this.logger.debug(
-        `changeRole ${data.title} ${data.userId} ${data.changeNick}`,
-      );
       const { userId, title, changeNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
@@ -233,60 +244,30 @@ export class ChannelGateWay {
         where: { userId: changeUser.id, channelId: channelInfo.id },
       });
 
-      if (!changeUserInfo) {
+      if (!changeUserInfo || !userInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
-      } else if (
-        changeUserInfo.role === ChatChannelUserRole.CREATOR ||
-        changeUserInfo.role === ChatChannelUserRole.OPERATOR
-      ) {
-        throw new Error("권력 다툼은 안됩니다.");
+      } else if (changeUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("집안 싸움은 불법입니다.");
       }
 
       if (
         userInfo.role === ChatChannelUserRole.CREATOR &&
-        (changeUserInfo.role as ChatChannelUserRole) ===
-          ChatChannelUserRole.OPERATOR
-      ) {
-        await this.channelUserRepository.update(
-          { userId: changeUserInfo.id, channelId: channelInfo.id },
-          { role: ChatChannelUserRole.USER },
-        );
-      } else if (
-        userInfo.role === ChatChannelUserRole.CREATOR &&
-        (changeUserInfo.role as ChatChannelUserRole) ===
-          ChatChannelUserRole.USER
+        changeUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
           { userId: changeUserInfo.id, channelId: channelInfo.id },
           { role: ChatChannelUserRole.OPERATOR },
         );
+      } else if (
+        userInfo.role === ChatChannelUserRole.CREATOR &&
+        changeUserInfo.role === ChatChannelUserRole.OPERATOR
+      ) {
+        await this.channelUserRepository.update(
+          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { role: ChatChannelUserRole.USER },
+        );
       }
-
-      console.log("test", changeUserInfo.id, channelInfo.id, changeUserInfo);
-
-      const receiveInfo = await this.channelUserRepository.find({
-        where: { channelId: channelInfo.id, deletedAt: null },
-        order: { createdAt: "ASC" },
-      });
-
-      const TotalUserInfo = [];
-
-      for (let i = 0; i < receiveInfo.length; i++) {
-        const user = await this.userService.findUserById(receiveInfo[i].userId);
-        const UserInfo = {
-          id: user.id,
-          nickname: user.nickname,
-          avatar: user.avatar,
-          role: receiveInfo[i].role,
-          mute: null,
-        };
-        TotalUserInfo.push(UserInfo);
-      }
-      this.server.emit("userList", TotalUserInfo);
-
-      return await this.channelUserRepository.find({
-        where: { channelId: channelInfo.id },
-      });
+      this.sendUserList(userId, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
@@ -295,13 +276,13 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //kickNick : string
-  @SubscribeMessage("kickUser")
-  async kickSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+  @SubscribeMessage("kick")
+  async kickSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
-      this.logger.debug(
-        `kickSomeone ${data.title} ${data.userId} ${data.kickNick}`,
-      );
-      const { title, userId, kickNick } = data;
+      const { userId, title, kickName } = data;
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -311,59 +292,36 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
-      const kickUser = await this.userService.findUserByNickname(kickNick);
+      const kickUser = await this.userService.findUserByNickname(kickName);
 
       const kickUserInfo = await this.channelUserRepository.findOne({
         where: { userId: kickUser.id, channelId: channelInfo.id },
       });
 
-      if (!kickUserInfo) {
+      if (!userInfo || !kickUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
-      } else if (
-        kickUserInfo.role === ChatChannelUserRole.CREATOR ||
-        kickUserInfo.role === ChatChannelUserRole.OPERATOR
-      ) {
-        throw new Error("권한 다툼은 안됩니다.");
+      } else if (kickUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("은인에게 총을 겨누는건 잘못된 행동입니다.");
       }
 
-      if (
-        userInfo.role === ChatChannelUserRole.CREATOR ||
-        userInfo.role === ChatChannelUserRole.OPERATOR
-      ) {
-        const receiveInfo = await this.channelUserRepository.find({
-          where: { channelId: channelInfo.id, deletedAt: null },
-          order: { createdAt: "ASC" },
-        });
-
-        const TotalUserInfo = [];
-
-        for (let i = 0; i < receiveInfo.length; i++) {
-          const user = await this.userService.findUserById(
-            receiveInfo[i].userId,
-          );
-          const UserInfo = {
-            id: user.id,
-            nickname: user.nickname,
-            avatar: user.avatar,
-            role: receiveInfo[i].role,
-            mute: null,
-          };
-          TotalUserInfo.push(UserInfo);
-        }
-        const filterUserInfo = TotalUserInfo.filter(
-          (user) => user.id !== kickUser.id,
-        );
-        this.server.emit("userList", filterUserInfo);
-
-        const targetClient = this.connectedClients.get(kickUser.id);
+      if (userInfo.role === ChatChannelUserRole.CREATOR) {
+        const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
-
-        return await this.channelUserRepository.find({
-          where: { channelId: channelInfo.id },
-        });
-      } else {
-        throw new Error("권한이 없습니다.");
+        socket.leave(channelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
+      } else if (
+        userInfo.role === ChatChannelUserRole.OPERATOR &&
+        kickUserInfo.role === ChatChannelUserRole.USER
+      ) {
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(channelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
       }
+
+      this.sendUserList(userId, channelInfo.id, socket);
+
+      this.updateCurUser(channelInfo.title, data);
     } catch (error) {
       console.log(error);
     }
@@ -372,12 +330,12 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //banNick : string
-  @SubscribeMessage("banUser")
-  async banSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+  @SubscribeMessage("ban")
+  async banSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
-      this.logger.debug(
-        `banSomeone ${data.title} ${data.userId} ${data.banNick}`,
-      );
       const { userId, title, banNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
@@ -394,52 +352,38 @@ export class ChannelGateWay {
         where: { userId: banUser.id, channelId: channelInfo.id },
       });
 
-      if (!banUserInfo) {
+      if (!userInfo || !banUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
+      } else if (banUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("은인에게 총을 겨누는건 잘못된 행동입니다.");
       }
 
-      if (
-        userInfo.role === ChatChannelUserRole.CREATOR ||
-        userInfo.role === ChatChannelUserRole.OPERATOR
-      ) {
+      if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: banUser.id, channelId: channelInfo.id },
+          { userId: banUserInfo.id, channelId: channelInfo.id },
           { ban: true },
         );
-
-        const receiveInfo = await this.channelUserRepository.find({
-          where: { channelId: channelInfo.id, deletedAt: null },
-          order: { createdAt: "ASC" },
-        });
-
-        const TotalUserInfo = [];
-
-        for (let i = 0; i < receiveInfo.length; i++) {
-          const user = await this.userService.findUserById(
-            receiveInfo[i].userId,
-          );
-          const UserInfo = {
-            id: user.id,
-            nickname: user.nickname,
-            avatar: user.avatar,
-            role: receiveInfo[i].role,
-            mute: null,
-          };
-          TotalUserInfo.push(UserInfo);
-        }
-        const filterUserInfo = TotalUserInfo.filter(
-          (user) => user.id !== banUser.id,
-        );
-        this.server.emit("userList", filterUserInfo);
-
-        const targetClient = this.connectedClients.get(banUser.id);
+        const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
-        return await this.channelUserRepository.find({
-          where: { channelId: channelInfo.id },
-        });
-      } else {
-        throw new Error("권한이 없습니다.");
+        socket.leave(channelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
+      } else if (
+        userInfo.role === ChatChannelUserRole.OPERATOR &&
+        banUserInfo.role === ChatChannelUserRole.USER
+      ) {
+        await this.channelUserRepository.update(
+          { userId: banUserInfo.id, channelId: channelInfo.id },
+          { ban: true },
+        );
+        const targetClient = this.connectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(channelInfo.id.toString());
+        this.connectedClients.delete(data.userId);
       }
+
+      this.sendUserList(data.userId, channelInfo.id, socket);
+
+      this.updateCurUser(channelInfo.title, data);
     } catch (error) {
       console.log(error);
     }
@@ -448,15 +392,13 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //muteNick : string
-  @SubscribeMessage("muteUser")
-  async muteSomeone(@MessageBody() data: any, @ConnectedSocket() client) {
+  @SubscribeMessage("mute")
+  async muteSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
-      this.logger.debug(
-        `muteSomeone ${data.title} ${data.userId} ${data.muteNick}`,
-      );
       const { title, userId, muteNick } = data;
-
-      console.log(title, userId, muteNick);
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -472,54 +414,39 @@ export class ChannelGateWay {
         where: { userId: muteUser.id, channelId: channelInfo.id },
       });
 
-      if (!muteUserInfo) {
+      if (!userInfo || !muteUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
+      } else if (muteUserInfo.role === ChatChannelUserRole.CREATOR) {
+        throw new Error("은인에게 총을 겨누는건 잘못된 행동입니다.");
       }
 
-      if (
-        userInfo.role === ChatChannelUserRole.CREATOR ||
-        userInfo.role === ChatChannelUserRole.OPERATOR
-      ) {
+      if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: muteUser.id, channelId: channelInfo.id },
+          { userId: muteUserInfo.id, channelId: channelInfo.id },
           { mute: new Date() },
         );
-        const receiveInfo = await this.channelUserRepository.find({
-          where: { channelId: channelInfo.id, deletedAt: null },
-          order: { createdAt: "ASC" },
-        });
-
-        const TotalUserInfo = [];
-
-        for (let i = 0; i < receiveInfo.length; i++) {
-          const user = await this.userService.findUserById(
-            receiveInfo[i].userId,
-          );
-          const UserInfo = {
-            id: user.id,
-            nickname: user.nickname,
-            avatar: user.avatar,
-            role: receiveInfo[i].role,
-            mute: null,
-          };
-          TotalUserInfo.push(UserInfo);
-        }
-        this.server.emit("userList", TotalUserInfo);
-      } else {
-        throw new Error("권한이 없습니다.");
+      } else if (
+        userInfo.role === ChatChannelUserRole.OPERATOR &&
+        muteUserInfo.role === ChatChannelUserRole.USER
+      ) {
+        await this.channelUserRepository.update(
+          { userId: muteUserInfo.id, channelId: channelInfo.id },
+          { ban: true },
+        );
       }
+
+      this.sendUserList(data.userId, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
   }
 
-  //channelId : number
-  //userId : number
   @SubscribeMessage("leaveChannel")
-  async leaveChannel(@MessageBody() data: any, @ConnectedSocket() client) {
+  async leaveChannel(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
     try {
-      this.logger.debug(`leaveChannel ${data.channelId} ${data.userId}`);
-
       const channelInfo = await this.channelRepository.findOne({
         where: { id: data.channelId },
       });
@@ -528,42 +455,49 @@ export class ChannelGateWay {
         { channelId: channelInfo.id, userId: data.userId },
         { deletedAt: new Date() },
       );
-
-      await this.channelRepository.update(
-        { id: data.channelId },
-        { curUser: channelInfo.curUser - 1 },
-      );
-
-      const userInfo = await this.channelUserRepository.find({
-        where: { channelId: channelInfo.id, deletedAt: null },
-        order: { createdAt: "ASC" },
-      });
-
-      const TotalUserInfo = [];
-
-      for (let i = 0; i < userInfo.length; i++) {
-        const user = await this.userService.findUserById(userInfo[i].userId);
-        const UserInfo = {
-          id: user.id,
-          nickname: user.nickname,
-          avatar: user.avatar,
-          role: userInfo[i].role,
-          mute: null,
-        };
-        TotalUserInfo.push(UserInfo);
-      }
-      //나 필터해주셈
-      const filterUserInfo = TotalUserInfo.filter(
-        (user) => user.id !== data.userId,
-      );
-      this.server.emit("userList", filterUserInfo);
-
-      client.leave(channelInfo.id.toString());
-
+      socket.leave(channelInfo.id.toString());
       this.connectedClients.delete(data.userId);
+
+      this.sendUserList(data.userId, channelInfo.id, socket);
+
+      this.updateCurUser(channelInfo.title, data);
     } catch (error) {
       console.log(error);
     }
+  }
+
+  async sendUserList(userId: number, channelId: number, socket: Socket) {
+    const userInfo = await this.channelUserRepository.find({
+      where: { channelId: channelId },
+      order: { createdAt: "ASC", deletedAt: null },
+    });
+
+    const TotalUserInfo = [];
+
+    for (let i = 0; i < userInfo.length; i++) {
+      const user = await this.userService.findUserById(userInfo[i].userId);
+      const UserInfo = {
+        id: user.id,
+        nickname: user.nickname,
+        avatar: user.avatar,
+        role: userInfo[i].role,
+        mute: null,
+      };
+      TotalUserInfo.push(UserInfo);
+    }
+
+    this.server.emit("userList", TotalUserInfo);
+  }
+
+  async updateCurUser(title: string, channelId: number) {
+    const currentUserNumber = await this.channelUserRepository.find({
+      where: { channelId: channelId, deletedAt: null },
+    });
+
+    await this.channelRepository.update(
+      { title: title },
+      { curUser: currentUserNumber.length },
+    );
   }
 }
 
@@ -584,7 +518,3 @@ function isMoreThan30SecondsAgo(targetTime: Date): boolean {
 //Channel Gateway 구조 변경(map)
 //ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
 //channel GateWay KICK, BAN, MUTE 구현
-
-//1. USERROLE 변경 잘 되는지 확인
-//2. curUser가 maxUser를 넘게되는 경우 막기
-//3. 채널 입퇴장 시 map.size - 자기자신 == 채널 인원 수

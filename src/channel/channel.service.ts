@@ -154,26 +154,14 @@ export class ChannelsService {
         }
       }
 
-      const user = await this.userService.findUserByNickname(
+      const userInfo = await this.userService.findUserByNickname(
         channelUserVerify.nickname,
       );
-      const channel = await this.channelsRepository.findOne({
-        where: { title: channelUserVerify.title, deletedAt: null },
-      });
 
-      const usefInfo = await this.channelUserRepository.findOne({
-        where: { userId: user.id, channelId: channel.id, deletedAt: null },
-      });
-
-      if (usefInfo) {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "이미 존재하는 유저입니다.",
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      this.RedisClient.rpush(
+        `CH|${channelUserVerify.title}`,
+        `ACCESS|${userInfo.id}`,
+      );
     } catch (error) {
       throw error;
     }
@@ -212,15 +200,6 @@ export class ChannelsService {
 
         totalChannels.push(channel);
       }
-
-      //totalChannels을 createdAt 기준으로 정렬
-      totalChannels.sort((a, b) => {
-        return a.createdAt > b.createdAt
-          ? -1
-          : a.createdAt < b.createdAt
-            ? 1
-            : 0;
-      });
 
       return totalChannels;
     } catch (error) {
