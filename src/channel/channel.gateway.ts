@@ -7,33 +7,19 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { channels } from "./channel_entity/channels.entity";
+import { channels } from "./entity/channels.entity";
 import { ChannelsService } from "./channel.service";
 import { Redis } from "ioredis";
 import { Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
-import { channelUser } from "./channel_entity/channel.user.entity";
+import { channelUser } from "./entity/channel.user.entity";
 import { format } from "date-fns";
-import { ChatChannelUserRole } from "./channel.enum";
+import { ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { parse } from "path";
 
 //방에 있는 사람들 속성
-
-function showTime(currentDate: Date) {
-  const formattedTime = format(currentDate, "h:mm a");
-  return formattedTime;
-}
-
-function isMoreThan30SecondsAgo(targetTime: Date): boolean {
-  const currentTime = new Date();
-  const timeDifferenceInSeconds =
-    (currentTime.getTime() - targetTime.getTime()) / 1000;
-
-  return timeDifferenceInSeconds > 30;
-}
-
 @WebSocketGateway(81, {
   namespace: "chat",
   cors: true,
@@ -60,42 +46,35 @@ export class ChannelGateWay {
     this.logger.debug(`Socket Server Init`);
   }
 
-  //query
-  //userId : number
-  // title : string
   async handleConnection(Socket: Socket) {
     this.logger.debug(`Socket Connected`);
   }
 
+  //channelId : number
+  //userId : number
   async handleDisconnect(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
-    const channelInfo = await this.channelRepository.findOne({
-      where: { title: data.title },
-    });
-
-    await this.channelUserRepository.update(
-      { channelId: channelInfo.id, userId: data.userId },
-      { deletedAt: new Date() },
-    );
-
-    this.connectedClients.delete(data.userId);
+    //console.log(data.channelId, data.userId);
   }
 
   //----------------------------------------------
+
+  //private 시, 유저가 비밀번호를 입력하면, 유저의 id를 Redis에 저장한다.
+  //그 후 enter요청 시 private이면, 유저의 id를 Redis에서 확인한다.
 
   //userId : number
   //title : string
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
+    @ConnectedSocket() socket: Socket,
   ) {
     try {
       const { userId, title } = data;
-      this.connectedClients.set(userId, Socket);
+      this.connectedClients.set(userId, socket);
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -111,6 +90,10 @@ export class ChannelGateWay {
           targetClient.disconnect(true);
           throw new Error("밴 상태입니다.");
         }
+        await this.channelRepository.update(
+          { title: title },
+          { curUser: channelInfo.curUser + 1 },
+        );
         await this.channelUserRepository.update(
           { userId: userId, channelId: channelInfo.id },
           { createdAt: new Date(), deletedAt: null },
@@ -129,10 +112,17 @@ export class ChannelGateWay {
           deletedAt: null,
         };
         await this.channelUserRepository.save(newEnterUser);
+        await this.channelRepository.update(
+          { title: title },
+          { curUser: channelInfo.curUser + 1 },
+        );
       }
+
+      //channelUserRepository에 있는 유저를 생성일 순서대로 꺼내주셈
 
       const userInfo = await this.channelUserRepository.find({
         where: { channelId: channelInfo.id },
+        order: { createdAt: "ASC", deletedAt: null },
       });
 
       const TotalUserInfo = [];
@@ -149,11 +139,8 @@ export class ChannelGateWay {
         TotalUserInfo.push(UserInfo);
       }
 
-      console.log("TotalUserInfo", TotalUserInfo);
+      socket.join(channelInfo.id.toString());
 
-      console.log(`${userId}님이 코드: ${title}방에 접속했습니다.`);
-      console.log(`${userId}님이 입장했습니다.`);
-      const comeOn = `${userId}님이 입장했습니다.`;
       this.server.emit("userList", TotalUserInfo);
     } catch (error) {
       console.log(error);
@@ -184,7 +171,7 @@ export class ChannelGateWay {
             { userId: data.sender, channelId: channelInfo.id },
             { mute: null },
           );
-          this.server.emit("msgToClient", {
+          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: data.content,
@@ -196,7 +183,7 @@ export class ChannelGateWay {
             content: "뮤트 상태입니다.",
           });
       } else {
-        this.server.emit("msgToClient", {
+        this.server.to(channelInfo.id.toString()).emit("msgToClient", {
           time: showTime(data.time),
           sender: senderInfo.nickname,
           content: data.content,
@@ -231,7 +218,7 @@ export class ChannelGateWay {
         where: { userId: changeUser.id, channelId: channelInfo.id },
       });
 
-      if (changeUserInfo) {
+      if (!changeUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
       } else if (changeUserInfo.role === ChatChannelUserRole.CREATOR) {
         throw new Error("채널 생성자는 절대 권력입니다.");
@@ -286,7 +273,7 @@ export class ChannelGateWay {
         where: { userId: kickUser.id, channelId: channelInfo.id },
       });
 
-      if (kickUserInfo) {
+      if (!kickUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
       }
 
@@ -327,7 +314,7 @@ export class ChannelGateWay {
         where: { userId: banUser.id, channelId: channelInfo.id },
       });
 
-      if (banUserInfo) {
+      if (!banUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
       }
 
@@ -372,7 +359,7 @@ export class ChannelGateWay {
         where: { userId: muteUser.id, channelId: channelInfo.id },
       });
 
-      if (muteUserInfo) {
+      if (!muteUserInfo) {
         throw new Error("유저를 찾을 수 없습니다.");
       }
 
@@ -391,6 +378,44 @@ export class ChannelGateWay {
       console.log(error);
     }
   }
+
+  @SubscribeMessage("leaveChannel")
+  async leaveChannel(@MessageBody() data: any, @ConnectedSocket() client) {
+    try {
+      const channelInfo = await this.channelRepository.findOne({
+        where: { id: data.channelId },
+      });
+
+      await this.channelUserRepository.update(
+        { channelId: channelInfo.id, userId: data.userId },
+        { deletedAt: new Date() },
+      );
+
+      await this.channelRepository.update(
+        { id: data.channelId },
+        { curUser: channelInfo.curUser - 1 },
+      );
+
+      client.leave(channelInfo.id.toString());
+
+      this.connectedClients.delete(data.userId);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+}
+
+function showTime(currentDate: Date) {
+  const formattedTime = format(currentDate, "h:mm a");
+  return formattedTime;
+}
+
+function isMoreThan30SecondsAgo(targetTime: Date): boolean {
+  const currentTime = new Date();
+  const timeDifferenceInSeconds =
+    (currentTime.getTime() - targetTime.getTime()) / 1000;
+
+  return timeDifferenceInSeconds > 30;
 }
 
 //DM DB저장 삭제

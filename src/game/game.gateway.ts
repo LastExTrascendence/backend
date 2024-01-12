@@ -7,270 +7,472 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { UserDto } from "src/user/dto/user.dto";
 import { SaveOptions, RemoveOptions, Repository } from "typeorm";
-import { GameService } from "./game.service";
-import { GamePlayerService } from "./game.players.service";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Game } from "./entity/game.entity";
+import { games } from "./entity/game.entity";
 import { Redis } from "ioredis";
-import { GameDto } from "./dto/game.dto";
-import { Mode, Role, Status } from "./entity/game.enum";
-import { GamePlayers } from "./entity/game.players.entity";
+import { GameUserRole, GameStatus } from "./enum/game.enum";
+import { gamePlayers } from "./entity/game.players.entity";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
+import { format } from "date-fns";
+import { UserService } from "src/user/user.service";
 
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
-  // cors: {
-  //   origin: "http://10.19.239.198:3000",
-  //   methods: ["GET", "POST"],
-  //   credentials: true
-  // }
 })
 @UseGuards(JWTAuthGuard)
 export class GameGateWay {
   private logger = new Logger(GameGateWay.name);
   constructor(
-    private readonly gameService: GameService,
-    private readonly gamePlayerService: GamePlayerService,
-    @InjectRepository(Game)
-    private readonly gameRepository: Repository<Game>,
-    @InjectRepository(GamePlayers)
-    private readonly gamePlayerRepository: Repository<GamePlayers>,
+    @InjectRepository(games)
+    private gameRepository: Repository<games>,
+    @InjectRepository(gamePlayers)
+    private gamePlayerRepository: Repository<gamePlayers>,
     private redisClient: Redis,
+    private userService: UserService,
   ) {}
 
-  handleRoomCreation(roomName: string) {
-    throw new Error("Method not implemented.");
-  }
   @WebSocketServer()
   server: Server;
 
-  wsClients = [];
+  private connectedClients: Map<number, Socket> = new Map();
+  private disconnectTimeouts = new Map<number, NodeJS.Timeout>();
 
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }
-  handleConnection(Socket: Socket) {}
+  handleConnection(Socket: Socket) {
+    this.logger.debug(`Socket Connected`);
+  }
 
-  handleDisconnect(Socket: Socket) {}
+  //title :string
+  //userId : number
 
-  //----------------------------------------------
+  //minimum_speed: number;
+  //average_speed: number;
+  //maximum_speed: number;
+  //number_of_rounds: number;
+  //number_of_bounces: number;
+  async handleDisconnect(
+    @MessageBody() data: any,
+    @ConnectedSocket() Socket: Socket,
+  ) {
+    this.logger.debug(`Socket Disconnected`);
+    const channelInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
+    });
+
+    if (channelInfo.gameStatus === GameStatus.READY) {
+      //게임 준비 상태에서 연결이 끊긴 경우
+      const creatorId = await this.redisClient.hget(
+        `GM|${data.title}`,
+        "cretor",
+      );
+      const userId = await this.redisClient.hget(`GM|${data.title}`, "user");
+
+      if (creatorId === data.userId) {
+        //방장이 나간경우
+        if (userId) {
+          const targetClient = this.connectedClients.get(parseInt(userId));
+          targetClient.disconnect(true);
+        }
+        await this.gameRepository.update(
+          { title: data.title },
+          { endedAt: new Date() },
+        );
+        await this.redisClient.del(`GM|${data.title}`);
+      } else if (userId === data.userId) {
+        //유저가 나간 경우
+        await this.redisClient.hincrby(`GM|${data.title}`, "curUser", -1);
+        await this.redisClient.hset(`GM|${data.title}`, "user", null);
+      }
+      // 게임중에 연결이 끊긴 경우
+    } else if (channelInfo.gameStatus === GameStatus.INGAME) {
+      await timeOut(data);
+    } else if (channelInfo.gameStatus === GameStatus.DONE) {
+      if (await this.redisClient.keys(`GM|${data.title}`))
+        await this.redisClient.del(`GM|${data.title}`);
+    }
+  }
+
+  async handleReconnect(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    this.logger.debug(`Socket Reconnected`);
+    const channelInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
+    });
+    if (channelInfo.gameStatus === GameStatus.INGAME) {
+      // Check if there's a pending timeout for the user
+      const timeoutId = this.disconnectTimeouts.get(data.userId);
+
+      if (timeoutId) {
+        // Cancel the previous timeout
+        clearTimeout(timeoutId);
+        // Clean up resources, if necessary
+        this.disconnectTimeouts.delete(data.userId);
+
+        // Proceed with the game as normal
+        this.server.emit("msgToClient", "The game is continuing.");
+      }
+    }
+    // Handle other cases or do nothing if not in-game
+  }
+
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
+    @ConnectedSocket() socket: Socket,
   ) {
-    const { game_title, user_id } = data;
+    const { userId, title } = data;
 
-    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
+    if ((await this.redisClient.hget(`GM|${title}`, "curUser")) == "2") {
+      this.server.emit("msgToClient", "방이 꽉 찼습니다.");
+      return;
+    }
+    this.connectedClients.set(userId, socket);
 
-    try {
-      if (!roomStatus) {
-        await this.redisClient.rpush(game_title, user_id);
-      } else if (roomStatus.length > 2) {
-        throw new Error("방이 꽉 찼습니다.");
-      } else if (roomStatus && roomStatus.includes(user_id)) {
-        throw new Error("이미 방에 있습니다.");
+    const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
+
+    if (parseInt(creatorId) === userId) {
+      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
+    } else {
+      await this.redisClient.hset(`GM|${title}`, "user", userId);
+      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
+    }
+
+    const gameChannelInfo = await this.gameRepository.findOne({
+      where: { title: title },
+    });
+
+    const TotalUserInfo = [];
+
+    const creatorInfo = await this.userService.findUserById(
+      parseInt(creatorId),
+    );
+
+    const CreatorInfo = {
+      id: creatorInfo.id,
+      nickname: creatorInfo.nickname,
+      avatar: creatorInfo.avatar,
+    };
+
+    TotalUserInfo.push(CreatorInfo);
+
+    const user = await this.redisClient.hget(`GM|${title}`, "user");
+    if (parseInt(user) !== 0) {
+      {
+        const userInfo = await this.userService.findUserById(parseInt(user));
+
+        const UserInfo = {
+          id: userInfo.id,
+          nickname: userInfo.nickname,
+          avatar: userInfo.avatar,
+        };
+        TotalUserInfo.push(UserInfo);
       }
+      socket.join(gameChannelInfo.id.toString());
+      this.server.emit("userList", TotalUserInfo);
+    }
+  }
+
+  //time : 시간
+  //title : string 요청
+  //sender : number
+  //content : string
+  @SubscribeMessage("msgToServer")
+  async sendMessage(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      const senderInfo = await this.userService.findUserById(data.sender);
+
+      const gameInfo = await this.gameRepository.findOne({
+        where: { title: data.title },
+      });
+
+      this.server.to(gameInfo.id.toString()).emit("msgToClient", {
+        time: showTime(data.time),
+        sender: senderInfo.nickname,
+        content: data.content,
+      });
     } catch (error) {
       console.log(error);
-    }
-
-    console.log(`${user_id}님이 코드: ${game_title}방에 접속했습니다.`);
-    console.log(`${user_id}님이 입장했습니다.`);
-    const comeOn = `${user_id}님이 입장했습니다.`;
-    this.server.emit("comeOn" + game_title, comeOn);
-    this.wsClients.push(Socket);
-  }
-
-  @SubscribeMessage("leave")
-  async leaveGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    const { game_title, user_id } = data;
-
-    await this.redisClient.lrem(game_title, 1, user_id);
-    const leave = `${user_id}님이 퇴장했습니다.`;
-    this.server.emit("leave" + game_title, leave);
-
-    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
-    if (!roomStatus) {
-      this.redisClient.del(data.game_title);
-    } else if (roomStatus.find((user) => user === user_id)) {
-      this.redisClient.del(data.game_title);
-    }
-  }
-
-  @SubscribeMessage("kick")
-  async kickSomeone(
-    @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
-  ) {
-    const { game_title, user_id } = data;
-
-    await this.redisClient.lrem(game_title, 1, user_id);
-    const leave = `${user_id}님이 퇴장했습니다.`;
-    this.server.emit("leave" + game_title, leave);
-
-    const roomStatus = await this.redisClient.lrange(game_title, 0, -1);
-    if (!roomStatus) {
-      this.redisClient.del(data.game_title);
     }
   }
 
   @SubscribeMessage("start")
   async startGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    const newGame = {
-      type: data.type, // 게임 타입
-      mode: data.mode, // 게임 모드
-      status: Status.INGAME, // 게임 상태
-      minimum_speed: null, // 최소 속도
-      average_speed: null, // 평균 속도
-      maximum_speed: null, // 최대 속도
-      number_of_rounds: data.number_of_rounds, // 라운드 수
-      number_of_bounces: null, // 횟수
-      created_at: new Date(), // 게임 생성 시간
-      ended_at: null, // 게임 종료 시간
-    };
-
-    const game = await this.gameRepository.save(newGame);
-    this.redisClient.del(data.game_title);
-
-    this.server.emit("msgToClient", "시자ㅏㅏㅏㅏㅏㅏㅏ악 하겠습니다");
-    //게임에 대한 id 보내기
-    return game.id;
+    await this.gameRepository.update(
+      { title: data.title },
+      { gameStatus: GameStatus.INGAME },
+    );
   }
 
+  //title :string
+  //userId : number
+  //score : number
   @SubscribeMessage("win")
   async winGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    const { game_id, user_id } = data;
+    if (data.score < 0 || data.score > 5) {
+      this.server.emit("msgToClient", "잘못된 점수입니다.");
+      return;
+    }
+    const winnerInfo = await this.userService.findUserById(data.winner);
 
-    const game = await this.gameRepository.findOne({
-      where: { id: game_id },
+    const gameInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
     });
 
-    game.status = Status.DONE;
-    game.ended_at = new Date();
-
-    await this.gameRepository.save(game);
-
-    const gamePlayer = {
-      game_id: game_id,
-      user_id: user_id,
-      score: 5,
-      role: Role.WINNER,
+    const winPlayer = {
+      gameId: gameInfo.id,
+      userId: winnerInfo.id,
+      gameUserRole: GameUserRole.WINNER,
+      score: data.score,
     };
-
-    await this.gamePlayerRepository.save(gamePlayer);
-
-    this.server.emit("msgToClient", "게임이 종료되었습니다.");
+    await this.gamePlayerRepository.save(winPlayer);
   }
 
-  @SubscribeMessage("timeout")
-  async timeOut(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    const { game_id, user_id } = data;
+  //title :string
+  //userId : number
+  //score : number
+  @SubscribeMessage("lose")
+  async loseGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+    if (data.score < 0 || data.score > 5) {
+      this.server.emit("msgToClient", "잘못된 점수입니다.");
+      return;
+    }
+    const loserInfo = await this.userService.findUserById(data.loser);
 
-    const game = await this.gameRepository.findOne({
-      where: { id: game_id },
+    const gameInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
     });
 
-    game.status = Status.DONE;
-    game.ended_at = new Date();
-
-    await this.gameRepository.save(game);
-
-    const gamePlayer = {
-      game_id: game_id,
-      user_id: user_id,
-      score: 0,
-      role: Role.LOSER,
+    const losePlayer = {
+      gameId: gameInfo.id,
+      userId: loserInfo.id,
+      gameUserRole: GameUserRole.LOSER,
+      score: data.score,
     };
-
-    await this.gamePlayerRepository.save(gamePlayer);
-
-    this.server.emit("msgToClient", "게임이 종료되었습니다.");
+    await this.gamePlayerRepository.save(losePlayer);
   }
 
-  @SubscribeMessage("dropout")
-  async dropOut(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    const { game_id, user_id } = data;
-
-    const game = await this.gameRepository.findOne({
-      where: { id: game_id },
-    });
-
-    game.status = Status.DONE;
-    game.ended_at = new Date();
-
-    await this.gameRepository.save(game);
-
-    const gamePlayer = {
-      game_id: game_id,
-      user_id: user_id,
-      score: 0,
-      role: Role.LOSER,
-    };
-
-    await this.gamePlayerRepository.save(gamePlayer);
-
-    this.server.emit("msgToClient", "게임이 종료되었습니다.");
-  }
-
+  //title :string
+  //minimum_speed: number;
+  //average_speed: number;
+  //maximum_speed: number;
+  //number_of_rounds: number;
+  //number_of_bounces: number;
   @SubscribeMessage("finish")
   async finishGame(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
-    const game = await this.gameRepository.findOne({
-      where: { id: data.game_id },
-    });
-
-    game.minimum_speed = data.minimum_speed;
-    game.average_speed = data.average_speed;
-    game.maximum_speed = data.maximum_speed;
-    game.number_of_bounces = data.number_of_bounces;
-    game.status = Status.DONE;
-    game.ended_at = new Date();
-
-    await this.gameRepository.save(game);
-
-    const redPlayer = {
-      game_id: data.game_id,
-      user_id: data.redPlayer,
-      score: data.redScore,
-      role: data.redScore > data.blueScore ? Role.WINNER : Role.LOSER,
-    };
-
-    const bluePlayer = {
-      game_id: data.game_id,
-      user_id: data.bluePlayer,
-      score: data.blueScore,
-      role: data.redScore > data.blueScore ? Role.WINNER : Role.LOSER,
-    };
-
-    await this.gamePlayerRepository.save(redPlayer);
-    await this.gamePlayerRepository.save(bluePlayer);
-
-    this.server.emit("msgToClient", "게임이 종료되었습니다.");
+    await this.gameRepository.update(
+      { title: data.title },
+      {
+        minimumSpeed: data.minimumSpeed,
+        averageSpeed: data.averageSpeed,
+        maximumSpeed: data.maximumSpeed,
+        numberOfRounds: data.numberOfRounds,
+        numberOfBounces: data.numberOfBounces,
+        gameStatus: GameStatus.DONE,
+        endedAt: new Date(),
+      },
+    );
   }
 
-  private broadcast(event, client, message: any) {
-    for (let c of this.wsClients) {
-      if (client.id == c.id) continue;
-      c.emit(event, message);
+  @SubscribeMessage("leaveChannel")
+  async leaveChannel(
+    @MessageBody() data: any,
+    @ConnectedSocket() Socket: Socket,
+  ) {
+    const channelInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
+    });
+
+    if (channelInfo.gameStatus === GameStatus.READY) {
+      //게임 준비 상태에서 연결이 끊긴 경우
+      const creatorId = await this.redisClient.hget(
+        `GM|${data.title}`,
+        "cretor",
+      );
+      const userId = await this.redisClient.hget(`GM|${data.title}`, "user");
+
+      if (creatorId === data.userId) {
+        //방장이 나간경우
+        if (userId) {
+          const targetClient = this.connectedClients.get(parseInt(userId));
+          targetClient.disconnect(true);
+        }
+        await this.gameRepository.update(
+          { title: data.title },
+          { endedAt: new Date() },
+        );
+        await this.redisClient.del(`GM|${data.title}`);
+      } else if (userId === data.userId) {
+        //유저가 나간 경우
+        await this.redisClient.hincrby(`GM|${data.title}`, "curUser", -1);
+        await this.redisClient.hset(`GM|${data.title}`, "user", null);
+      }
+      // 게임중에 연결이 끊긴 경우
+    } else if (channelInfo.gameStatus === GameStatus.INGAME) {
+      await timeOut(data);
+    } else if (channelInfo.gameStatus === GameStatus.DONE) {
+      if (await this.redisClient.keys(`GM|${data.title}`))
+        await this.redisClient.del(`GM|${data.title}`);
     }
   }
 
-  @SubscribeMessage("send")
-  sendMessage(@MessageBody() data: string, @ConnectedSocket() client) {
-    console.log("data", data);
-    const [room, nickname, message] = data;
-    console.log("----------------------");
-    console.log(`${client.id} : ${data}`);
-    console.log("room", room);
-    console.log("nickname", nickname);
-    console.log("message", message);
-    console.log("----------------------");
-    this.broadcast(room, client, [nickname, message]);
+  @SubscribeMessage("reconnect")
+  async Reconnect(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+    const channelInfo = await this.gameRepository.findOne({
+      where: { title: data.title },
+    });
+    if (channelInfo.gameStatus === GameStatus.INGAME) {
+      // Check if there's a pending timeout for the user
+      const timeoutId = this.disconnectTimeouts.get(data.userId);
+
+      if (timeoutId) {
+        // Cancel the previous timeout
+        clearTimeout(timeoutId);
+        // Clean up resources, if necessary
+        this.disconnectTimeouts.delete(data.userId);
+
+        // Proceed with the game as normal
+        this.server.emit("msgToClient", "The game is continuing.");
+      }
+    }
+    // Handle other cases or do nothing if not in-game
+  }
+
+  @SubscribeMessage("enterQueue")
+  async enterQueue(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    const { userId, title } = data;
+    const gameInfo = await this.gameRepository.findOne({
+      where: { title: title },
+    });
+
+    const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
+
+    if (parseInt(creatorId) === userId) {
+      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
+    } else {
+      await this.redisClient.hset(`GM|${title}`, "user", userId);
+      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
+    }
+
+    const TotalUserInfo = [];
+
+    const creatorInfo = await this.userService.findUserById(
+      parseInt(creatorId),
+    );
+
+    const CreatorInfo = {
+      id: creatorInfo.id,
+      nickname: creatorInfo.nickname,
+      avatar: creatorInfo.avatar,
+    };
+
+    TotalUserInfo.push(CreatorInfo);
+
+    const user = await this.redisClient.hget(`GM|${title}`, "user");
+    if (parseInt(user) !== 0) {
+      {
+        const userInfo = await this.userService.findUserById(parseInt(user));
+
+        const UserInfo = {
+          id: userInfo.id,
+          nickname: userInfo.nickname,
+          avatar: userInfo.avatar,
+        };
+        TotalUserInfo.push(UserInfo);
+      }
+      socket.join(gameInfo.id.toString());
+      this.server.emit("userList", TotalUserInfo);
+    }
   }
 }
+
+function showTime(currentDate: Date) {
+  const formattedTime = format(currentDate, "h:mm a");
+  return formattedTime;
+}
+
+async function timeOut(data: any) {
+  const game = await this.gameRepository.findOne({
+    where: { title: data.title },
+  });
+
+  // Set a timeout for 3 minutes
+  const timeoutId = setTimeout(
+    async () => {
+      // 3분내로 들어오지 않았을 경우
+      this.server.emit("msgToClient", "The game has ended.");
+
+      if (data.userId === game.creatorId) {
+        const defeatPlayer = {
+          gameId: game.id,
+          userId: data.creatorId,
+          score: 0,
+          role: GameUserRole.LOSER,
+        };
+
+        const winPlayer = {
+          gameId: game.id,
+          userId: game.userId,
+          score: 5,
+          role: GameUserRole.WINNER,
+        };
+        await this.gamePlayerRepository.save(defeatPlayer);
+        await this.gamePlayerRepository.save(winPlayer);
+      } else if (data.userId !== game.creatorId) {
+        const defeatPlayer = {
+          gameId: game.id,
+          userId: data.userId,
+          score: 0,
+          role: GameUserRole.LOSER,
+        };
+
+        const winPlayer = {
+          gameId: game.id,
+          userId: game.creatorId,
+          score: 5,
+          role: GameUserRole.WINNER,
+        };
+        await this.gamePlayerRepository.save(defeatPlayer);
+        await this.gamePlayerRepository.save(winPlayer);
+      }
+      await this.gameRepository.update(
+        { title: data.title },
+        {
+          deletedAt: new Date(),
+          status: GameStatus.DONE,
+          minimumSpeed: data.minimumSpeed,
+          averageSpeed: data.averageSpeed,
+          maximumSpeed: data.maximumSpeed,
+          numberOfBounces: data.numberOfBounces,
+          endedAt: new Date(),
+        },
+      );
+      this.disconnectTimeouts.delete(data.userId);
+    },
+    3 * 60 * 1000,
+  ); // 3 minutes in milliseconds
+
+  // Save the timeout ID for the user
+  this.disconnectTimeouts.set(data.userId, timeoutId);
+}
+
+//redis field
+//title
+//password
+//creator
+//curUser
+//user

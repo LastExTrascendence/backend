@@ -9,6 +9,7 @@ import {
   Post,
   Req,
   Body,
+  ValidationPipe,
 } from "@nestjs/common";
 import { Response } from "express";
 import { AuthService } from "./auth.service";
@@ -67,7 +68,7 @@ export class AuthController {
   @Post("/otp/generate")
   //@UseGuards(JWTSignGuard)
   async generateOtp(
-    @Body() user: UserOtpDto,
+    @Body(ValidationPipe) user: UserOtpDto,
     @Res({ passthrough: true }) res: any,
   ) {
     this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
@@ -102,6 +103,8 @@ export class AuthController {
 
       if (!user) {
         throw new Error("User not found");
+      } else if (userInfo.two_fa === false) {
+        throw new Error("2FA 기능이 활성화 되어있지 않습니다.");
       }
 
       const isValid = await this.authService.verifyOtp(userInfo, user.otp);
