@@ -10,14 +10,16 @@ import { Server, Socket } from "socket.io";
 import { channels } from "./entity/channels.entity";
 import { ChannelsService } from "./channel.service";
 import { Redis } from "ioredis";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
 import { channelUser } from "./entity/channel.user.entity";
 import { format } from "date-fns";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
-import { parse } from "path";
+
+// connectedClients를 export 해서 다른 곳에서도 사용할 수 있도록 한다.
+export const connectedClients: Map<number, Socket> = new Map();
 
 //방에 있는 사람들 속성
 @WebSocketGateway(81, {
@@ -50,10 +52,7 @@ export class ChannelGateWay {
     this.logger.debug(`Socket Connected`);
   }
 
-  async handleDisconnect(
-    @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
-  ) {
+  handleDisconnect(socket: Socket) {
     this.logger.debug(`Socket Disconnected`);
   }
 
@@ -68,13 +67,12 @@ export class ChannelGateWay {
       const { userId, title } = data;
 
       //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
-      if (this.connectedClients.has(userId)) {
-        const targetClient = this.connectedClients.get(userId);
+      if (connectedClients.has(userId)) {
+        const targetClient = connectedClients.get(userId);
         targetClient.disconnect(true);
-        this.connectedClients.delete(data.userId);
+        connectedClients.delete(data.userId);
       }
 
-      //해당 유저를 채널에 넣는 로직
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
       });
@@ -82,6 +80,51 @@ export class ChannelGateWay {
       const currentUserInfo = await this.channelUserRepository.findOne({
         where: { userId: userId, channelId: channelInfo.id },
       });
+
+      socket.join(channelInfo.id.toString());
+      connectedClients.set(userId, socket);
+
+      //입장불가
+      //1. 비밀번호 입력자가 아닌 경우
+      //2. 방의 인원수가 꽉 찬 경우
+      //3. 벤 상태인 경우
+
+      const checkAccesableUser = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
+      if (channelInfo.channelPolicy === ChatChannelPolicy.PRIVATE) {
+        const isPasswordCorrect = await this.redisClient.lrange(
+          `CH|${channelInfo.title}`,
+          0,
+          -1,
+        );
+
+        //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
+        const filter = isPasswordCorrect.filter((value) =>
+          value.startsWith("ACCESS|"),
+        );
+
+        //ACCESS 대상이 아닌경우
+        if (!filter) {
+          const targetClient = connectedClients.get(userId);
+          targetClient.disconnect(true);
+          socket.leave(channelInfo.id.toString());
+          connectedClients.delete(data.userId);
+          return;
+        }
+        //비밀번호가 맞지 않는 경우
+        //밴 상태인 경우
+      } else if (
+        channelInfo.curUser > channelInfo.maxUser ||
+        checkAccesableUser.ban === true
+      ) {
+        const targetClient = connectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(channelInfo.id.toString());
+        connectedClients.delete(data.userId);
+        return;
+      }
 
       //해당 유저가 처음 들어왔는지, 아니면 다시 들어온건지 확인
 
@@ -113,54 +156,11 @@ export class ChannelGateWay {
         await this.channelUserRepository.save(newEnterUser);
       }
 
-      socket.join(channelInfo.id.toString());
-      this.connectedClients.set(userId, socket);
-
-      //입장불가
-      //1. 비밀번호 입력자가 아닌 경우
-      //2. 방의 인원수가 꽉 찬 경우
-      //3. 벤 상태인 경우
-
-      const checkAccesableUser = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
-      });
-
-      if (channelInfo.channelPolicy === ChatChannelPolicy.PRIVATE) {
-        const isPasswordCorrect = await this.redisClient.lrange(
-          `CH|${channelInfo.title}`,
-          0,
-          -1,
-        );
-
-        //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const filter = isPasswordCorrect.filter((value) =>
-          value.startsWith("ACCESS|"),
-        );
-
-        //ACCESS 대상이 아닌경우
-        if (!filter) {
-          const targetClient = this.connectedClients.get(userId);
-          targetClient.disconnect(true);
-          socket.leave(channelInfo.id.toString());
-          this.connectedClients.delete(data.userId);
-        }
-        //비밀번호가 맞지 않는 경우
-        //밴 상태인 경우
-      } else if (
-        channelInfo.curUser > channelInfo.maxUser ||
-        checkAccesableUser.ban === true
-      ) {
-        const targetClient = this.connectedClients.get(userId);
-        targetClient.disconnect(true);
-        socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(data.userId);
-      }
+      //현재 채널의 인원수를 업데이트 한다.
+      this.updateCurUser(title, channelInfo.id);
 
       //현재 입장한 유저의 정보를 보내준다.
       this.sendUserList(userId, channelInfo.id, socket);
-
-      //현재 채널의 인원수를 업데이트 한다.
-      this.updateCurUser(title, channelInfo.id);
     } catch (error) {
       console.log(error);
     }
@@ -227,6 +227,7 @@ export class ChannelGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.debug(`changeRoleUser`);
       const { userId, title, changeNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
@@ -281,7 +282,8 @@ export class ChannelGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
-      const { userId, title, kickName } = data;
+      this.logger.debug(`kickUser`);
+      const { userId, title, kickNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
@@ -291,7 +293,7 @@ export class ChannelGateWay {
         where: { userId: userId, channelId: channelInfo.id },
       });
 
-      const kickUser = await this.userService.findUserByNickname(kickName);
+      const kickUser = await this.userService.findUserByNickname(kickNick);
 
       const kickUserInfo = await this.channelUserRepository.findOne({
         where: { userId: kickUser.id, channelId: channelInfo.id },
@@ -304,23 +306,30 @@ export class ChannelGateWay {
       }
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
-        const targetClient = this.connectedClients.get(kickUserInfo.id);
+        await this.channelUserRepository.update(
+          { userId: kickUser.id, channelId: channelInfo.id },
+          { deletedAt: new Date() },
+        );
+        const targetClient = connectedClients.get(kickUser.id);
         targetClient.disconnect(true);
-        socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(kickUserInfo.id);
+        //socket.leave(channelInfo.id.toString());
+        connectedClients.delete(kickUser.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         kickUserInfo.role === ChatChannelUserRole.USER
       ) {
-        const targetClient = this.connectedClients.get(kickUserInfo.id);
+        await this.channelUserRepository.update(
+          { userId: kickUser.id, channelId: channelInfo.id },
+          { deletedAt: new Date() },
+        );
+        const targetClient = connectedClients.get(kickUser.id);
         targetClient.disconnect(true);
-        socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(kickUserInfo.id);
+        //socket.leave(channelInfo.id.toString());
+        connectedClients.delete(kickUser.id);
       }
 
+      this.updateCurUser(channelInfo.title, channelInfo.id);
       this.sendUserList(userId, channelInfo.id, socket);
-
-      this.updateCurUser(channelInfo.title, data);
     } catch (error) {
       console.log(error);
     }
@@ -360,29 +369,28 @@ export class ChannelGateWay {
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
           { userId: banUser.id, channelId: channelInfo.id },
-          { ban: true },
+          { ban: true, deletedAt: new Date() },
         );
-        const targetClient = this.connectedClients.get(banUserInfo.id);
+        const targetClient = connectedClients.get(banUser.id);
         targetClient.disconnect(true);
-        socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(banUserInfo.id);
+        //socket.leave(channelInfo.id.toString());
+        connectedClients.delete(banUser.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         banUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
           { userId: banUser.id, channelId: channelInfo.id },
-          { ban: true },
+          { ban: true, deletedAt: new Date() },
         );
-        const targetClient = this.connectedClients.get(banUserInfo.id);
+        const targetClient = connectedClients.get(banUser.id);
         targetClient.disconnect(true);
-        socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(banUserInfo.id);
+        //socket.leave(channelInfo.id.toString());
+        connectedClients.delete(banUser.id);
       }
+      this.updateCurUser(channelInfo.title, channelInfo.id);
 
       this.sendUserList(data.userId, channelInfo.id, socket);
-
-      this.updateCurUser(channelInfo.title, data);
     } catch (error) {
       console.log(error);
     }
@@ -397,6 +405,7 @@ export class ChannelGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.debug(`muteUser`);
       const { title, userId, muteNick } = data;
 
       const channelInfo = await this.channelRepository.findOne({
@@ -440,12 +449,13 @@ export class ChannelGateWay {
     }
   }
 
-  @SubscribeMessage("leaveChannelUser")
+  @SubscribeMessage("leaveChannel")
   async leaveChannel(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.debug(`leaveChannel`);
       const channelInfo = await this.channelRepository.findOne({
         where: { id: data.channelId },
       });
@@ -455,19 +465,19 @@ export class ChannelGateWay {
         { deletedAt: new Date() },
       );
       socket.leave(channelInfo.id.toString());
-      this.connectedClients.delete(data.userId);
+      connectedClients.delete(data.userId);
+      this.updateCurUser(channelInfo.title, data.channelId);
 
       this.sendUserList(data.userId, channelInfo.id, socket);
-
-      this.updateCurUser(channelInfo.title, data.channelId);
     } catch (error) {
       console.log(error);
     }
   }
 
   async sendUserList(userId: number, channelId: number, socket: Socket) {
+    this.logger.debug(`sendUserList ${userId} ${channelId}}`);
     const userInfo = await this.channelUserRepository.find({
-      where: { channelId: channelId, deletedAt: null },
+      where: { channelId: channelId, deletedAt: IsNull() },
       order: { createdAt: "ASC" },
     });
 
@@ -485,16 +495,19 @@ export class ChannelGateWay {
       TotalUserInfo.push(UserInfo);
     }
 
-    this.server.emit("userList", TotalUserInfo);
+    console.log(TotalUserInfo);
+
+    this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
-  async updateCurUser(_title: string, _channelId: number) {
+  async updateCurUser(title: string, channelId: number) {
+    //channelUser에서 channelId에 해당하고, deletedAt이 null인 유저의 수를 구한다.
     const currentUserNumber = await this.channelUserRepository.find({
-      where: { channelId: _channelId, deletedAt: null },
+      where: { channelId: channelId, deletedAt: IsNull() },
     });
 
     await this.channelRepository.update(
-      { title: _title },
+      { title: title },
       { curUser: currentUserNumber.length },
     );
   }
@@ -517,3 +530,4 @@ function isMoreThan30SecondsAgo(targetTime: Date): boolean {
 //Channel Gateway 구조 변경(map)
 //ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
 //channel GateWay KICK, BAN, MUTE 구현
+("");

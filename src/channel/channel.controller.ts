@@ -14,6 +14,9 @@ import { ChatChannelListDto } from "./dto/channels.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { ChannelUserVerify } from "./dto/channel.user.dto";
 
+// gateway에서 connectedClients에 저장된 유저 정보를 가져와서
+// 채널 입장 시 채널 정보를 channels DB에 담기
+
 @Controller("channel")
 @UseGuards(JWTAuthGuard)
 export class ChannelController {

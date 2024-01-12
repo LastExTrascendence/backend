@@ -45,5 +45,5 @@ export class channelUser extends BaseEntity {
   createdAt: Date;
 
   @Column({ nullable: true })
-  deletedAt: Date;
+  deletedAt: Date | null;
 }
