@@ -50,20 +50,12 @@ export class ChannelGateWay {
     this.logger.debug(`Socket Connected`);
   }
 
-  //channelId : number
-  //userId : number
   async handleDisconnect(
     @MessageBody() data: any,
     @ConnectedSocket() Socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
-    //console.log(data.channelId, data.userId);
   }
-
-  //----------------------------------------------
-
-  //private 시, 유저가 비밀번호를 입력하면, 유저의 id를 Redis에 저장한다.
-  //그 후 enter요청 시 private이면, 유저의 id를 Redis에서 확인한다.
 
   //userId : number
   //title : string
@@ -77,12 +69,8 @@ export class ChannelGateWay {
 
       //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
       if (this.connectedClients.has(userId)) {
-        const beforeChannelInfo = await this.channelUserRepository.findOne({
-          where: { userId: userId, deletedAt: null },
-        });
         const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
-        socket.leave(beforeChannelInfo.id.toString());
         this.connectedClients.delete(data.userId);
       }
 

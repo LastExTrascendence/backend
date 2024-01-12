@@ -121,6 +121,11 @@ export class GameGateWay {
     // Handle other cases or do nothing if not in-game
   }
 
+  //입장 불가 조건
+  //방의 인원이 2명을 초과한 경우
+  //비밀번호가 틀린 경우
+  //유저 먼저 들어온 경우
+
   @SubscribeMessage("enter")
   async connectSomeone(
     @MessageBody() data: any,
@@ -128,54 +133,82 @@ export class GameGateWay {
   ) {
     const { userId, title } = data;
 
-    if ((await this.redisClient.hget(`GM|${title}`, "curUser")) == "2") {
-      this.server.emit("msgToClient", "방이 꽉 찼습니다.");
-      return;
+    if (this.connectedClients.has(userId)) {
+      const targetClient = this.connectedClients.get(userId);
+      targetClient.disconnect(true);
+      this.connectedClients.delete(data.userId);
     }
-    this.connectedClients.set(userId, socket);
 
     const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
 
     if (parseInt(creatorId) === userId) {
+      await this.redisClient.hset(`GM|${title}`, "create", 1);
+      await this.redisClient.hset(`GM|${title}`, "createOnline", "true");
       await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
     } else {
       await this.redisClient.hset(`GM|${title}`, "user", userId);
+      await this.redisClient.hset(`GM|${title}`, "userReady", "false");
+      await this.redisClient.hset(`GM|${title}`, "userOnline", "true");
       await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
     }
+
+    //방에 들어와 있는 인원에 대한 정보를 저장한다
+
+    //await this.redisClient.hset(`GM|${title}`, "creatorOnline", "true");
+
+    //if ((await this.redisClient.hget(`GM|${title}`, "curUser")) == "2") {
+    //  this.server.emit("msgToClient", "방이 꽉 찼습니다.");
+    //  return;
+    //}
+    //this.connectedClients.set(userId, socket);
 
     const gameChannelInfo = await this.gameRepository.findOne({
       where: { title: title },
     });
 
+    socket.join(gameChannelInfo.id.toString());
+    this.connectedClients.set(userId, socket);
+
     const TotalUserInfo = [];
 
-    const creatorInfo = await this.userService.findUserById(
-      parseInt(creatorId),
-    );
+    //const creatorInfo = await this.userService.findUserById(
+    //  parseInt(creatorId),
+    //);
 
-    const CreatorInfo = {
-      id: creatorInfo.id,
-      nickname: creatorInfo.nickname,
-      avatar: creatorInfo.avatar,
-    };
+    //const CreatorInfo = {
+    //  id: creatorInfo.id,
+    //  nickname: creatorInfo.nickname,
+    //  avatar: creatorInfo.avatar,
+    //};
 
-    TotalUserInfo.push(CreatorInfo);
+    //TotalUserInfo.push(CreatorInfo);
+    if (
+      (await this.redisClient.hget(`GM|${title}`, "creatorOnline")) === "true"
+    ) {
+      const creatorInfo = await this.userService.findUserById(
+        parseInt(creatorId),
+      );
 
-    const user = await this.redisClient.hget(`GM|${title}`, "user");
-    if (parseInt(user) !== 0) {
-      {
-        const userInfo = await this.userService.findUserById(parseInt(user));
-
-        const UserInfo = {
-          id: userInfo.id,
-          nickname: userInfo.nickname,
-          avatar: userInfo.avatar,
-        };
-        TotalUserInfo.push(UserInfo);
-      }
-      socket.join(gameChannelInfo.id.toString());
-      this.server.emit("userList", TotalUserInfo);
+      const CreatorInfo = {
+        id: creatorInfo.id,
+        nickname: creatorInfo.nickname,
+        avatar: creatorInfo.avatar,
+      };
+      TotalUserInfo.push(CreatorInfo);
     }
+    if ((await this.redisClient.hget(`GM|${title}`, "userOnline")) === "true") {
+      const user = await this.redisClient.hget(`GM|${title}`, "user");
+      const userInfo = await this.userService.findUserById(parseInt(user));
+      const UserInfo = {
+        id: userInfo.id,
+        nickname: userInfo.nickname,
+        avatar: userInfo.avatar,
+      };
+      TotalUserInfo.push(UserInfo);
+    }
+    this.server.emit("userList", TotalUserInfo);
+    socket.join(gameChannelInfo.id.toString());
+    this.connectedClients.set(userId, socket);
   }
 
   //time : 시간
@@ -204,69 +237,86 @@ export class GameGateWay {
     }
   }
 
+  //userId : number
+  //title : string
   @SubscribeMessage("start")
-  async startGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    await this.gameRepository.update(
-      { title: data.title },
-      { gameStatus: GameStatus.INGAME },
-    );
+  async StartGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+    if (
+      data.userId ===
+        (await this.redisClient.hget(`GM|${data.title}`, "creator")) &&
+      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "true"
+    ) {
+      this.server.emit("msgToClient", "게임을 시작합니다.");
+      await this.redisClient.hset(`GM|${data.title}`, "", "INGAME");
+    }
   }
 
+  //userId : number
+  //title : string
   @SubscribeMessage("ready")
-  async readyGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    await this.gameRepository.update(
-      { title: data.title },
-      { gameStatus: GameStatus.READY },
-    );
+  async ReadyGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+    if (
+      data.userId ===
+        (await this.redisClient.hget(`GM|${data.title}`, "user")) &&
+      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "true"
+    ) {
+      await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
+    } else if (
+      data.userId ===
+        (await this.redisClient.hget(`GM|${data.title}`, "user")) &&
+      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "false"
+    ) {
+      await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
+    }
   }
 
   //title :string
   //userId : number
   //score : number
-  @SubscribeMessage("win")
-  async winGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    if (data.score < 0 || data.score > 5) {
-      this.server.emit("msgToClient", "잘못된 점수입니다.");
-      return;
-    }
-    const winnerInfo = await this.userService.findUserById(data.winner);
+  //@SubscribeMessage("win")
+  //async winGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+  //  if (data.score < 0 || data.score > 5) {
+  //    this.server.emit("msgToClient", "잘못된 점수입니다.");
+  //    return;
+  //  }
+  //  const winnerInfo = await this.userService.findUserById(data.winner);
 
-    const gameInfo = await this.gameRepository.findOne({
-      where: { title: data.title },
-    });
+  //  const gameInfo = await this.gameRepository.findOne({
+  //    where: { title: data.title },
+  //  });
 
-    const winPlayer = {
-      gameId: gameInfo.id,
-      userId: winnerInfo.id,
-      gameUserRole: GameUserRole.WINNER,
-      score: data.score,
-    };
-    await this.gamePlayerRepository.save(winPlayer);
-  }
+  //  const winPlayer = {
+  //    gameId: gameInfo.id,
+  //    userId: winnerInfo.id,
+  //    gameUserRole: GameUserRole.WINNER,
+  //    score: data.score,
+  //  };
+  //  await this.gamePlayerRepository.save(winPlayer);
+  //}
 
   //title :string
   //userId : number
   //score : number
-  @SubscribeMessage("lose")
-  async loseGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-    if (data.score < 0 || data.score > 5) {
-      this.server.emit("msgToClient", "잘못된 점수입니다.");
-      return;
-    }
-    const loserInfo = await this.userService.findUserById(data.loser);
+  //@SubscribeMessage("lose")
+  //async loseGame(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
+  //  if (data.score < 0 || data.score > 5) {
+  //    this.server.emit("msgToClient", "잘못된 점수입니다.");
+  //    return;
+  //  }
+  //  const loserInfo = await this.userService.findUserById(data.loser);
 
-    const gameInfo = await this.gameRepository.findOne({
-      where: { title: data.title },
-    });
+  //  const gameInfo = await this.gameRepository.findOne({
+  //    where: { title: data.title },
+  //  });
 
-    const losePlayer = {
-      gameId: gameInfo.id,
-      userId: loserInfo.id,
-      gameUserRole: GameUserRole.LOSER,
-      score: data.score,
-    };
-    await this.gamePlayerRepository.save(losePlayer);
-  }
+  //  const losePlayer = {
+  //    gameId: gameInfo.id,
+  //    userId: loserInfo.id,
+  //    gameUserRole: GameUserRole.LOSER,
+  //    score: data.score,
+  //  };
+  //  await this.gamePlayerRepository.save(losePlayer);
+  //}
 
   //title :string
   //minimum_speed: number;

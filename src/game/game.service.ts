@@ -163,6 +163,15 @@ export class GameService {
           HttpStatus.BAD_REQUEST,
         );
       }
+
+      const userInfo = await this.userService.findUserByNickname(
+        gameUserVerifyDto.nickname,
+      );
+
+      this.RedisClient.rpush(
+        `GM|${gameUserVerifyDto.title}`,
+        `ACCESS|${userInfo.id}`,
+      );
     } catch (error) {
       throw error;
     }
