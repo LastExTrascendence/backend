@@ -85,3 +85,13 @@ export class UserFriendDto {
   friend_user_id: number;
   followed_at: Date;
 }
+
+export class UserRegisterDataDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(16)
+  @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
+  nickname: string;
+
+  avatar: string;
+}

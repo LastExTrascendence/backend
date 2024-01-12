@@ -2,59 +2,32 @@ import { Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { User } from "../user/entity/user.entity";
-import { JwtService } from "@nestjs/jwt";
 import { UserService } from "src/user/user.service";
 import * as Config from "config";
-import { authenticator, totp } from "otplib";
+import { authenticator } from "otplib";
 import { Redis } from "ioredis";
 import * as qr from "qrcode";
-import { createReadStream, createWriteStream } from "fs";
+import { createWriteStream } from "fs";
+import { UserStatus } from "src/user/entity/user.enum";
 
 @Injectable()
 export class AuthService {
-  private jwtConfig = Config.get("jwt");
   private logger = new Logger(AuthService.name);
   constructor(
     private userService: UserService,
-    private jwtService: JwtService,
     @InjectRepository(User) private userRepository: Repository<User>,
     private redisService: Redis,
   ) {}
 
-  async login(user: any): Promise<{
-    access_token: string;
-    avatar: string;
-    two_fa: boolean;
-    username: string;
-  }> {
-    this.logger.debug(`Called ${AuthService.name} ${this.login.name}`);
-    const nickname = user.nickname;
-    const findUser = await this.userService.findUserByNickname(nickname);
-    if (!findUser) {
-      return null;
-    } else {
-      //백엔드에 finduser, update 요청하기
-      //findUser.userservice.updateuser()
-      const status = findUser.status;
-      if (status === "OFFLINE") {
-        // this.userService.updateUser();
-        await this.userService.updateUser(findUser);
-        console.log("사용자는 오프라인 상태입니다.");
-      }
-
-      //intra, email jwt token
-
-      const payload = {
-        two_fa: findUser["two_fa"],
-      };
-      const ret = {
-        username: findUser.intra_name,
-        access_token: this.jwtService.sign(payload),
-        avatar: findUser.avatar,
-        two_fa: findUser["two_fa"],
-      };
-      return ret;
-    }
+  async changeUserStatus(intra_name: string): Promise<boolean> {
+    this.logger.debug(
+      `Called ${AuthService.name} ${this.changeUserStatus.name}`,
+    );
+    const user = await this.userService.findUserByIntraname(intra_name);
+    if (!user) return false;
+    if (user.status === UserStatus.OFFLINE)
+      await this.userService.updateUser(user);
+    return true;
   }
 
   public async generateOtp(user: User): Promise<string> {

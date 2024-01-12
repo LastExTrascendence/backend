@@ -3,7 +3,6 @@ import { UserDto, UserSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
-import { JwtService } from "@nestjs/jwt";
 import { UserStatus } from "./entity/user.enum";
 import { UpdateUserInfoDto } from "./dto/user.profile.dto";
 
@@ -12,29 +11,23 @@ export class UserService {
   private logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
-    private jwtService: JwtService,
   ) {}
 
-  async createUser(
-    UserSessionDto: UserSessionDto,
-  ): Promise<{ access_token: string }> {
+  async createUser(UserSessionDto: UserSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
-    const { intra_name, nickname, avatar, email } = UserSessionDto;
-    const newUser = {
-      intra_name: intra_name,
-      nickname: nickname,
-      avatar: avatar,
+    const user = {
+      intra_name: UserSessionDto.intra_name,
+      nickname: UserSessionDto.nickname,
+      avatar: UserSessionDto.avatar,
       status: UserStatus.OFFLINE,
-      email: email,
+      email: UserSessionDto.email,
       two_fa: false,
       created_at: new Date(),
       deleted_at: null,
     };
 
     try {
-      const user = await this.userRepository.save(newUser);
-      // const payload = { username: UserSessionDto.nickname };
-      return { access_token: this.jwtService.sign(user) };
+      await this.userRepository.save(user);
     } catch (error) {
       this.logger.error(error);
       throw error;

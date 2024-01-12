@@ -18,6 +18,7 @@ import {
   UserDto,
   UserFriendDto,
   UserInfoDto,
+  UserRegisterDataDto,
   UserSessionDto,
 } from "./dto/user.dto";
 import { UserService } from "./user.service";
@@ -45,25 +46,25 @@ export class UserController {
     private gamePlayerService: GamePlayerService,
   ) {}
 
-  //신규 유저 정보 DB 저장
   @Post("/create")
   @UseGuards(JWTUserCreationGuard)
   createUser(
     @Headers() headers: any,
-    @Req() response: any,
-    @Body(ValidationPipe) userDto: UserDto,
+    @Body(ValidationPipe) userRegisterDataDto: UserRegisterDataDto,
   ): Promise<void> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
     const userSessionDto: UserSessionDto = {
-      ...userDto,
+      ...userRegisterDataDto,
+      id: 0,
+      status: decoded_token["status"],
+      two_fa: decoded_token["two_fa"],
       intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
     };
     try {
-      const token = this.userService.createUser(userSessionDto);
-      return response.cookie("access_token", token);
+      this.userService.createUser(userSessionDto);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

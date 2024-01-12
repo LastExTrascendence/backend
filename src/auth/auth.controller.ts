@@ -51,8 +51,10 @@ export class AuthController {
       .get("FE")
       .get("port")}`;
     try {
-      const token = await this.authService.login(user);
-      if (!token) {
+      const isRegistered = await this.authService.changeUserStatus(
+        user.intra_name,
+      );
+      if (!isRegistered) {
         return res.redirect(`${url}/register`);
       } else {
         return res.redirect(`${url}`);
