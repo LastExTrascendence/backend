@@ -153,6 +153,14 @@ export class ChannelsService {
             HttpStatus.BAD_REQUEST,
           );
         }
+      } else {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "잘못된 요청입니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       const userInfo = await this.userService.findUserByNickname(

@@ -1,47 +1,33 @@
-import {
-  HttpException,
-  HttpStatus,
-  Injectable,
-  Logger,
-  NotFoundException,
-  UnauthorizedException,
-} from "@nestjs/common";
-// import { UserRepository } from './user.repository';
+import { Injectable, Logger } from "@nestjs/common";
 import { UserDto, UserSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
-import { JwtService } from "@nestjs/jwt";
 import { UserStatus } from "./entity/user.enum";
+import { UpdateUserInfoDto } from "./dto/user.profile.dto";
 
 @Injectable()
 export class UserService {
   private logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
-    private jwtService: JwtService,
   ) {}
 
-  async createUser(
-    UserSessionDto: UserSessionDto,
-  ): Promise<{ access_token: string }> {
+  async createUser(UserSessionDto: UserSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
-    const { intra_name, nickname, avatar, email } = UserSessionDto;
-    const newUser = {
-      intra_name: intra_name,
-      nickname: nickname,
-      avatar: avatar,
+    const user = {
+      intra_name: UserSessionDto.intra_name,
+      nickname: UserSessionDto.nickname,
+      avatar: UserSessionDto.avatar,
       status: UserStatus.OFFLINE,
-      email: email,
+      email: UserSessionDto.email,
       two_fa: false,
       created_at: new Date(),
       deleted_at: null,
     };
 
     try {
-      await this.userRepository.save(newUser);
-      const payload = { username: UserSessionDto.nickname };
-      return { access_token: await this.jwtService.sign(payload) };
+      await this.userRepository.save(user);
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -79,23 +65,16 @@ export class UserService {
   }
 
   async updateUserProfile(
-    userDto: UserDto,
-    file: Express.Multer.File,
-    //profileUrl: string,
+    oldNickname: string,
+    updateUserInfoDto: UpdateUserInfoDto,
   ): Promise<User> {
-    const { id, nickname, avatar, two_fa } = userDto;
-    const user = await this.userRepository.findOne({ where: { id } });
+    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    const user = await this.userRepository.findOne({
+      where: { nickname: oldNickname },
+    });
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
-    let photoData = null;
-    if (file) {
-      photoData = file.buffer;
-    }
-    //} else if (profileUrl) {
-    //  photoData = profileUrl;
-    //}
-    //user.avatar = photoData;
     await this.userRepository.save(user);
     return user;
   }
