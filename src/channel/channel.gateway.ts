@@ -456,8 +456,8 @@ export class ChannelGateWay {
 
   async sendUserList(userId: number, channelId: number, socket: Socket) {
     const userInfo = await this.channelUserRepository.find({
-      where: { channelId: channelId },
-      order: { createdAt: "ASC", deletedAt: null },
+      where: { channelId: channelId, deletedAt: null },
+      order: { createdAt: "ASC" },
     });
 
     const TotalUserInfo = [];
