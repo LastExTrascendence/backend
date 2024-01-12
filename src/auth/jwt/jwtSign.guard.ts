@@ -11,6 +11,7 @@ import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
 import { UserSessionDto } from "src/user/dto/user.dto";
 import * as config from "config";
+import { UserService } from "src/user/user.service";
 
 @Injectable()
 export class JWTSignGuard implements CanActivate {
@@ -18,6 +19,7 @@ export class JWTSignGuard implements CanActivate {
 
   constructor(
     private jwtService: JwtService,
+    private userService: UserService,
     @Inject(ConfigService) private configService: ConfigService,
   ) {}
 
@@ -29,12 +31,20 @@ export class JWTSignGuard implements CanActivate {
     return this.generateJWT(req, res);
   }
 
-  private generateJWT(request: any, response: any): boolean {
+  private async generateJWT(request: any, response: any): Promise<boolean> {
     this.logger.verbose(`Called ${JWTSignGuard.name} ${this.generateJWT.name}`);
-    const user = request.user as UserSessionDto | undefined;
+    let user = request.user as UserSessionDto | undefined;
     if (user === undefined) {
       this.logger.debug(`cannot generate JWT`);
       return false;
+    }
+    try {
+      const result = await this.userService.findUserByIntraname(
+        user.intra_name,
+      );
+      user.nickname = result.nickname;
+    } catch (error) {
+      this.logger.verbose(`cannot find user ${user.intra_name} in DB`);
     }
     const token = this.jwtService.sign(user);
     this.logger.debug(`genereted ${user.intra_name}'s JWT`);

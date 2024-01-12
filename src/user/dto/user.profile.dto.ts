@@ -1,19 +1,25 @@
 import { UserStatus } from "../entity/user.enum";
+import {
+  IsBase64,
+  IsBoolean,
+  IsString,
+  Matches,
+  MaxLength,
+  MinLength,
+} from "class-validator";
 
 /**
  * @description 유저의 프로필 페이지 정보를 담은 DTO
- * @param id 유저 아이디
- * @param intra_name 유저의 고유 42 Intra ID
- * @param nickname 유저의 닉네임
- * @param avatar 유저의 프로필 사진 URL 값
- * @param email 유저의 42 Intra Email
- * @param two_fa 유저의 2FA 사용 여부
- * @param status 유저 접속상태
- * @param is_friend 유저의 친구 여부
- * @param at_friend 유저의 친구 추가 시간
- * @param games 게임 횟수
- * @param wins 승리 횟수
- * @param loses 패배 횟수
+ * @param {number} id - 유저의 고유 ID
+ * @param {string} intra_name - 유저의 고유 42 Intra ID
+ * @param {string} nickname - 유저의 LET 닉네임
+ * @param {string} avatar - 유저의 프로필 사진 (base64)
+ * @param {string} email - 유저의 42 Intra Email
+ * @param {boolean} is_friend - 유저의 친구 여부
+ * @param {Date} at_friend - 친구로 추가된 시간
+ * @param {number} games - 유저의 게임 횟수
+ * @param {number} wins - 유저의 승리 횟수
+ * @param {number} loses - 유저의 패배 횟수
  */
 export class UserProfileDto {
   id: number;
@@ -28,4 +34,24 @@ export class UserProfileDto {
   games: number;
   wins: number;
   loses: number;
+}
+
+/**
+ * @description 유저 프로필을 업데이트할 때 사용하는 DTO
+ * @param {string} nickname - 유저의 LET 닉네임
+ * @param {string} avatar - 유저의 프로필 사진 (base64)
+ * @param {boolean} two_fa - 유저의 2FA 사용 여부
+ */
+export class UpdateUserInfoDto {
+  @IsString()
+  @MinLength(4)
+  @MaxLength(16)
+  @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
+  nickname: string | null;
+
+  @IsBase64()
+  avatar: string | null;
+
+  @IsBoolean()
+  two_fa: boolean;
 }
