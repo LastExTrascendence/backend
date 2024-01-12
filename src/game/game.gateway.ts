@@ -42,7 +42,7 @@ export class GameGateWay {
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }
-  handleConnection(Socket: Socket) {
+  handleConnection(socket: Socket) {
     this.logger.debug(`Socket Connected`);
   }
 
@@ -56,68 +56,68 @@ export class GameGateWay {
   //number_of_bounces: number;
   async handleDisconnect(
     @MessageBody() data: any,
-    @ConnectedSocket() Socket: Socket,
-  ) {
-    this.logger.debug(`Socket Disconnected`);
-    const channelInfo = await this.gameRepository.findOne({
-      where: { title: data.title },
-    });
-
-    if (channelInfo.gameStatus === GameStatus.READY) {
-      //게임 준비 상태에서 연결이 끊긴 경우
-      const creatorId = await this.redisClient.hget(
-        `GM|${data.title}`,
-        "cretor",
-      );
-      const userId = await this.redisClient.hget(`GM|${data.title}`, "user");
-
-      if (creatorId === data.userId) {
-        //방장이 나간경우
-        if (userId) {
-          const targetClient = this.connectedClients.get(parseInt(userId));
-          targetClient.disconnect(true);
-        }
-        await this.gameRepository.update(
-          { title: data.title },
-          { endedAt: new Date() },
-        );
-        await this.redisClient.del(`GM|${data.title}`);
-      } else if (userId === data.userId) {
-        //유저가 나간 경우
-        await this.redisClient.hincrby(`GM|${data.title}`, "curUser", -1);
-        await this.redisClient.hset(`GM|${data.title}`, "user", null);
-      }
-      // 게임중에 연결이 끊긴 경우
-    } else if (channelInfo.gameStatus === GameStatus.INGAME) {
-      await timeOut(data);
-    } else if (channelInfo.gameStatus === GameStatus.DONE) {
-      if (await this.redisClient.keys(`GM|${data.title}`))
-        await this.redisClient.del(`GM|${data.title}`);
-    }
-  }
-
-  async handleReconnect(
-    @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
-    this.logger.debug(`Socket Reconnected`);
-    const channelInfo = await this.gameRepository.findOne({
-      where: { title: data.title },
-    });
-    if (channelInfo.gameStatus === GameStatus.INGAME) {
-      // Check if there's a pending timeout for the user
-      const timeoutId = this.disconnectTimeouts.get(data.userId);
+    this.logger.debug(`Socket Disconnected`);
+    //  const channelInfo = await this.gameRepository.findOne({
+    //    where: { title: data.title },
+    //  });
 
-      if (timeoutId) {
-        // Cancel the previous timeout
-        clearTimeout(timeoutId);
-        // Clean up resources, if necessary
-        this.disconnectTimeouts.delete(data.userId);
+    //  if (channelInfo.gameStatus === GameStatus.READY) {
+    //    //게임 준비 상태에서 연결이 끊긴 경우
+    //    const creatorId = await this.redisClient.hget(
+    //      `GM|${data.title}`,
+    //      "cretor",
+    //    );
+    //    const userId = await this.redisClient.hget(`GM|${data.title}`, "user");
 
-        // Proceed with the game as normal
-        this.server.emit("msgToClient", "The game is continuing.");
-      }
-    }
+    //    if (creatorId === data.userId) {
+    //      //방장이 나간경우
+    //      if (userId) {
+    //        const targetClient = this.connectedClients.get(parseInt(userId));
+    //        targetClient.disconnect(true);
+    //      }
+    //      await this.gameRepository.update(
+    //        { title: data.title },
+    //        { endedAt: new Date() },
+    //      );
+    //      await this.redisClient.del(`GM|${data.title}`);
+    //    } else if (userId === data.userId) {
+    //      //유저가 나간 경우
+    //      await this.redisClient.hincrby(`GM|${data.title}`, "curUser", -1);
+    //      await this.redisClient.hset(`GM|${data.title}`, "user", null);
+    //    }
+    //    // 게임중에 연결이 끊긴 경우
+    //  } else if (channelInfo.gameStatus === GameStatus.INGAME) {
+    //    await timeOut(data);
+    //  } else if (channelInfo.gameStatus === GameStatus.DONE) {
+    //    if (await this.redisClient.keys(`GM|${data.title}`))
+    //      await this.redisClient.del(`GM|${data.title}`);
+    //  }
+    //}
+
+    //async handleReconnect(
+    //  @MessageBody() data: any,
+    //  @ConnectedSocket() socket: Socket,
+    //) {
+    //  this.logger.debug(`Socket Reconnected`);
+    //  const channelInfo = await this.gameRepository.findOne({
+    //    where: { title: data.title },
+    //  });
+    //  if (channelInfo.gameStatus === GameStatus.INGAME) {
+    //    // Check if there's a pending timeout for the user
+    //    const timeoutId = this.disconnectTimeouts.get(data.userId);
+
+    //    if (timeoutId) {
+    //      // Cancel the previous timeout
+    //      clearTimeout(timeoutId);
+    //      // Clean up resources, if necessary
+    //      this.disconnectTimeouts.delete(data.userId);
+
+    //      // Proceed with the game as normal
+    //      this.server.emit("msgToClient", "The game is continuing.");
+    //    }
+    //  }
     // Handle other cases or do nothing if not in-game
   }
 

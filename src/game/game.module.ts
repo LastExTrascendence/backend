@@ -9,6 +9,7 @@ import { Redis } from "ioredis";
 import { AuthModule } from "src/auth/auth.module";
 import { GamePlayerService } from "./game.players.service";
 import { UserService } from "src/user/user.service";
+import { GameGateWay } from "./game.gateway";
 
 @Module({
   imports: [
@@ -16,7 +17,7 @@ import { UserService } from "src/user/user.service";
     TypeOrmModule.forFeature([User, games, gamePlayers]),
   ],
   controllers: [GameController],
-  providers: [GameService, GamePlayerService, Redis, UserService],
+  providers: [GameService, GamePlayerService, Redis, UserService, GameGateWay],
   exports: [GameService, GamePlayerService, Redis],
 })
 export class GameModule {}

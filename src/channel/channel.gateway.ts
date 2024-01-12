@@ -86,10 +86,17 @@ export class ChannelGateWay {
       //해당 유저가 처음 들어왔는지, 아니면 다시 들어온건지 확인
 
       if (currentUserInfo) {
-        await this.channelUserRepository.update(
-          { userId: userId, channelId: channelInfo.id },
-          { role: ChatChannelUserRole.USER, deletedAt: null },
-        );
+        if (currentUserInfo.role === ChatChannelUserRole.CREATOR) {
+          await this.channelUserRepository.update(
+            { userId: userId, channelId: channelInfo.id },
+            { role: ChatChannelUserRole.CREATOR, deletedAt: null },
+          );
+        } else {
+          await this.channelUserRepository.update(
+            { userId: userId, channelId: channelInfo.id },
+            { role: ChatChannelUserRole.USER, deletedAt: null },
+          );
+        }
       } else {
         const newEnterUser = {
           userId: data.userId,
@@ -114,6 +121,10 @@ export class ChannelGateWay {
       //2. 방의 인원수가 꽉 찬 경우
       //3. 벤 상태인 경우
 
+      const checkAccesableUser = await this.channelUserRepository.findOne({
+        where: { userId: userId, channelId: channelInfo.id },
+      });
+
       if (channelInfo.channelPolicy === ChatChannelPolicy.PRIVATE) {
         const isPasswordCorrect = await this.redisClient.lrange(
           `CH|${channelInfo.title}`,
@@ -137,7 +148,7 @@ export class ChannelGateWay {
         //밴 상태인 경우
       } else if (
         channelInfo.curUser > channelInfo.maxUser ||
-        currentUserInfo.ban
+        checkAccesableUser.ban === true
       ) {
         const targetClient = this.connectedClients.get(userId);
         targetClient.disconnect(true);
@@ -210,7 +221,7 @@ export class ChannelGateWay {
   //changeNick : string
 
   //바꾼후 모든 유저 리스트를 보내준다.
-  @SubscribeMessage("changeRole")
+  @SubscribeMessage("changeRoleUser")
   async changeRole(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -243,7 +254,7 @@ export class ChannelGateWay {
         changeUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { userId: changeUser.id, channelId: channelInfo.id },
           { role: ChatChannelUserRole.OPERATOR },
         );
       } else if (
@@ -251,11 +262,11 @@ export class ChannelGateWay {
         changeUserInfo.role === ChatChannelUserRole.OPERATOR
       ) {
         await this.channelUserRepository.update(
-          { userId: changeUserInfo.id, channelId: channelInfo.id },
+          { userId: changeUser.id, channelId: channelInfo.id },
           { role: ChatChannelUserRole.USER },
         );
       }
-      this.sendUserList(userId, channelInfo.id, socket);
+      await this.sendUserList(userId, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
@@ -264,7 +275,7 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //kickNick : string
-  @SubscribeMessage("kick")
+  @SubscribeMessage("kickUser")
   async kickSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -293,18 +304,18 @@ export class ChannelGateWay {
       }
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
-        const targetClient = this.connectedClients.get(userId);
+        const targetClient = this.connectedClients.get(kickUserInfo.id);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(data.userId);
+        this.connectedClients.delete(kickUserInfo.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         kickUserInfo.role === ChatChannelUserRole.USER
       ) {
-        const targetClient = this.connectedClients.get(userId);
+        const targetClient = this.connectedClients.get(kickUserInfo.id);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(data.userId);
+        this.connectedClients.delete(kickUserInfo.id);
       }
 
       this.sendUserList(userId, channelInfo.id, socket);
@@ -318,7 +329,7 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //banNick : string
-  @SubscribeMessage("ban")
+  @SubscribeMessage("banUser")
   async banSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -348,25 +359,25 @@ export class ChannelGateWay {
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: banUserInfo.id, channelId: channelInfo.id },
+          { userId: banUser.id, channelId: channelInfo.id },
           { ban: true },
         );
-        const targetClient = this.connectedClients.get(userId);
+        const targetClient = this.connectedClients.get(banUserInfo.id);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(data.userId);
+        this.connectedClients.delete(banUserInfo.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         banUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: banUserInfo.id, channelId: channelInfo.id },
+          { userId: banUser.id, channelId: channelInfo.id },
           { ban: true },
         );
-        const targetClient = this.connectedClients.get(userId);
+        const targetClient = this.connectedClients.get(banUserInfo.id);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
-        this.connectedClients.delete(data.userId);
+        this.connectedClients.delete(banUserInfo.id);
       }
 
       this.sendUserList(data.userId, channelInfo.id, socket);
@@ -380,7 +391,7 @@ export class ChannelGateWay {
   //title : string
   //userId : number
   //muteNick : string
-  @SubscribeMessage("mute")
+  @SubscribeMessage("muteUser")
   async muteSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -410,7 +421,7 @@ export class ChannelGateWay {
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: muteUserInfo.id, channelId: channelInfo.id },
+          { userId: muteUser.id, channelId: channelInfo.id },
           { mute: new Date() },
         );
       } else if (
@@ -418,7 +429,7 @@ export class ChannelGateWay {
         muteUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: muteUserInfo.id, channelId: channelInfo.id },
+          { userId: muteUser.id, channelId: channelInfo.id },
           { ban: true },
         );
       }
@@ -429,7 +440,7 @@ export class ChannelGateWay {
     }
   }
 
-  @SubscribeMessage("leaveChannel")
+  @SubscribeMessage("leaveChannelUser")
   async leaveChannel(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -448,7 +459,7 @@ export class ChannelGateWay {
 
       this.sendUserList(data.userId, channelInfo.id, socket);
 
-      this.updateCurUser(channelInfo.title, data);
+      this.updateCurUser(channelInfo.title, data.channelId);
     } catch (error) {
       console.log(error);
     }
@@ -477,13 +488,13 @@ export class ChannelGateWay {
     this.server.emit("userList", TotalUserInfo);
   }
 
-  async updateCurUser(title: string, channelId: number) {
+  async updateCurUser(_title: string, _channelId: number) {
     const currentUserNumber = await this.channelUserRepository.find({
-      where: { channelId: channelId, deletedAt: null },
+      where: { channelId: _channelId, deletedAt: null },
     });
 
     await this.channelRepository.update(
-      { title: title },
+      { title: _title },
       { curUser: currentUserNumber.length },
     );
   }
