@@ -9,7 +9,7 @@ import {
 import { Observable } from "rxjs";
 import { JwtService } from "@nestjs/jwt";
 import { ConfigService } from "@nestjs/config";
-import { UserSessionDto } from "src/user/dto/user.dto";
+import { userSessionDto } from "src/user/dto/user.dto";
 import * as config from "config";
 import { UserService } from "src/user/user.service";
 
@@ -33,7 +33,7 @@ export class JWTSignGuard implements CanActivate {
 
   private async generateJWT(request: any, response: any): Promise<boolean> {
     this.logger.verbose(`Called ${JWTSignGuard.name} ${this.generateJWT.name}`);
-    let user = request.user as UserSessionDto | undefined;
+    let user = request.user as userSessionDto | undefined;
     if (user === undefined) {
       this.logger.debug(`cannot generate JWT`);
       return false;
