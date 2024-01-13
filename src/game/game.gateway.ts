@@ -428,6 +428,38 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
+
+  // gameId: 게임방 id
+  // team: home || away
+  // key: 키값 up || down
+  @SubscribeMessage("gameKeyDown")
+  async movePaddle(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      // 해당하는 키를 눌렀음. 이제 해당하는 키를 누른 유저의 패들을 움직여야 함.
+      // paddle up / down logic
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  // gameId: 게임방 id
+  // team: home || away
+  // key: 키값 up || down
+  @SubscribeMessage("gameKeyUp")
+  async stopPaddle(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      // 해당하는 키를 때었음. 이제 해당하는 키를 누른 유저의 패들을 멈춰야 함.
+      // paddle stop logic
+    } catch (error) {
+      console.log(error);
+    }
+  }
 }
 
 function showTime(currentDate: Date) {
