@@ -444,14 +444,16 @@ export class GameGateWay {
         const returnData = {
           x: calculatedCoordinates.ball.x,
           y: calculatedCoordinates.ball.y,
-          homePaddle: {
-            y: calculatedCoordinates.homePaddle.y,
-            bottom: calculatedCoordinates.homePaddle.y + paddleSize,
-          },
-          awayPaddle: {
-            y: calculatedCoordinates.awayPaddle.y,
-            bottom: calculatedCoordinates.awayPaddle.y + paddleSize,
-          },
+          l: calculatedCoordinates.homePaddle.y,
+          r: calculatedCoordinates.awayPaddle.y,
+          //homePaddle: {
+
+          //  bottom: calculatedCoordinates.homePaddle.y + paddleSize,
+          //},
+          //awayPaddle: {
+          //  y: calculatedCoordinates.awayPaddle.y,
+          //  bottom: calculatedCoordinates.awayPaddle.y + paddleSize,
+          //},
         };
 
         socket.to(data.gameId.toString()).emit("updateCoordinates", returnData);
