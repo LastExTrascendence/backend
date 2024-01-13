@@ -22,7 +22,7 @@ import { ChatChannelPolicy } from "../enum/channel.enum";
  */
 
 @Entity()
-export class channels extends BaseEntity {
+export class Channels extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
@@ -30,23 +30,23 @@ export class channels extends BaseEntity {
   title: string;
 
   @Column()
-  channelPolicy: ChatChannelPolicy;
+  channel_policy: ChatChannelPolicy;
 
   @Column()
-  creatorId: number;
+  creator_id: number;
 
   @Column({ nullable: true })
-  creatorAvatar: string;
+  creator_avatar: string;
 
   @Column({ nullable: true })
-  curUser: number;
+  cur_user: number;
 
   @Column()
-  maxUser: number;
+  max_user: number;
 
   @Column()
-  createdAt: Date;
+  created_at: Date;
 
   @Column({ nullable: true })
-  deletedAt: Date;
+  deleted_at: Date;
 }

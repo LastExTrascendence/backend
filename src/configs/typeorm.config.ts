@@ -2,8 +2,8 @@ import { TypeOrmModuleOptions, TypeOrmOptionsFactory } from "@nestjs/typeorm";
 import { UserBlock } from "src/user/entity/user.block.entity";
 import { UserFriend } from "src/user/entity/user.friend.entity";
 import { User } from "../user/entity/user.entity";
-import { channels } from "src/channel/entity/channels.entity";
-import { channelUser } from "src/channel/entity/channel.user.entity";
+import { Channels } from "src/channel/entity/channels.entity";
+import { ChannelUser } from "src/channel/entity/channel.user.entity";
 import { games } from "src/game/entity/game.entity";
 import { gamePlayers } from "src/game/entity/game.players.entity";
 import { ConfigService } from "@nestjs/config";
@@ -22,8 +22,8 @@ export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
       entities: [
         __dirname + "../**/*.entity.{js,ts}",
         User,
-        channels,
-        channelUser,
+        Channels,
+        ChannelUser,
         UserBlock,
         UserFriend,
         games,
@@ -44,8 +44,8 @@ export const typeORMConfig: TypeOrmModuleOptions = {
   entities: [
     __dirname + "../**/*.entity.{js,ts}",
     User,
-    channels,
-    channelUser,
+    Channels,
+    ChannelUser,
     UserBlock,
     UserFriend,
     games,
