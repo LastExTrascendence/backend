@@ -11,7 +11,13 @@ import { SaveOptions, RemoveOptions, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
 import { Redis } from "ioredis";
-import { GameUserRole, GameStatus, GameChannelPolicy } from "./enum/game.enum";
+import {
+  GameUserRole,
+  GameStatus,
+  GameChannelPolicy,
+  GameTeam,
+  GameComponent,
+} from "./enum/game.enum";
 import { GamePlayer } from "./entity/game.player.entity";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { format } from "date-fns";
@@ -382,6 +388,83 @@ export class GameGateWay {
   //    }
   //  }
 
+  @SubscribeMessage("loopPosition")
+  async loopPosition(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      const { width, height, ballSize, paddleSize } = data;
+
+      const ballState = {
+        x: Math.floor(Math.random() * (width - ballSize)),
+        y: Math.floor(Math.random() * (height - ballSize)),
+        dx: 2, // Initial speed in the x direction
+        dy: 2, // Initial speed in the y direction
+      };
+
+      const homePaddleState = {
+        y: Math.floor(Math.random() * (height - paddleSize)),
+        dy: 0, // Initial speed in the y direction
+      };
+
+      const awayPaddleState = {
+        y: Math.floor(Math.random() * (height - paddleSize)),
+        dy: 0, // Initial speed in the y direction
+      };
+
+      const intervalId = setInterval(async () => {
+        const calculatedCoordinates = calculateCoordinates(
+          ballState,
+          homePaddleState.y,
+          awayPaddleState.y,
+          width,
+          height,
+          ballSize,
+          paddleSize,
+        );
+
+        // Add event listeners for paddle movement
+        socket.on(
+          "gameKeyDown",
+          (gameId: number, team: GameTeam, key: string) => {
+            if (team === GameTeam.HOME) {
+              homePaddleState.dy = GameComponent.paddleSpeed;
+            } else if (team === GameTeam.AWAY) {
+              awayPaddleState.dy = GameComponent.paddleSpeed;
+            }
+          },
+        );
+
+        socket.on("gameKeyUp", () => {
+          homePaddleState.dy = 0;
+          awayPaddleState.dy = 0;
+        });
+
+        const returnData = {
+          x: calculatedCoordinates.ball.x,
+          y: calculatedCoordinates.ball.y,
+          homePaddle: {
+            y: calculatedCoordinates.homePaddle.y,
+            bottom: calculatedCoordinates.homePaddle.y + paddleSize,
+          },
+          awayPaddle: {
+            y: calculatedCoordinates.awayPaddle.y,
+            bottom: calculatedCoordinates.awayPaddle.y + paddleSize,
+          },
+        };
+
+        socket.to(data.gameId.toString()).emit("updateCoordinates", returnData);
+      }, 1000 / 60);
+
+      socket.on("disconnect", () => {
+        clearInterval(intervalId);
+      });
+    } catch (error) {
+      console.error(error);
+    }
+  }
+
   async sendUserList(channelId: number, title: string) {
     const TotalUserInfo = [];
 
@@ -460,6 +543,61 @@ export class GameGateWay {
       console.log(error);
     }
   }
+}
+
+// 좌표 계산 로직을 수행하는 함수
+function calculateCoordinates(
+  ballState: { x: number; y: number; dx: number; dy: number },
+  homePaddlePos: number,
+  awayPaddlePos: number,
+  width: number,
+  height: number,
+  ballSize: number,
+  paddleSize: number,
+) {
+  // Update ball position based on current direction
+  ballState.x += ballState.dx;
+  ballState.y += ballState.dy;
+
+  // Reflect ball when hitting top or bottom
+  if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
+    ballState.dy = -ballState.dy;
+  }
+
+  // Reflect the ball when hitting the paddles
+  if (
+    (ballState.x - ballSize / 2 < 0 &&
+      ballState.y + ballSize / 2 >= homePaddlePos &&
+      ballState.y - ballSize / 2 <= homePaddlePos + paddleSize) ||
+    (ballState.x + ballSize / 2 > width &&
+      ballState.y + ballSize / 2 >= awayPaddlePos &&
+      ballState.y - ballSize / 2 <= awayPaddlePos + paddleSize)
+  ) {
+    ballState.dx = -ballState.dx;
+  }
+
+  // Update paddle positions based on current direction
+  homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+  awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+
+  // Ensure the paddles stay within the vertical bounds
+  homePaddlePos = Math.max(0, Math.min(height - paddleSize, homePaddlePos));
+  awayPaddlePos = Math.max(0, Math.min(height - paddleSize, awayPaddlePos));
+
+  // Check if the ball passes the paddles (you may need to adjust this logic)
+  if (ballState.x + ballSize / 2 > width || ballState.x - ballSize / 2 < 0) {
+    // Handle scoring or game-over logic here
+    // Reset ball position, direction, etc.
+    ballState.x = width / 2;
+    ballState.y = height / 2;
+    ballState.dx = -ballState.dx; // Change direction
+  }
+
+  return {
+    ball: { x: ballState.x, y: ballState.y },
+    homePaddle: { x: 0, y: homePaddlePos },
+    awayPaddle: { x: width, y: awayPaddlePos },
+  };
 }
 
 function showTime(currentDate: Date) {
