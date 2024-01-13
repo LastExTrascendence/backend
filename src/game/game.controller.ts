@@ -6,8 +6,6 @@ import {
   Logger,
   Param,
   Post,
-  Req,
-  Res,
   UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
@@ -31,14 +29,12 @@ export class GameController {
 
   //게임 방 조회
   @Get("/")
-  async getGameRooms(
-    @Req() req: any,
-  ): Promise<GameChannelListDto[] | HttpException> {
+  async getGameRooms(): Promise<GameChannelListDto[] | HttpException> {
     this.logger.debug(
       `Called ${GameController.name} ${this.getGameRooms.name}`,
     );
     try {
-      return await this.gameService.getGames(req);
+      return await this.gameService.getGames();
     } catch (error) {
       this.logger.error(error);
       throw error;

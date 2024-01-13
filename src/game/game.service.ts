@@ -177,7 +177,7 @@ export class GameService {
     }
   }
 
-  async getGames(req: any): Promise<GameChannelListDto[] | HttpException> {
+  async getGames(): Promise<GameChannelListDto[] | HttpException> {
     try {
       const channelsInfo = await this.gameRepository.find();
       if (channelsInfo.length === 0) {
