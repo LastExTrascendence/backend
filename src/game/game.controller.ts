@@ -74,11 +74,29 @@ export class GameController {
   }
 
   @Get("/record/:nickname")
-  async getRecord(
+  async getRecordByNickname(
     @Param("nickname") nickname: string,
   ): Promise<GameRecordDto | HttpException> {
     try {
-      this.logger.debug(`Called ${GameController.name} ${this.getRecord.name}`);
+      this.logger.debug(
+        `Called ${GameController.name} ${this.getRecordByNickname.name}`,
+      );
+      return await this.gamePlayerSerivce.getGamePlayerRecord(nickname);
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  @Get("/stats/:nickname")
+  async getStatsByNickname(
+    @Param("nickname") nickname: string,
+  ): Promise<void | GameRecordDto | HttpException> {
+    this.logger.debug(
+      `Called ${GameController.name} ${this.getStatsByNickname.name}`,
+    );
+    try {
+      // return await this.gamePlayerSerivce.getGamePlayerStats(nickname);
       return await this.gamePlayerSerivce.getGamePlayerRecord(nickname);
     } catch (error) {
       this.logger.error(error);

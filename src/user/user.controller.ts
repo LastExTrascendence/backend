@@ -354,13 +354,15 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
+      console.log(UserInfo);
       const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );
-      const UserFriendInfo =
-        user.id === UserInfo.id
-          ? null
-          : await this.friendService.findFriend(user.id, UserInfo.id);
+      console.log(user.id);
+      console.log(UserInfo.id);
+      const UserFriendInfo = await this.friendService
+        .findFriend(user.id, UserInfo.id)
+        .catch(() => null);
       const Userprofile: UserProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
