@@ -3,13 +3,13 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { Channels } from "./entity/channels.entity";
 import { Repository } from "typeorm";
-import { ChatChannelListDto } from "./dto/channels.dto";
+import { chatChannelListDto } from "./dto/channels.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { ChannelUser } from "./entity/channel.user.entity";
 import { UserService } from "src/user/user.service";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
-import { ChannelUserVerify } from "./dto/channel.user.dto";
+import { channelUserVerify } from "./dto/channel.user.dto";
 import { connectedClients } from "./channel.gateway";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
@@ -27,8 +27,8 @@ export class ChannelsService {
   ) {}
 
   async createChannel(
-    chatChannelListDto: ChatChannelListDto,
-  ): Promise<ChatChannelListDto | HttpException> {
+    chatChannelListDto: chatChannelListDto,
+  ): Promise<chatChannelListDto | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
         `CH|${chatChannelListDto.title}`,
@@ -108,7 +108,7 @@ export class ChannelsService {
   }
 
   async enterChannel(
-    channelUserVerify: ChannelUserVerify,
+    channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
@@ -176,7 +176,7 @@ export class ChannelsService {
     }
   }
 
-  async getChannels(): Promise<ChatChannelListDto[] | HttpException> {
+  async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
       const channelsInfo = await this.channelsRepository.find({
         order: {

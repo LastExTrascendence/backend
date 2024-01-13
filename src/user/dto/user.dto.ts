@@ -18,7 +18,7 @@ import { UserStatus } from "../entity/user.enum";
  * @param {boolean} two_fa - 유저의 2FA 사용 여부
  * @param {UserStatus} status - 유저 접속상태
  */
-export class UserDto {
+export class userDto {
   id: number;
 
   @IsString()
@@ -45,9 +45,9 @@ export class UserDto {
  * @param {string} intra_name - 유저의 고유 42 Intra ID
  * @param {number} iat - JWT 발급 시간
  * @param {number} ext - JWT 만료 시간
- * @extends {UserDto}
+ * @extends {userDto}
  */
-export class UserSessionDto extends UserDto {
+export class userSessionDto extends userDto {
   intra_name: string;
   iat?: number;
   ext?: number;
@@ -60,33 +60,33 @@ export class UserSessionDto extends UserDto {
  * @param {string} avatar - 유저의 프로필 사진 URL / Hash 값
  * @param {UserStatus} status - 유저 접속상태
  */
-export class UserInfoDto {
+export class userInfoDto {
   id: number;
   nickname: string | null;
   avatar: string | null;
   status: UserStatus;
 }
 
-export class UserOtpDto {
+export class userOtpDto {
   userId: number;
   otp: string;
 }
 
-export class UserBlockDto {
+export class userBlockDto {
   id: number;
   user_id: number;
   blocked_user_id: number;
   created_at: Date;
 }
 
-export class UserFriendDto {
+export class userFriendDto {
   id: number;
   user_id: number;
   friend_user_id: number;
   followed_at: Date;
 }
 
-export class UserRegisterDataDto {
+export class userRegisterDataDto {
   @IsString()
   @MinLength(4)
   @MaxLength(16)
