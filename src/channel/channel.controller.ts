@@ -25,14 +25,12 @@ export class ChannelController {
 
   //채널 방 조회
   @Get("/")
-  async getChannels(
-    @Req() req: any,
-  ): Promise<ChatChannelListDto[] | HttpException> {
+  async getChannels(): Promise<ChatChannelListDto[] | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.getChannels.name}`,
     );
     try {
-      return await this.channelsService.getChannels(req);
+      return await this.channelsService.getChannels();
     } catch (error) {
       this.logger.error(error);
       throw error;

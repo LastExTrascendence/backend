@@ -176,7 +176,7 @@ export class ChannelsService {
     }
   }
 
-  async getChannels(req: any): Promise<ChatChannelListDto[] | HttpException> {
+  async getChannels(): Promise<ChatChannelListDto[] | HttpException> {
     try {
       const channelsInfo = await this.channelsRepository.find({
         order: {
