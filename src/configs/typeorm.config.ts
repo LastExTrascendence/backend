@@ -4,8 +4,9 @@ import { UserFriend } from "src/user/entity/user.friend.entity";
 import { User } from "../user/entity/user.entity";
 import { channels } from "src/channel/entity/channels.entity";
 import { channelUser } from "src/channel/entity/channel.user.entity";
-import { games } from "src/game/entity/game.entity";
-import { gamePlayers } from "src/game/entity/game.players.entity";
+import { GameChannel } from "src/game/entity/game.channel.entity";
+import { Game } from "src/game/entity/game.entity";
+import { GamePlayer } from "src/game/entity/game.players.entity";
 import { ConfigService } from "@nestjs/config";
 import * as config from "config";
 
@@ -26,8 +27,9 @@ export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
         channelUser,
         UserBlock,
         UserFriend,
-        games,
-        gamePlayers,
+        GameChannel,
+        Game,
+        GamePlayer,
       ],
       synchronize: true,
     };
@@ -48,8 +50,9 @@ export const typeORMConfig: TypeOrmModuleOptions = {
     channelUser,
     UserBlock,
     UserFriend,
-    games,
-    gamePlayers,
+    GameChannel,
+    Game,
+    GamePlayer,
   ],
   synchronize: true,
 };

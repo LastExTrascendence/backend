@@ -145,12 +145,13 @@ export class ChannelsService {
             HttpStatus.BAD_REQUEST,
           );
         } else {
-          throw new HttpException(
-            {
-              status: HttpStatus.BAD_REQUEST,
-              error: "잘못된 접근입니다.",
-            },
-            HttpStatus.BAD_REQUEST,
+          const userInfo = await this.userService.findUserByNickname(
+            channelUserVerify.nickname,
+          );
+
+          this.RedisClient.rpush(
+            `CH|${channelUserVerify.title}`,
+            `ACCESS|${userInfo.id}`,
           );
         }
       } else {
@@ -162,15 +163,6 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      const userInfo = await this.userService.findUserByNickname(
-        channelUserVerify.nickname,
-      );
-
-      this.RedisClient.rpush(
-        `CH|${channelUserVerify.title}`,
-        `ACCESS|${userInfo.id}`,
-      );
     } catch (error) {
       throw error;
     }

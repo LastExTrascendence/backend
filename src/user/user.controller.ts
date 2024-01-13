@@ -29,7 +29,7 @@ import { BlockService } from "./user.block.service";
 import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
-import { GamePlayerService } from "src/game/game.players.service";
+import { GamePlayerService } from "src/game/game.player.service";
 import { UpdateUserInfoDto, UserProfileDto } from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
@@ -237,9 +237,9 @@ export class UserController {
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
           .length,
-        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
           .length,
       };
       return Userprofile;
@@ -329,9 +329,9 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
           .length,
-        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
           .length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
@@ -368,9 +368,9 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.gameUserRole === "WINNER")
+        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
           .length,
-        loses: UserGameInfo.filter((game) => game.gameUserRole === "LOSER")
+        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
           .length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,

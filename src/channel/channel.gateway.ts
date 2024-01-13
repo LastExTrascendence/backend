@@ -42,8 +42,6 @@ export class ChannelGateWay {
   @WebSocketServer()
   server: Server;
 
-  private connectedClients: Map<number, Socket> = new Map();
-
   afterInit() {
     this.logger.debug(`Socket Server Init`);
   }

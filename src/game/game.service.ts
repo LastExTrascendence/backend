@@ -1,32 +1,31 @@
-import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
-import { games } from "./entity/game.entity";
-import {
-  GameChannelPolicy,
-  GameMode,
-  GameType,
-  GameStatus,
-} from "./enum/game.enum";
-import { GameChannelListDto, GameUserVerifyDto } from "./dto/game.dto";
+import { IsNull, Repository } from "typeorm";
+import { Game } from "./entity/game.entity";
+import { GameChannelPolicy, GameStatus } from "./enum/game.enum";
+import { gameChannelListDto, gameUserVerifyDto } from "./dto/game.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
+import { connectedClients } from "./game.gateway";
+import { GameChannel } from "./entity/game.channel.entity";
 
 @Injectable()
 export class GameService {
   constructor(
-    @InjectRepository(games)
-    private gameRepository: Repository<games>,
+    @InjectRepository(GameChannel)
+    private gameRoomsRepository: Repository<GameChannel>,
+    @InjectRepository(Game)
+    private gameRepository: Repository<Game>,
     private userService: UserService,
-    private RedisClient: Redis,
+    private redisClient: Redis,
   ) {}
 
   async createGame(
-    gameChannelListDto: GameChannelListDto,
-  ): Promise<GameChannelListDto | HttpException> {
+    gameChannelListDto: gameChannelListDto,
+  ): Promise<gameChannelListDto | HttpException> {
     try {
-      const gameInfo = await this.RedisClient.lrange(
+      const gameInfo = await this.redisClient.lrange(
         `GM|${gameChannelListDto.title}`,
         0,
         -1,
@@ -55,59 +54,52 @@ export class GameService {
 
       const newGame = {
         title: gameChannelListDto.title,
-        channelPolicy: GameChannelPolicy.PUBLIC,
-        creatorId: createInfo.id,
-        creatorAvatar: createInfo.avatar,
+        gameChannelPolicy: GameChannelPolicy.PUBLIC,
         gameType: gameChannelListDto.gameType,
         gameMode: gameChannelListDto.gameMode,
-        status: GameStatus.READY,
+        gameStatus: GameStatus.READY,
+        creatorId: createInfo.id,
+        creatorAvatar: createInfo.avatar,
+        curUser: 0,
+        maxUser: 2,
         createdAt: new Date(),
+        deletedAt: null,
       };
       if (gameChannelListDto.password) {
-        newGame.channelPolicy = GameChannelPolicy.PRIVATE;
+        newGame.gameChannelPolicy = GameChannelPolicy.PRIVATE;
       }
 
-      await this.gameRepository.save(newGame);
+      await this.gameRoomsRepository.save(newGame);
 
-      const newGameInfo = await this.gameRepository.findOne({
+      const newGameInfo = await this.gameRoomsRepository.findOne({
         where: { title: newGame.title },
       });
 
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "title",
         gameChannelListDto.title,
       );
 
       if (gameChannelListDto.password) {
-        await this.RedisClient.hset(
+        await this.redisClient.hset(
           `GM|${gameChannelListDto.title}`,
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
         );
       }
 
-      await this.RedisClient.hset(
-        `GM|${gameChannelListDto.title}`,
-        "creator",
-        createInfo.id,
-      );
-
-      await this.RedisClient.hset(
-        `GM|${gameChannelListDto.title}`,
-        "curUser",
-        0,
-      );
-
       const retGameInfo = {
         id: newGameInfo.id,
         title: newGame.title,
-        channelPolicy: newGame.channelPolicy,
+        channelPolicy: newGame.gameChannelPolicy,
         password: null,
         creatorId: newGame.creatorId,
         gameType: gameChannelListDto.gameType,
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,
+        curUser: 0,
+        maxUser: 2,
       };
 
       return retGameInfo;
@@ -117,10 +109,10 @@ export class GameService {
   }
 
   async enterGame(
-    gameUserVerifyDto: GameUserVerifyDto,
+    gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-      const GameInfo = await this.RedisClient.lrange(
+      const GameInfo = await this.redisClient.lrange(
         `GM|${gameUserVerifyDto.title}`,
         0,
         -1,
@@ -135,7 +127,7 @@ export class GameService {
         );
       }
 
-      const gamePassword = await this.RedisClient.hget(
+      const gamePassword = await this.redisClient.hget(
         `GM|${gameUserVerifyDto.title}`,
         "password",
       );
@@ -155,31 +147,23 @@ export class GameService {
           );
         }
       } else {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "잘못된 접근입니다.",
-          },
-          HttpStatus.BAD_REQUEST,
+        const userInfo = await this.userService.findUserByNickname(
+          gameUserVerifyDto.nickname,
+        );
+
+        this.redisClient.rpush(
+          `GM|${gameUserVerifyDto.title}`,
+          `ACCESS|${userInfo.id}`,
         );
       }
-
-      const userInfo = await this.userService.findUserByNickname(
-        gameUserVerifyDto.nickname,
-      );
-
-      this.RedisClient.rpush(
-        `GM|${gameUserVerifyDto.title}`,
-        `ACCESS|${userInfo.id}`,
-      );
     } catch (error) {
       throw error;
     }
   }
 
-  async getGames(req: any): Promise<GameChannelListDto[] | HttpException> {
+  async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      const channelsInfo = await this.gameRepository.find();
+      const channelsInfo = await this.gameRoomsRepository.find();
       if (channelsInfo.length === 0) {
         throw new HttpException(
           {
@@ -189,6 +173,27 @@ export class GameService {
           HttpStatus.BAD_REQUEST,
         );
       }
+      if (connectedClients.size === 0) {
+        //const gamesInfo = await this.gameRoomsRepository.find();
+        // 소켓에 아무도 없을 시 games deleteAt 어떻게 할건지 논의 필요
+        //for (let i = 0; i < channelUserInfo.length; i++) {
+        //  this.gameRepository.update(
+        //    { id: channelUserInfo[i].id },
+        //    { deletedAt: new Date() },
+        //  );
+        //  channelUserInfo[i].deletedAt = new Date();
+        //}
+        for (let i = 0; i < channelsInfo.length; i++) {
+          this.gameRoomsRepository.update(
+            { id: channelsInfo[i].id, deleted_at: IsNull() },
+            { cur_user: 0, deleted_at: new Date() },
+          );
+        }
+
+        for (let i = 0; i < channelsInfo.length; i++) {
+          this.redisClient.del(`GM|*`);
+        }
+      }
 
       const totalChannels = [];
 
@@ -196,16 +201,16 @@ export class GameService {
         const channel = {
           id: channelsInfo[i].id,
           title: channelsInfo[i].title,
-          channelPolicy: channelsInfo[i].gameChannelPolicy,
+          channelPolicy: channelsInfo[i].game_channel_policy,
           creator: {
             nickname: (
-              await this.userService.findUserById(channelsInfo[i].creatorId)
+              await this.userService.findUserById(channelsInfo[i].creator_id)
             ).nickname,
-            avatar: channelsInfo[i].creatorAvatar,
+            avatar: channelsInfo[i].creator_avatar,
           },
-          gameType: channelsInfo[i].gameType,
-          gameMode: channelsInfo[i].gameMode,
-          gameStatus: channelsInfo[i].gameStatus,
+          gameType: channelsInfo[i].game_type,
+          gameMode: channelsInfo[i].game_mode,
+          gameStatus: channelsInfo[i].game_status,
         };
 
         totalChannels.push(channel);
