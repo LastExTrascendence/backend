@@ -14,6 +14,7 @@ import {
 import {
   GameChannelListDto,
   GameRecordDto,
+  GameStatsDto,
   GameUserVerifyDto,
 } from "./dto/game.dto";
 import { GameService } from "./game.service";
@@ -76,7 +77,7 @@ export class GameController {
   @Get("/record/:nickname")
   async getRecordByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<GameRecordDto | HttpException> {
+  ): Promise<GameRecordDto[] | HttpException> {
     try {
       this.logger.debug(
         `Called ${GameController.name} ${this.getRecordByNickname.name}`,
@@ -91,13 +92,13 @@ export class GameController {
   @Get("/stats/:nickname")
   async getStatsByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<void | GameRecordDto | HttpException> {
+  ): Promise<void | GameStatsDto | HttpException> {
     this.logger.debug(
       `Called ${GameController.name} ${this.getStatsByNickname.name}`,
     );
     try {
       // return await this.gamePlayerSerivce.getGamePlayerStats(nickname);
-      return await this.gamePlayerSerivce.getGamePlayerRecord(nickname);
+      return await this.gamePlayerSerivce.getGamePlayerStats(nickname);
     } catch (error) {
       this.logger.error(error);
       throw error;
