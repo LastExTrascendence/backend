@@ -1,5 +1,5 @@
 import { ChatChannelPolicy, ChatChannelUserRole } from "../enum/channel.enum";
-import { ChatChannelUserDto } from "./channel.user.dto";
+import { chatChannelUserDto } from "./channel.user.dto";
 import {
   IsEnum,
   IsNumber,
@@ -16,7 +16,7 @@ import {
  * @param {string} nickname - 채널의 LET 닉네임
  * @param {string} avatar - 채널의 프로필 사진 URL / Hash 값
  */
-export class ChatUserInfoDto {
+export class chatUserInfoDto {
   @IsString()
   nickname: string;
 
@@ -33,7 +33,7 @@ export class ChatUserInfoDto {
  * @param {UserInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
  */
 
-export class ChatChannelDto {
+export class chatChannelDto {
   id: number;
 
   @IsString()
@@ -49,7 +49,7 @@ export class ChatChannelDto {
   password: string | null;
 
   @IsObject()
-  creator: ChatUserInfoDto;
+  creator: chatUserInfoDto;
 }
 
 /**
@@ -63,7 +63,7 @@ export class ChatChannelDto {
  * @param {number} maxUser - 채널의 최대 유저 수
  */
 
-export class ChatChannelListDto {
+export class chatChannelListDto {
   @IsNumber()
   id: number;
 
@@ -97,7 +97,7 @@ export class ChatChannelListDto {
  * @param {ChatChannelUserDto} users - 채널의 유저 리스트 (nickname, avatar)
  */
 
-export class ChatChannelInfoDto {
+export class chatChannelInfoDto {
   @IsString()
   @MinLength(1)
   @MaxLength(12)
@@ -107,5 +107,5 @@ export class ChatChannelInfoDto {
   channelPolicy: ChatChannelPolicy;
 
   @IsObject()
-  users: ChatChannelUserDto;
+  users: chatChannelUserDto;
 }

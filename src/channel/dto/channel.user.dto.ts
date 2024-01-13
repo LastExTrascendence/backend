@@ -15,7 +15,7 @@ import { ChatChannelUserRole } from "../enum/channel.enum";
  * @param {ChatChannelUserRole} role - 채널의 유저 권한 (CREATOR/USER)
  */
 
-export class ChatChannelUserDto {
+export class chatChannelUserDto {
   @IsString()
   avatar: string;
 
@@ -34,7 +34,7 @@ export class ChatChannelUserDto {
  * @param {string | null} password - 채널의 비밀번호
  * @param {string} nickname - 채널의 LET 닉네임
  */
-export class ChannelUserVerify {
+export class channelUserVerify {
   @IsString()
   @MinLength(1)
   @MaxLength(20)
