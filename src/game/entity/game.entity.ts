@@ -16,7 +16,7 @@ import {
  * @description 게임에 대한 엔터티
  *
  * @param {number} id - 게임의 고유 ID
- * @param {number} room_id - 게임이 속한 방의 고유 ID
+ * @param {number} channel_id - 게임이 속한 방의 고유 ID
  * @param {GameType} game_type - 게임의 타입 (NORMAL/LADDER)
  * @param {GameMode} game_mode - 게임의 모드 (NORMAL/SPEED)
  * @param {GameStatus} game_status - 게임의 상태 (READY/INGAME/DONE)
