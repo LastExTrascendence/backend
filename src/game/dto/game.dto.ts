@@ -125,7 +125,7 @@ export class GameUserVerifyDto {
 }
 
 /**
- * @description 게임채널 입장 시 필요한 DTO
+ * @description 유저 게임의 Record를 저장할 DTO
  *
  * @param {string} nickname - 게임유저의 닉네임
  * @param {GameUserRole} gameStatus - 게임유저의 게임 결과 (WIN/LOSE)
