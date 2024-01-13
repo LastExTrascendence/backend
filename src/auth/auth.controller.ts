@@ -18,7 +18,7 @@ import { JwtService } from "@nestjs/jwt";
 import { JWTSignGuard } from "./jwt/jwtSign.guard";
 import * as config from "config";
 import { User } from "src/decorator/user.decorator";
-import { UserOtpDto, UserSessionDto } from "src/user/dto/user.dto";
+import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 
 @Controller("auth")
@@ -43,7 +43,7 @@ export class AuthController {
   @UseGuards(FortyTwoAuthGuard, JWTSignGuard)
   async loginCallback(
     @Res({ passthrough: true }) res: Response,
-    @User() user: UserSessionDto,
+    @User() user: userSessionDto,
   ) {
     this.logger.debug(
       `Called ${AuthController.name} ${this.loginCallback.name}`,
@@ -68,7 +68,7 @@ export class AuthController {
   @Post("/otp/generate")
   //@UseGuards(JWTSignGuard)
   async generateOtp(
-    @Body(ValidationPipe) user: UserOtpDto,
+    @Body(ValidationPipe) user: userOtpDto,
     @Res({ passthrough: true }) res: any,
   ) {
     this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
@@ -94,7 +94,7 @@ export class AuthController {
 
   @Post("/otp/verify")
   async verifyOtp(
-    @Body() user: UserOtpDto,
+    @Body() user: userOtpDto,
     @Res({ passthrough: true }) res: any,
   ): Promise<void> {
     try {

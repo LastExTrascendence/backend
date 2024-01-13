@@ -1,10 +1,10 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { UserDto, UserSessionDto } from "./dto/user.dto";
+import { userDto, userSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { Like, Repository } from "typeorm";
 import { UserStatus } from "./entity/user.enum";
-import { UpdateUserInfoDto } from "./dto/user.profile.dto";
+import { updateUserInfoDto } from "./dto/user.profile.dto";
 
 @Injectable()
 export class UserService {
@@ -13,14 +13,14 @@ export class UserService {
     @InjectRepository(User) private userRepository: Repository<User>,
   ) {}
 
-  async createUser(UserSessionDto: UserSessionDto): Promise<void> {
+  async createUser(userSessionDto: userSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
     const user = {
-      intra_name: UserSessionDto.intra_name,
-      nickname: UserSessionDto.nickname,
-      avatar: UserSessionDto.avatar,
+      intra_name: userSessionDto.intra_name,
+      nickname: userSessionDto.nickname,
+      avatar: userSessionDto.avatar,
       status: UserStatus.OFFLINE,
-      email: UserSessionDto.email,
+      email: userSessionDto.email,
       two_fa: false,
       created_at: new Date(),
       deleted_at: null,
@@ -34,8 +34,8 @@ export class UserService {
     }
   }
 
-  async updateUser(UserDto: UserDto): Promise<void> {
-    UserDto.status = UserStatus.ONLINE;
+  async updateUser(userDto: userDto): Promise<void> {
+    userDto.status = UserStatus.ONLINE;
   }
 
   async findUserByNickname(nickname: string): Promise<User> {
@@ -66,7 +66,7 @@ export class UserService {
 
   async updateUserProfile(
     oldNickname: string,
-    updateUserInfoDto: UpdateUserInfoDto,
+    updateUserInfoDto: updateUserInfoDto,
   ): Promise<User> {
     const { nickname, avatar, two_fa } = updateUserInfoDto;
     const user = await this.userRepository.findOne({

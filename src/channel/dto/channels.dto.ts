@@ -30,7 +30,7 @@ export class ChatUserInfoDto {
  * @param {string} title - 채널의 제목
  * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {string | null} password - 채널의 비밀번호
- * @param {UserInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
+ * @param {userInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
  */
 
 export class ChatChannelDto {
