@@ -23,7 +23,7 @@ import {
  * @param {string | null} avatar - 게임유저의 프로필 사진 Base64 값
  */
 
-export class GameUserInfoDto {
+export class gameUserInfoDto {
   @IsString()
   nickname: string;
 
@@ -37,10 +37,10 @@ export class GameUserInfoDto {
  * @param {string} title - 게임채널의 제목
  * @param {GameChannelPolicy} channelPolicy - 게임채널의 입장 권한 (PUBLIC/PRIVATE)
  * @param {string | null} password - 게임채널의 비밀번호
- * @param {GameUserInfoDto} creator - 게임채널의 생성자 정보
+ * @param {gameUserInfoDto} creator - 게임채널의 생성자 정보
  */
 
-export class GameChannelDto {
+export class gameChannelDto {
   @IsString()
   @MinLength(1)
   @MaxLength(12)
@@ -53,7 +53,7 @@ export class GameChannelDto {
   password: string | null;
 
   @IsObject()
-  creator: GameUserInfoDto;
+  creator: gameUserInfoDto;
 }
 
 /**
@@ -70,7 +70,7 @@ export class GameChannelDto {
  */
 
 // 게임채널 리스트 보여줄 시
-export class GameChannelListDto {
+export class gameChannelListDto {
   @IsNumber()
   id: number;
 
@@ -107,7 +107,7 @@ export class GameChannelListDto {
  */
 
 // 게임채널 입장 시
-export class GameUserVerifyDto {
+export class gameUserVerifyDto {
   @IsString()
   @MinLength(1)
   @MaxLength(12)
@@ -137,7 +137,7 @@ export class GameUserVerifyDto {
  * @param {number} fatestGame - 게임유저의 최단 게임 시간
  */
 
-export class GameRecordDto {
+export class gameRecordDto {
   @IsString()
   nickname: string;
 

@@ -16,70 +16,58 @@ import {
  * @description 게임에 대한 엔터티
  *
  * @param {number} id - 게임의 고유 ID
- * @param {string} title - 게임의 제목
- * @param {GameChannelPolicy} gameChannelPolicy - 게임의 공개 여부 (PUBLIC/PRIVATE)
- * @param {number} creatorId - 게임의 생성자 ID
- * @param {string} creatorAvatar - 게임의 생성자 프로필 사진 Base64 값
- * @param {GameType} gameType - 게임의 타입 (SPEED/BOUNCE)
- * @param {GameMode} gameMode - 게임의 모드 (NORMAL/SPEED)
- * @param {GameStatus} gameStatus - 게임의 상태 (WAITING/PLAYING/ENDED)
- * @param {number} minimumSpeed - 게임의 최소 속도
- * @param {number} averageSpeed - 게임의 평균 속도
- * @param {number} maximumSpeed - 게임의 최대 속도
- * @param {number} numberOfRounds - 게임의 라운드 수
- * @param {number} numberOfBounces - 게임의 바운스 수
- * @param {number} playTime - 게임의 플레이 시간
- * @param {Date} createdAt - 게임의 생성 시간
- * @param {Date} endedAt - 게임의 종료 시간
+ * @param {number} room_id - 게임이 속한 방의 고유 ID
+ * @param {GameType} game_type - 게임의 타입 (NORMAL/LADDER)
+ * @param {GameMode} game_mode - 게임의 모드 (NORMAL/SPEED)
+ * @param {GameStatus} game_status - 게임의 상태 (READY/INGAME/DONE)
+ * @param {number} minimum_speed - 게임의 최소 속도
+ * @param {number} average_speed - 게임의 평균 속도
+ * @param {number} maximum_speed - 게임의 최대 속도
+ * @param {number} number_of_rounds - 게임의 라운드 수
+ * @param {number} number_of_bounces - 게임의 바운스 수
+ * @param {number} play_time - 게임의 플레이 시간
+ * @param {Date} created_at - 게임의 생성 시간
+ * @param {Date} ended_at - 게임의 종료 시간
  */
 
 @Entity()
-export class games extends BaseEntity {
+export class Game extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   @Column()
-  title: string;
+  channel_id: number;
 
   @Column()
-  gameChannelPolicy: GameChannelPolicy;
+  game_type: GameType;
 
   @Column()
-  creatorId: number;
-
-  @Column({ nullable: true })
-  creatorAvatar: string;
+  game_mode: GameMode;
 
   @Column()
-  gameType: GameType;
+  game_status: GameStatus;
+
+  @Column({ nullable: true })
+  minimum_speed: number;
+
+  @Column({ nullable: true })
+  average_speed: number;
+
+  @Column({ nullable: true })
+  maximum_speed: number;
+
+  @Column({ nullable: true })
+  number_of_rounds: number;
+
+  @Column({ nullable: true })
+  number_of_bounces: number;
+
+  @Column({ nullable: true })
+  play_time: number;
 
   @Column()
-  gameMode: GameMode;
-
-  @Column()
-  gameStatus: GameStatus;
+  created_at: Date;
 
   @Column({ nullable: true })
-  minimumSpeed: number;
-
-  @Column({ nullable: true })
-  averageSpeed: number;
-
-  @Column({ nullable: true })
-  maximumSpeed: number;
-
-  @Column({ nullable: true })
-  numberOfRounds: number;
-
-  @Column({ nullable: true })
-  numberOfBounces: number;
-
-  @Column({ nullable: true })
-  playTime: number;
-
-  @Column()
-  createdAt: Date;
-
-  @Column({ nullable: true })
-  endedAt: Date;
+  ended_at: Date;
 }

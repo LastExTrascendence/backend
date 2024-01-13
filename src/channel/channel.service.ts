@@ -1,15 +1,15 @@
 import { InjectRepository } from "@nestjs/typeorm";
 //import { ChannelsRepository } from "./channels.repository";
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
-import { channels } from "./entity/channels.entity";
+import { Channels } from "./entity/channels.entity";
 import { Repository } from "typeorm";
-import { ChatChannelListDto } from "./dto/channels.dto";
+import { chatChannelListDto } from "./dto/channels.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
-import { channelUser } from "./entity/channel.user.entity";
+import { ChannelUser } from "./entity/channel.user.entity";
 import { UserService } from "src/user/user.service";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
-import { ChannelUserVerify } from "./dto/channel.user.dto";
+import { channelUserVerify } from "./dto/channel.user.dto";
 import { connectedClients } from "./channel.gateway";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
@@ -18,17 +18,17 @@ import { connectedClients } from "./channel.gateway";
 @Injectable()
 export class ChannelsService {
   constructor(
-    @InjectRepository(channels)
-    private channelsRepository: Repository<channels>,
-    @InjectRepository(channelUser)
-    private channelUserRepository: Repository<channelUser>,
+    @InjectRepository(Channels)
+    private channelsRepository: Repository<Channels>,
+    @InjectRepository(ChannelUser)
+    private channelUserRepository: Repository<ChannelUser>,
     private userService: UserService,
     private RedisClient: Redis,
   ) {}
 
   async createChannel(
-    chatChannelListDto: ChatChannelListDto,
-  ): Promise<ChatChannelListDto | HttpException> {
+    chatChannelListDto: chatChannelListDto,
+  ): Promise<chatChannelListDto | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
         `CH|${chatChannelListDto.title}`,
@@ -108,7 +108,7 @@ export class ChannelsService {
   }
 
   async enterChannel(
-    channelUserVerify: ChannelUserVerify,
+    channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
       const ChannelInfo = await this.RedisClient.lrange(
@@ -145,12 +145,13 @@ export class ChannelsService {
             HttpStatus.BAD_REQUEST,
           );
         } else {
-          throw new HttpException(
-            {
-              status: HttpStatus.BAD_REQUEST,
-              error: "잘못된 접근입니다.",
-            },
-            HttpStatus.BAD_REQUEST,
+          const userInfo = await this.userService.findUserByNickname(
+            channelUserVerify.nickname,
+          );
+
+          this.RedisClient.rpush(
+            `CH|${channelUserVerify.title}`,
+            `ACCESS|${userInfo.id}`,
           );
         }
       } else {
@@ -162,25 +163,16 @@ export class ChannelsService {
           HttpStatus.BAD_REQUEST,
         );
       }
-
-      const userInfo = await this.userService.findUserByNickname(
-        channelUserVerify.nickname,
-      );
-
-      this.RedisClient.rpush(
-        `CH|${channelUserVerify.title}`,
-        `ACCESS|${userInfo.id}`,
-      );
     } catch (error) {
       throw error;
     }
   }
 
-  async getChannels(req: any): Promise<ChatChannelListDto[] | HttpException> {
+  async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
       const channelsInfo = await this.channelsRepository.find({
         order: {
-          createdAt: "ASC",
+          created_at: "ASC",
         },
       });
 
@@ -198,14 +190,14 @@ export class ChannelsService {
         for (let i = 0; i < channelUserInfo.length; i++) {
           this.channelUserRepository.update(
             { id: channelUserInfo[i].id },
-            { deletedAt: new Date() },
+            { deleted_at: new Date() },
           );
-          channelUserInfo[i].deletedAt = new Date();
+          channelUserInfo[i].deleted_at = new Date();
         }
         for (let i = 0; i < channelsInfo.length; i++) {
           this.channelsRepository.update(
             { id: channelsInfo[i].id },
-            { curUser: 0 },
+            { cur_user: 0 },
           );
         }
       }
@@ -216,15 +208,15 @@ export class ChannelsService {
         const channel = {
           id: channelsInfo[i].id,
           title: channelsInfo[i].title,
-          channelPolicy: channelsInfo[i].channelPolicy,
+          channelPolicy: channelsInfo[i].channel_policy,
           creator: {
             nickname: (
-              await this.userService.findUserById(channelsInfo[i].creatorId)
+              await this.userService.findUserById(channelsInfo[i].creator_id)
             ).nickname,
-            avatar: channelsInfo[i].creatorAvatar,
+            avatar: channelsInfo[i].creator_avatar,
           },
-          curUser: connectedClients.size === 0 ? 0 : channelsInfo[i].curUser,
-          maxUser: channelsInfo[i].maxUser,
+          curUser: connectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
+          maxUser: channelsInfo[i].max_user,
         };
 
         totalChannels.push(channel);

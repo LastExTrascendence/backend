@@ -10,9 +10,9 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import { ChannelsService } from "./channel.service";
-import { ChatChannelListDto } from "./dto/channels.dto";
+import { chatChannelListDto } from "./dto/channels.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
-import { ChannelUserVerify } from "./dto/channel.user.dto";
+import { channelUserVerify } from "./dto/channel.user.dto";
 
 // gateway에서 connectedClients에 저장된 유저 정보를 가져와서
 // 채널 입장 시 채널 정보를 channels DB에 담기
@@ -25,14 +25,12 @@ export class ChannelController {
 
   //채널 방 조회
   @Get("/")
-  async getChannels(
-    @Req() req: any,
-  ): Promise<ChatChannelListDto[] | HttpException> {
+  async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.getChannels.name}`,
     );
     try {
-      return await this.channelsService.getChannels(req);
+      return await this.channelsService.getChannels();
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -42,8 +40,8 @@ export class ChannelController {
   //채널 새로운 방 생성
   @Post("/create")
   async createChannel(
-    @Body(ValidationPipe) chatChannelListDto: ChatChannelListDto,
-  ): Promise<ChatChannelListDto | HttpException> {
+    @Body(ValidationPipe) chatChannelListDto: chatChannelListDto,
+  ): Promise<chatChannelListDto | HttpException> {
     this.logger.debug(
       `Called ${ChannelController.name} ${this.createChannel.name}`,
     );
@@ -58,7 +56,7 @@ export class ChannelController {
   //채널 방 입장
   @Post("/enter")
   async enterChannel(
-    @Body(ValidationPipe) channelUserVerify: ChannelUserVerify,
+    @Body(ValidationPipe) channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(

@@ -3,7 +3,7 @@ import { PassportStrategy } from "@nestjs/passport";
 import { Strategy, VerifyCallback } from "passport-42";
 import { UserStatus } from "src/user/entity/user.enum";
 import * as config from "config";
-import { UserSessionDto } from "src/user/dto/user.dto";
+import { userSessionDto } from "src/user/dto/user.dto";
 
 const ftConfig = config.get("FORTYTWO");
 
@@ -34,7 +34,7 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, "fortytwo") {
     this.logger.verbose(
       `Called ${FortyTwoStrategy.name} ${this.validate.name} by ${profile.intra_name}`,
     );
-    const user: UserSessionDto = {
+    const user: userSessionDto = {
       id: profile.user_id,
       nickname: null,
       avatar: null,
