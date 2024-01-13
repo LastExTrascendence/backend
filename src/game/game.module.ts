@@ -3,7 +3,7 @@ import { User } from "src/user/entity/user.entity";
 import { TypeOrmModule } from "@nestjs/typeorm";
 import { GameService } from "./game.service";
 import { Game } from "./entity/game.entity";
-import { GamePlayer } from "./entity/game.players.entity";
+import { GamePlayer } from "./entity/game.player.entity";
 import { GameController } from "./game.controller";
 import { Redis } from "ioredis";
 import { AuthModule } from "src/auth/auth.module";
