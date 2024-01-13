@@ -21,7 +21,7 @@ import {
  * @param {number} wins - 유저의 승리 횟수
  * @param {number} loses - 유저의 패배 횟수
  */
-export class UserProfileDto {
+export class userProfileDto {
   id: number;
   intra_name: string;
   nickname: string;
@@ -42,7 +42,7 @@ export class UserProfileDto {
  * @param {string} avatar - 유저의 프로필 사진 (base64)
  * @param {boolean} two_fa - 유저의 2FA 사용 여부
  */
-export class UpdateUserInfoDto {
+export class updateUserInfoDto {
   @IsString()
   @MinLength(4)
   @MaxLength(16)

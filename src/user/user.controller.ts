@@ -14,12 +14,12 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import {
-  UserBlockDto,
-  UserDto,
-  UserFriendDto,
-  UserInfoDto,
-  UserRegisterDataDto,
-  UserSessionDto,
+  userBlockDto,
+  userDto,
+  userFriendDto,
+  userInfoDto,
+  userRegisterDataDto,
+  userSessionDto,
 } from "./dto/user.dto";
 import { UserService } from "./user.service";
 // import { User } from "./entity/user.entity";
@@ -30,7 +30,7 @@ import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.player.service";
-import { UpdateUserInfoDto, UserProfileDto } from "./dto/user.profile.dto";
+import { updateUserInfoDto, userProfileDto } from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
@@ -50,12 +50,12 @@ export class UserController {
   @UseGuards(JWTUserCreationGuard)
   createUser(
     @Headers() headers: any,
-    @Body(ValidationPipe) userRegisterDataDto: UserRegisterDataDto,
+    @Body(ValidationPipe) userRegisterDataDto: userRegisterDataDto,
   ): Promise<void> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
-    const userSessionDto: UserSessionDto = {
+    const userSessionDto: userSessionDto = {
       ...userRegisterDataDto,
       id: 0,
       status: decoded_token["status"],
@@ -74,7 +74,7 @@ export class UserController {
   @Post("/friend/add")
   @UseGuards(JWTAuthGuard)
   addFriend(
-    @Body(ValidationPipe) regist: UserFriendDto,
+    @Body(ValidationPipe) regist: userFriendDto,
   ): Promise<UserFriend> | HttpException {
     try {
       this.logger.debug(`Called ${UserController.name} ${this.addFriend.name}`);
@@ -140,7 +140,7 @@ export class UserController {
   @Post("/block/add")
   @UseGuards(JWTAuthGuard)
   addBlock(
-    @Body(ValidationPipe) userBlockDto: UserBlockDto,
+    @Body(ValidationPipe) userBlockDto: userBlockDto,
   ): Promise<UserBlock> | HttpException {
     this.logger.debug(`Called ${UserController.name} ${this.addBlock.name}`);
     try {
@@ -196,12 +196,12 @@ export class UserController {
   @Get("/me")
   @UseGuards(JWTAuthGuard)
   async getMyInfo(
-    @User() user: UserSessionDto,
-  ): Promise<UserInfoDto | HttpException> {
+    @User() user: userSessionDto,
+  ): Promise<userInfoDto | HttpException> {
     this.logger.debug(`Called ${UserController.name} ${this.getMyInfo.name}`);
     try {
       const userData = await this.userService.findUserById(user.id);
-      const userInfo: UserInfoDto = {
+      const userInfo: userInfoDto = {
         id: userData.id,
         nickname: userData.nickname,
         avatar: userData.avatar,
@@ -218,7 +218,7 @@ export class UserController {
   @UseGuards(JWTAuthGuard)
   async getMyProfileInfo(
     @Req() req: any,
-  ): Promise<UserProfileDto | HttpException> {
+  ): Promise<userProfileDto | HttpException> {
     this.logger.debug(
       `Called ${UserController.name} ${this.getMyProfileInfo.name}`,
     );
@@ -228,7 +228,7 @@ export class UserController {
         req.user.id,
       );
 
-      const Userprofile: UserProfileDto = {
+      const Userprofile: userProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
@@ -252,8 +252,8 @@ export class UserController {
   @Put("/me/update")
   @UseGuards(JWTAuthGuard)
   async updateMyInfo(
-    @User() user: UserSessionDto,
-    @Body(ValidationPipe) updateUserInfoDto: UpdateUserInfoDto,
+    @User() user: userSessionDto,
+    @Body(ValidationPipe) updateUserInfoDto: updateUserInfoDto,
   ): Promise<void | HttpException> {
     this.logger.debug(
       `Called ${UserController.name} ${this.updateMyInfo.name}`,
@@ -270,7 +270,7 @@ export class UserController {
   // @UseGuards(JWTAuthGuard)
   // async getprofilebyid(
   //   @Req() req: any,
-  // ): Promise<UserProfileDto | HttpException> {
+  // ): Promise<userProfileDto | HttpException> {
   //   this.logger.debug(
   //     `Called ${UserController.name} ${this.getprofilebyid.name}`,
   //   );
@@ -285,7 +285,7 @@ export class UserController {
   //       req.friend_id,
   //     );
 
-  //     const Userprofile: UserProfileDto = {
+  //     const Userprofile: userProfileDto = {
   //       id: UserInfo.id,
   //       intra_name: UserInfo.intra_name,
   //       nickname: UserInfo.nickname,
@@ -308,8 +308,8 @@ export class UserController {
   @UseGuards(JWTAuthGuard)
   async getInfoByNickname(
     @Param("nickname") nickname: string,
-    @User() user: UserSessionDto,
-  ): Promise<UserProfileDto | HttpException> {
+    @User() user: userSessionDto,
+  ): Promise<userProfileDto | HttpException> {
     this.logger.debug(
       `Called ${UserController.name} ${this.getInfoByNickname.name}`,
     );
@@ -322,7 +322,7 @@ export class UserController {
         user.id,
         UserInfo.id,
       );
-      const Userprofile: UserProfileDto = {
+      const Userprofile: userProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
@@ -347,8 +347,8 @@ export class UserController {
   @UseGuards(JWTAuthGuard)
   async getProfileByNickname(
     @Param("nickname") nickname: string,
-    @User() user: UserSessionDto,
-  ): Promise<UserProfileDto | HttpException> {
+    @User() user: userSessionDto,
+  ): Promise<userProfileDto | HttpException> {
     this.logger.debug(
       `Called ${UserController.name} ${this.getProfileByNickname.name}`,
     );
@@ -361,7 +361,7 @@ export class UserController {
         user.id === UserInfo.id
           ? null
           : await this.friendService.findFriend(user.id, UserInfo.id);
-      const Userprofile: UserProfileDto = {
+      const Userprofile: userProfileDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
@@ -386,7 +386,7 @@ export class UserController {
   @UseGuards(JWTAuthGuard)
   async searchUserByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<UserDto[] | HttpException> {
+  ): Promise<userDto[] | HttpException> {
     try {
       const User = await this.userService.searchUserByNickname(nickname);
       return User;
