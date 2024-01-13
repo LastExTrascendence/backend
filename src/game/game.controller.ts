@@ -7,19 +7,17 @@ import {
   Param,
   Post,
   Req,
-  Res,
   UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
 import {
-  GameChannelListDto,
-  GameRecordDto,
-  GameStatsDto,
-  GameUserVerifyDto,
+  gameRecordDto,
+  gameUserVerifyDto,
+  gameChannelListDto,
 } from "./dto/game.dto";
 import { GameService } from "./game.service";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
-import { GamePlayerService } from "./game.players.service";
+import { GamePlayerService } from "./game.player.service";
 
 @Controller("game")
 @UseGuards(JWTAuthGuard)
@@ -34,7 +32,7 @@ export class GameController {
   @Get("/")
   async getGameRooms(
     @Req() req: any,
-  ): Promise<GameChannelListDto[] | HttpException> {
+  ): Promise<gameChannelListDto[] | HttpException> {
     this.logger.debug(
       `Called ${GameController.name} ${this.getGameRooms.name}`,
     );
@@ -49,8 +47,8 @@ export class GameController {
   //게임 새로운 방 생성
   @Post("/create")
   async createGame(
-    @Body(ValidationPipe) gameChannelListDto: GameChannelListDto,
-  ): Promise<GameChannelListDto | HttpException> {
+    @Body(ValidationPipe) gameChannelListDto: gameChannelListDto,
+  ): Promise<gameChannelListDto | HttpException> {
     this.logger.debug(`Called ${GameController.name} ${this.createGame.name}`);
     try {
       return await this.gameService.createGame(gameChannelListDto);
@@ -63,7 +61,7 @@ export class GameController {
   //게임 방 입장
   @Post("/enter")
   async enterGame(
-    @Body() gameUserVerifyDto: GameUserVerifyDto,
+    @Body() gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${GameController.name} ${this.enterGame.name}`);
@@ -77,7 +75,7 @@ export class GameController {
   @Get("/record/:nickname")
   async getRecordByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<GameRecordDto[] | HttpException> {
+  ): Promise<gameRecordDto | HttpException> {
     try {
       this.logger.debug(
         `Called ${GameController.name} ${this.getRecordByNickname.name}`,

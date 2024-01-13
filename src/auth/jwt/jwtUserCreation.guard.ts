@@ -6,7 +6,7 @@ import {
 } from "@nestjs/common";
 import { JwtService } from "@nestjs/jwt";
 import { Observable } from "rxjs";
-import { UserSessionDto } from "src/user/dto/user.dto";
+import { userSessionDto } from "src/user/dto/user.dto";
 
 @Injectable()
 export class JWTUserCreationGuard implements CanActivate {

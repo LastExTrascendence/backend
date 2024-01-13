@@ -21,16 +21,16 @@ import { ChatChannelUserRole } from "../enum/channel.enum";
  */
 
 @Entity()
-export class channelUser extends BaseEntity {
+export class ChannelUser extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
   // @ManyToOne()
   @Column()
-  userId: number;
+  user_id: number;
 
   @Column()
-  channelId: number;
+  channel_id: number;
 
   @Column()
   role: ChatChannelUserRole;
@@ -42,8 +42,8 @@ export class channelUser extends BaseEntity {
   ban: boolean;
 
   @Column()
-  createdAt: Date;
+  created_at: Date;
 
   @Column({ nullable: true })
-  deletedAt: Date;
+  deleted_at: Date | null;
 }

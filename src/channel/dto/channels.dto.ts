@@ -1,5 +1,5 @@
 import { ChatChannelPolicy, ChatChannelUserRole } from "../enum/channel.enum";
-import { ChatChannelUserDto } from "./channel.user.dto";
+import { chatChannelUserDto } from "./channel.user.dto";
 import {
   IsEnum,
   IsNumber,
@@ -16,7 +16,7 @@ import {
  * @param {string} nickname - 채널의 LET 닉네임
  * @param {string} avatar - 채널의 프로필 사진 URL / Hash 값
  */
-export class ChatUserInfoDto {
+export class chatUserInfoDto {
   @IsString()
   nickname: string;
 
@@ -30,10 +30,10 @@ export class ChatUserInfoDto {
  * @param {string} title - 채널의 제목
  * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {string | null} password - 채널의 비밀번호
- * @param {UserInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
+ * @param {userInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
  */
 
-export class ChatChannelDto {
+export class chatChannelDto {
   id: number;
 
   @IsString()
@@ -42,28 +42,28 @@ export class ChatChannelDto {
   title: string;
 
   @IsEnum(ChatChannelPolicy)
-  ChannelPolicy: ChatChannelPolicy;
+  channelPolicy: ChatChannelPolicy;
 
   @IsOptional()
   @IsString()
   password: string | null;
 
   @IsObject()
-  creator: ChatUserInfoDto;
+  creator: chatUserInfoDto;
 }
 
 /**
  * @description 채널리스트에서 채널의 기본 정보를 담은 DTO
  *
  * @param {string} title - 채널의 제목
- * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
+ * @param {ChatChannelPolicy} channelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {string | null} password - 채널의 비밀번호
  * @param {ChatUserInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
  * @param {number} curUser - 채널의 현재 유저 수
  * @param {number} maxUser - 채널의 최대 유저 수
  */
 
-export class ChatChannelListDto {
+export class chatChannelListDto {
   @IsNumber()
   id: number;
 
@@ -93,11 +93,11 @@ export class ChatChannelListDto {
  * @description 채팅채널 진입 시
  *
  * @param {string} title - 채널의 제목
- * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
+ * @param {ChatChannelPolicy} channelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {ChatChannelUserDto} users - 채널의 유저 리스트 (nickname, avatar)
  */
 
-export class ChatChannelInfoDto {
+export class chatChannelInfoDto {
   @IsString()
   @MinLength(1)
   @MaxLength(12)
@@ -107,5 +107,5 @@ export class ChatChannelInfoDto {
   channelPolicy: ChatChannelPolicy;
 
   @IsObject()
-  users: ChatChannelUserDto;
+  users: chatChannelUserDto;
 }

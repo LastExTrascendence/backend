@@ -1,27 +1,27 @@
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
-import { gamePlayers } from "./entity/game.players.entity";
+import { GamePlayer } from "./entity/game.players.entity";
 import { UserService } from "src/user/user.service";
-import { GameRecordDto, GameStatsDto } from "./dto/game.dto";
-import { games } from "./entity/game.entity";
+import { gameRecordDto } from "./dto/game.dto";
+import { Game } from "./entity/game.entity";
 import { format } from "date-fns";
 import { GameUserRole } from "./enum/game.enum";
 
 @Injectable()
 export class GamePlayerService {
   constructor(
-    @InjectRepository(games)
-    private gameRepository: Repository<games>,
-    @InjectRepository(gamePlayers)
-    private gamePlayerRepository: Repository<gamePlayers>,
+    @InjectRepository(Game)
+    private gameRepository: Repository<Game>,
+    @InjectRepository(GamePlayer)
+    private gamePlayerRepository: Repository<GamePlayer>,
     private userServie: UserService,
   ) {}
 
-  async findGamesByUserId(_userId: number): Promise<gamePlayers[]> {
+  async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
       const gamePlayer = await this.gamePlayerRepository.find({
-        where: { userId: _userId },
+        where: { user_id: user_id },
       });
       return gamePlayer;
     } catch (error) {
@@ -32,67 +32,26 @@ export class GamePlayerService {
     }
   }
 
-  //Record
   async getGamePlayerRecord(
     _nickname: string,
-  ): Promise<GameRecordDto[] | HttpException> {
+  ): Promise<gameRecordDto | HttpException> {
     try {
       const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+
       const gamePlayerInfo = await this.gamePlayerRepository.find({
-        where: { userId: gamePlayer.id },
-      });
-
-      const totalUserStatsInfo = [];
-
-      for (let i = 0; i < gamePlayerInfo.length; i++) {
-        
-        const gameInfo = await this.gameRepository.findOne({
-          where: { id: gamePlayerInfo[i].gameId },
-        });
-
-        const gamePlayerRecord: GameRecordDto = {
-          nickname: gamePlayer.nickname,
-          gameUserRole: gamePlayerInfo[i].gameUserRole,
-          gameType: gameInfo.gameType,
-          gameMode: gameInfo.gameMode,
-          gameUserLastdate: gameInfo.endedAt
-        };
-
-        totalUserStatsInfo.push(gamePlayerRecord);
-      }
-
-      return totalUserStatsInfo;
-    } catch (error) {
-      throw new HttpException(
-        "게임 기록 조회에 실패하였습니다.",
-        HttpStatus.BAD_REQUEST,
-      );
-    }
-  }
-
-  //Status
-  async getGamePlayerStats(
-    _nickname: string,
-  ): Promise<GameStatsDto | HttpException> {
-    try {
-      //User DB 들고오기
-      const gamePlayer = await this.userServie.findUserByNickname(_nickname);
-
-      //GamePlayer DB 전부 다 들고오기
-      const gamePlayerInfo = await this.gamePlayerRepository.find({
-        where: { userId: gamePlayer.id },
+        where: { user_id: gamePlayer.id },
       });
 
       const totalGameInfo = [];
 
       for (let i = 0; i < gamePlayerInfo.length; i++) {
         const gameInfo = await this.gameRepository.findOne({
-          where: { id: gamePlayerInfo[i].gameId },
+          where: { id: gamePlayerInfo[i].game_id },
         });
         totalGameInfo.push(gameInfo);
       }
 
-      const gamePlayerRecord: GameStatsDto = {
+      const gamePlayerRecord: gameRecordDto = {
         nickname: _nickname,
         //longestGame은 gameInfo.gameTime을 기준으로 내림차순 정렬하여 가장 첫번째 값을 가져온다.
         longestGame: totalGameInfo.sort((a, b) => b.gameTime - a.gameTime)[0],
@@ -117,25 +76,25 @@ export class GamePlayerService {
           gamePlayerInfo
             .filter(
               (gamePlayerInfo) =>
-                gamePlayerInfo.gameUserRole === GameUserRole.WINNER,
+                gamePlayerInfo.game_user_role === GameUserRole.WINNER,
             )
             .map((gamePlayerInfo) => gamePlayerInfo.score)
             .reduce((a, b) => a + b, 0) /
           gamePlayerInfo.filter(
             (gamePlayerInfo) =>
-              gamePlayerInfo.gameUserRole === GameUserRole.WINNER,
+              gamePlayerInfo.game_user_role === GameUserRole.WINNER,
           ).length,
         //winStreaks는 gamePlayerInfo에서 최근 게임을 기준으로 연속적으로 승리한 게임의 개수를 구한다.
         //예를들어 최근부터, win, win, win, lose, win 이라면 winStreaks는 3이 된다.
         winStreaks: gamePlayerInfo
           .filter(
             (gamePlayerInfo) =>
-              gamePlayerInfo.gameUserRole === GameUserRole.WINNER,
+              gamePlayerInfo.game_user_role === GameUserRole.WINNER,
           )
           .reverse()
           .findIndex(
             (gamePlayerInfo) =>
-              gamePlayerInfo.gameUserRole === GameUserRole.LOSER,
+              gamePlayerInfo.game_user_role === GameUserRole.LOSER,
           ),
         //averageSpeed는 gameInfo.averageSpeed 모두 더한 후 gameInfo의 개수로 나눈다.
         averageSpeed:
@@ -160,5 +119,4 @@ export class GamePlayerService {
       );
     }
   }
-  
 }

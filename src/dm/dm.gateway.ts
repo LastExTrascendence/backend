@@ -97,7 +97,7 @@ export class DmGateway
       content: RedisPayload.content,
     };
 
-    this.server.emit("msgToClient", ClientPayload);
+    this.server.to(name).emit("msgToClient", ClientPayload);
     return name;
   }
 
