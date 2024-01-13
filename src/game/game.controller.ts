@@ -6,8 +6,6 @@ import {
   Logger,
   Param,
   Post,
-  Req,
-  Res,
   UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
@@ -38,7 +36,7 @@ export class GameController {
       `Called ${GameController.name} ${this.getGameRooms.name}`,
     );
     try {
-      return await this.gameService.getGames(req);
+      return await this.gameService.getGames();
     } catch (error) {
       this.logger.error(error);
       throw error;

@@ -23,8 +23,8 @@ export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
       entities: [
         __dirname + "../**/*.entity.{js,ts}",
         User,
-        channels,
-        channelUser,
+        Channels,
+        ChannelUser,
         UserBlock,
         UserFriend,
         GameChannel,
@@ -46,8 +46,8 @@ export const typeORMConfig: TypeOrmModuleOptions = {
   entities: [
     __dirname + "../**/*.entity.{js,ts}",
     User,
-    channels,
-    channelUser,
+    Channels,
+    ChannelUser,
     UserBlock,
     UserFriend,
     GameChannel,

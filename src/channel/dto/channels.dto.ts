@@ -42,7 +42,7 @@ export class ChatChannelDto {
   title: string;
 
   @IsEnum(ChatChannelPolicy)
-  ChannelPolicy: ChatChannelPolicy;
+  channelPolicy: ChatChannelPolicy;
 
   @IsOptional()
   @IsString()
@@ -56,7 +56,7 @@ export class ChatChannelDto {
  * @description 채널리스트에서 채널의 기본 정보를 담은 DTO
  *
  * @param {string} title - 채널의 제목
- * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
+ * @param {ChatChannelPolicy} channelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {string | null} password - 채널의 비밀번호
  * @param {ChatUserInfoDto} creator - 채널의 생성자 정보 (nickname, avatar)
  * @param {number} curUser - 채널의 현재 유저 수
@@ -93,7 +93,7 @@ export class ChatChannelListDto {
  * @description 채팅채널 진입 시
  *
  * @param {string} title - 채널의 제목
- * @param {ChatChannelPolicy} ChannelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
+ * @param {ChatChannelPolicy} channelPolicy - 채널의 공개 여부 (PUBLIC/PRIVATE)
  * @param {ChatChannelUserDto} users - 채널의 유저 리스트 (nickname, avatar)
  */
 

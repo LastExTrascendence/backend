@@ -7,13 +7,13 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { channels } from "./entity/channels.entity";
+import { Channels } from "./entity/Channels.entity";
 import { ChannelsService } from "./channel.service";
 import { Redis } from "ioredis";
 import { IsNull, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
-import { channelUser } from "./entity/channel.user.entity";
+import { ChannelUser } from "./entity/channel.user.entity";
 import { format } from "date-fns";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
@@ -32,10 +32,10 @@ export class ChannelGateWay {
   constructor(
     private readonly channelsService: ChannelsService,
     private userService: UserService,
-    @InjectRepository(channels)
-    private readonly channelRepository: Repository<channels>,
-    @InjectRepository(channelUser)
-    private readonly channelUserRepository: Repository<channelUser>,
+    @InjectRepository(Channels)
+    private readonly channelRepository: Repository<Channels>,
+    @InjectRepository(ChannelUser)
+    private readonly channelUserRepository: Repository<ChannelUser>,
     private redisClient: Redis,
   ) {}
 
@@ -76,7 +76,7 @@ export class ChannelGateWay {
       });
 
       const currentUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
       socket.join(channelInfo.id.toString());
@@ -88,10 +88,10 @@ export class ChannelGateWay {
       //3. 벤 상태인 경우
 
       const checkAccesableUser = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
-      if (channelInfo.channelPolicy === ChatChannelPolicy.PRIVATE) {
+      if (channelInfo.channel_policy === ChatChannelPolicy.PRIVATE) {
         const isPasswordCorrect = await this.redisClient.lrange(
           `CH|${channelInfo.title}`,
           0,
@@ -114,7 +114,7 @@ export class ChannelGateWay {
         //비밀번호가 맞지 않는 경우
         //밴 상태인 경우
       } else if (
-        channelInfo.curUser > channelInfo.maxUser ||
+        channelInfo.cur_user > channelInfo.max_user ||
         checkAccesableUser.ban === true
       ) {
         const targetClient = connectedClients.get(userId);
@@ -129,13 +129,13 @@ export class ChannelGateWay {
       if (currentUserInfo) {
         if (currentUserInfo.role === ChatChannelUserRole.CREATOR) {
           await this.channelUserRepository.update(
-            { userId: userId, channelId: channelInfo.id },
-            { role: ChatChannelUserRole.CREATOR, deletedAt: null },
+            { user_id: userId, channel_id: channelInfo.id },
+            { role: ChatChannelUserRole.CREATOR, deleted_at: null },
           );
         } else {
           await this.channelUserRepository.update(
-            { userId: userId, channelId: channelInfo.id },
-            { role: ChatChannelUserRole.USER, deletedAt: null },
+            { user_id: userId, channel_id: channelInfo.id },
+            { role: ChatChannelUserRole.USER, deleted_at: null },
           );
         }
       } else {
@@ -143,13 +143,13 @@ export class ChannelGateWay {
           userId: data.userId,
           channelId: channelInfo.id,
           role:
-            channelInfo.creatorId === userId
+            channelInfo.creator_id === userId
               ? ChatChannelUserRole.CREATOR
               : ChatChannelUserRole.USER,
           mute: null,
           ban: false,
           createdAt: new Date(),
-          deletedAt: null,
+          deleted_at: null,
         };
         await this.channelUserRepository.save(newEnterUser);
       }
@@ -182,13 +182,13 @@ export class ChannelGateWay {
       });
 
       const userInfo = await this.channelUserRepository.findOne({
-        where: { userId: data.sender, channelId: channelInfo.id },
+        where: { user_id: data.sender, channel_id: channelInfo.id },
       });
 
       if (userInfo.mute) {
         if (isMoreThan30SecondsAgo(userInfo.mute)) {
           await this.channelUserRepository.update(
-            { userId: data.sender, channelId: channelInfo.id },
+            { user_id: data.sender, channel_id: channelInfo.id },
             { mute: null },
           );
           this.server.to(channelInfo.id.toString()).emit("msgToClient", {
@@ -233,13 +233,13 @@ export class ChannelGateWay {
       });
 
       const userInfo = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
       const changeUser = await this.userService.findUserByNickname(changeNick);
 
       const changeUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: changeUser.id, channelId: channelInfo.id },
+        where: { user_id: changeUser.id, channel_id: channelInfo.id },
       });
 
       if (!changeUserInfo || !userInfo) {
@@ -253,7 +253,7 @@ export class ChannelGateWay {
         changeUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: changeUser.id, channelId: channelInfo.id },
+          { user_id: changeUser.id, channel_id: channelInfo.id },
           { role: ChatChannelUserRole.OPERATOR },
         );
       } else if (
@@ -261,7 +261,7 @@ export class ChannelGateWay {
         changeUserInfo.role === ChatChannelUserRole.OPERATOR
       ) {
         await this.channelUserRepository.update(
-          { userId: changeUser.id, channelId: channelInfo.id },
+          { user_id: changeUser.id, channel_id: channelInfo.id },
           { role: ChatChannelUserRole.USER },
         );
       }
@@ -288,13 +288,13 @@ export class ChannelGateWay {
       });
 
       const userInfo = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
       const kickUser = await this.userService.findUserByNickname(kickNick);
 
       const kickUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: kickUser.id, channelId: channelInfo.id },
+        where: { user_id: kickUser.id, channel_id: channelInfo.id },
       });
 
       if (!userInfo || !kickUserInfo) {
@@ -305,8 +305,8 @@ export class ChannelGateWay {
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: kickUser.id, channelId: channelInfo.id },
-          { deletedAt: new Date() },
+          { user_id: kickUser.id, channel_id: channelInfo.id },
+          { deleted_at: new Date() },
         );
         const targetClient = connectedClients.get(kickUser.id);
         targetClient.disconnect(true);
@@ -317,8 +317,8 @@ export class ChannelGateWay {
         kickUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: kickUser.id, channelId: channelInfo.id },
-          { deletedAt: new Date() },
+          { user_id: kickUser.id, channel_id: channelInfo.id },
+          { deleted_at: new Date() },
         );
         const targetClient = connectedClients.get(kickUser.id);
         targetClient.disconnect(true);
@@ -349,13 +349,13 @@ export class ChannelGateWay {
       });
 
       const userInfo = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
       const banUser = await this.userService.findUserByNickname(banNick);
 
       const banUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: banUser.id, channelId: channelInfo.id },
+        where: { user_id: banUser.id, channel_id: channelInfo.id },
       });
 
       if (!userInfo || !banUserInfo) {
@@ -366,8 +366,8 @@ export class ChannelGateWay {
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: banUser.id, channelId: channelInfo.id },
-          { ban: true, deletedAt: new Date() },
+          { user_id: banUser.id, channel_id: channelInfo.id },
+          { ban: true, deleted_at: new Date() },
         );
         const targetClient = connectedClients.get(banUser.id);
         targetClient.disconnect(true);
@@ -378,8 +378,8 @@ export class ChannelGateWay {
         banUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: banUser.id, channelId: channelInfo.id },
-          { ban: true, deletedAt: new Date() },
+          { user_id: banUser.id, channel_id: channelInfo.id },
+          { ban: true, deleted_at: new Date() },
         );
         const targetClient = connectedClients.get(banUser.id);
         targetClient.disconnect(true);
@@ -411,13 +411,13 @@ export class ChannelGateWay {
       });
 
       const userInfo = await this.channelUserRepository.findOne({
-        where: { userId: userId, channelId: channelInfo.id },
+        where: { user_id: userId, channel_id: channelInfo.id },
       });
 
       const muteUser = await this.userService.findUserByNickname(muteNick);
 
       const muteUserInfo = await this.channelUserRepository.findOne({
-        where: { userId: muteUser.id, channelId: channelInfo.id },
+        where: { user_id: muteUser.id, channel_id: channelInfo.id },
       });
 
       if (!userInfo || !muteUserInfo) {
@@ -428,7 +428,7 @@ export class ChannelGateWay {
 
       if (userInfo.role === ChatChannelUserRole.CREATOR) {
         await this.channelUserRepository.update(
-          { userId: muteUser.id, channelId: channelInfo.id },
+          { user_id: muteUser.id, channel_id: channelInfo.id },
           { mute: new Date() },
         );
       } else if (
@@ -436,7 +436,7 @@ export class ChannelGateWay {
         muteUserInfo.role === ChatChannelUserRole.USER
       ) {
         await this.channelUserRepository.update(
-          { userId: muteUser.id, channelId: channelInfo.id },
+          { user_id: muteUser.id, channel_id: channelInfo.id },
           { ban: true },
         );
       }
@@ -459,8 +459,8 @@ export class ChannelGateWay {
       });
 
       await this.channelUserRepository.update(
-        { channelId: channelInfo.id, userId: data.userId },
-        { deletedAt: new Date() },
+        { channel_id: channelInfo.id, user_id: data.userId },
+        { deleted_at: new Date() },
       );
       socket.leave(channelInfo.id.toString());
       connectedClients.delete(data.userId);
@@ -475,14 +475,14 @@ export class ChannelGateWay {
   async sendUserList(userId: number, channelId: number, socket: Socket) {
     this.logger.debug(`sendUserList ${userId} ${channelId}}`);
     const userInfo = await this.channelUserRepository.find({
-      where: { channelId: channelId, deletedAt: IsNull() },
-      order: { createdAt: "ASC" },
+      where: { channel_id: channelId, deleted_at: IsNull() },
+      order: { created_at: "ASC" },
     });
 
     const TotalUserInfo = [];
 
     for (let i = 0; i < userInfo.length; i++) {
-      const user = await this.userService.findUserById(userInfo[i].userId);
+      const user = await this.userService.findUserById(userInfo[i].user_id);
       const UserInfo = {
         id: user.id,
         nickname: user.nickname,
@@ -499,14 +499,14 @@ export class ChannelGateWay {
   }
 
   async updateCurUser(title: string, channelId: number) {
-    //channelUser에서 channelId에 해당하고, deletedAt이 null인 유저의 수를 구한다.
+    //channelUser에서 channelId에 해당하고, deleted_at이 null인 유저의 수를 구한다.
     const currentUserNumber = await this.channelUserRepository.find({
-      where: { channelId: channelId, deletedAt: IsNull() },
+      where: { channel_id: channelId, deleted_at: IsNull() },
     });
 
     await this.channelRepository.update(
       { title: title },
-      { curUser: currentUserNumber.length },
+      { cur_user: currentUserNumber.length },
     );
   }
 }
