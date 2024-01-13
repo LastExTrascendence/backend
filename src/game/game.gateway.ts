@@ -300,13 +300,14 @@ export class GameGateWay {
         targetClient.disconnect(true);
         connectedClients.delete(parseInt(userId));
       }
-      // 게임중에 연결이 끊긴 경우
-    } else if (channelInfo.gameStatus === GameStatus.INGAME) {
-      await timeOut(data);
-    } else if (channelInfo.gameStatus === GameStatus.DONE) {
-      if (await this.redisClient.keys(`GM|${data.title}`))
-        await this.redisClient.del(`GM|${data.title}`);
     }
+    // 게임중에 연결이 끊긴 경우
+    //} else if (channelInfo.game_status === GameStatus.INGAME) {
+    //  await timeOut(data);
+    //} else if (channelInfo.game_status === GameStatus.DONE) {
+    //  if (await this.redisClient.keys(`GM|${data.title}`))
+    //    await this.redisClient.del(`GM|${data.title}`);
+    //}
   }
 
   //  @SubscribeMessage("reconnect")
@@ -412,12 +413,6 @@ export class GameGateWay {
     this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
-  async timeOut(data: any) {
-    const game = await this.gameChannelRepository.findOne({
-      where: { title: data.title },
-    });
-  }
-
   async updateCurUser(title: string, channelId: number) {
     let cur_user = 0;
     if (
@@ -441,60 +436,6 @@ function showTime(currentDate: Date) {
 }
 
 // Set a timeout for 3 minutes
-const timeoutId = setTimeout(
-  async () => {
-    // 3분내로 들어오지 않았을 경우
-    this.server.emit("msgToClient", "The game has ended.");
-
-    if (data.userId === game.creatorId) {
-      const defeatPlayer = {
-        gameId: game.id,
-        userId: data.creatorId,
-        score: 0,
-        role: GameUserRole.LOSER,
-      };
-
-      const winPlayer = {
-        gameId: game.id,
-        userId: game.userId,
-        score: 5,
-        role: GameUserRole.WINNER,
-      };
-      await this.gamePlayerRepository.save(defeatPlayer);
-      await this.gamePlayerRepository.save(winPlayer);
-    } else if (data.userId !== game.creatorId) {
-      const defeatPlayer = {
-        gameId: game.id,
-        userId: data.userId,
-        score: 0,
-        role: GameUserRole.LOSER,
-      };
-
-      const winPlayer = {
-        gameId: game.id,
-        userId: game.creatorId,
-        score: 5,
-        role: GameUserRole.WINNER,
-      };
-      await this.gamePlayerRepository.save(defeatPlayer);
-      await this.gamePlayerRepository.save(winPlayer);
-    }
-    await this.gameRepository.update(
-      { title: data.title },
-      {
-        deletedAt: new Date(),
-        status: GameStatus.DONE,
-        minimumSpeed: data.minimumSpeed,
-        averageSpeed: data.averageSpeed,
-        maximumSpeed: data.maximumSpeed,
-        numberOfBounces: data.numberOfBounces,
-        endedAt: new Date(),
-      },
-    );
-    this.disconnectTimeouts.delete(data.userId);
-  },
-  3 * 60 * 1000,
-); // 3 minutes in milliseconds
 
 //  // Save the timeout ID for the user
 //  this.disconnectTimeouts.set(data.userId, timeoutId);
