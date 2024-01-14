@@ -19,10 +19,14 @@ import { User } from "./entity/user.entity";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { UserFriend } from "./entity/user.friend.entity";
+import * as config from "config";
 
 //path, endpoint
 
-@WebSocketGateway(83, { namespace: "user", cors: true })
+@WebSocketGateway(config.get("FE").get("dm_port"), {
+  namespace: "user",
+  cors: true,
+})
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
