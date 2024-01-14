@@ -69,6 +69,7 @@ export class UserGateway
       receiver: string;
       content: string;
     },
+    @ConnectedSocket() Socket: Socket,
   ): Promise<void> {
     this.logger.verbose(`Received message: ${payload.content}`);
     //1. UserDB에서 sender, receiver가 있는지 확인
@@ -106,7 +107,7 @@ export class UserGateway
       receiver: receiver.nickname,
       content: RedisPayload.content,
     };
-
+    Socket.join(name);
     this.server.to(name).emit("msgToClient", ClientPayload);
   }
 
