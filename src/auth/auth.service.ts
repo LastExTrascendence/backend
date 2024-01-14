@@ -7,7 +7,7 @@ import * as Config from "config";
 import { authenticator } from "otplib";
 import { Redis } from "ioredis";
 import * as qr from "qrcode";
-import { createWriteStream } from "fs";
+// import { createWriteStream } from "fs";
 import { UserStatus } from "src/user/entity/user.enum";
 
 @Injectable()
@@ -49,9 +49,9 @@ export class AuthService {
       // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
       await this.redisService.set(`OTP|${user.id}`, secret);
 
-      const qrCodeBuffer = await qr.toBuffer(otpAuthUrl);
-      const writeStream = createWriteStream(`./qr-codes/${user.id}_qrcode.png`);
-      writeStream.write(qrCodeBuffer);
+      // const qrCodeBuffer = await qr.toBuffer(otpAuthUrl);
+      // const writeStream = createWriteStream(`./qr-codes/${user.id}_qrcode.png`);
+      // writeStream.write(qrCodeBuffer);
 
       // 생성 객체 리턴
       return otpAuthUrl;

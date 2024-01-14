@@ -14,6 +14,7 @@ import {
   gameRecordDto,
   gameUserVerifyDto,
   gameChannelListDto,
+  gameStatsDto,
 } from "./dto/game.dto";
 import { GameService } from "./game.service";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
@@ -75,7 +76,7 @@ export class GameController {
   @Get("/record/:nickname")
   async getRecordByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<gameRecordDto | HttpException> {
+  ): Promise<gameRecordDto[] | HttpException> {
     try {
       this.logger.debug(
         `Called ${GameController.name} ${this.getRecordByNickname.name}`,
@@ -90,7 +91,7 @@ export class GameController {
   @Get("/stats/:nickname")
   async getStatsByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<void | GameStatsDto | HttpException> {
+  ): Promise<void | gameStatsDto | HttpException> {
     this.logger.debug(
       `Called ${GameController.name} ${this.getStatsByNickname.name}`,
     );

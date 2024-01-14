@@ -125,16 +125,16 @@ export class gameUserVerifyDto {
 }
 
 /**
- * @description 유저 게임의 Record를 저장할 DTO
+ * @description 게임채널 입장 시 필요한 DTO
  *
  * @param {string} nickname - 게임유저의 닉네임
  * @param {GameUserRole} gameStatus - 게임유저의 게임 결과 (WIN/LOSE)
- * @param {GameType} gameUserType - 게임유저의 게임 타입 (NORMAL/LADDER)
- * @param {GameMode} gameUserMode  - 게임유저의 평균 게임 시간
- * @param {Date} gameUserLastDate - 게임유저의 총 점수
+ * @param {GameType} gameUserType - 게임 타입 (NORMAL/LADDER)
+ * @param {GameMode} gameUserMode  - 게임 모드 (NORMAL/SPEED)
+ * @param {Date} date - 게임 날짜
  */
 
-export class GameRecordDto {
+export class gameRecordDto {
   @IsString()
   nickname: string;
 
@@ -148,11 +148,11 @@ export class GameRecordDto {
   gameMode: GameMode;
 
   @IsDate()
-  gameUserLastdate: Date;
+  date: Date;
 }
 
 /**
- * @description 게임채널 입장 시 필요한 DTO
+ * @description 프로필 유저 게임 통계를 담은 DTO
  *
  * @param {string} nickname - 게임유저의 닉네임
  * @param {string} longestGame - 게임유저의 최장 게임 시간
@@ -162,11 +162,11 @@ export class GameRecordDto {
  * @param {number} averageScorePerGame - 게임유저의 총 게임 평균 점수
  * @param {number} avserageScorePerWin - 게임유저의 승리 게임 평균 점수
  * @param {number} winStreaks - 게임유저의 연승 횟수
- * @param {number} averageSpeed - 게임유저의 평균 속도
- * @param {number} fatestGame - 게임유저의 최단 게임 시간
+ * @param {number} averageSpeed - 게임 평균 속도
+ * @param {number} fastestGame - 가장 빨랏던 게임 속도
  */
 
-export class gameRecordDto {
+export class gameStatsDto {
   @IsString()
   nickname: string;
 
@@ -195,5 +195,5 @@ export class gameRecordDto {
   averageSpeed: number;
 
   @IsNumber()
-  fatestGame: number;
+  fastestGame: string;
 }

@@ -12,11 +12,11 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
 import { Redis } from "ioredis";
 import { GameUserRole, GameStatus, GameChannelPolicy } from "./enum/game.enum";
-import { GamePlayer } from "./entity/game.players.entity";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { format } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
+import { GamePlayer } from "./entity/game.player.entity";
 
 export const connectedClients: Map<number, Socket> = new Map();
 

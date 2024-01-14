@@ -14,6 +14,7 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import {
+  userAddFriendRequestDto,
   userBlockDto,
   userDto,
   userFriendDto,
@@ -62,6 +63,7 @@ export class UserController {
       two_fa: decoded_token["two_fa"],
       intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
+      two_fa_complete: decoded_token["two_fa_complete"],
     };
     try {
       this.userService.createUser(userSessionDto);
@@ -73,15 +75,16 @@ export class UserController {
   //특정 유저의 특정 한 유저 친구 추가
   @Post("/friend/add")
   @UseGuards(JWTAuthGuard)
-  addFriend(
-    @Body(ValidationPipe) regist: userFriendDto,
-  ): Promise<UserFriend> | HttpException {
+  async addFriend(
+    @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
+    @User() user: userSessionDto,
+  ): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${UserController.name} ${this.addFriend.name}`);
-      return this.friendService.addFriend(
-        regist.user_id,
-        regist.friend_user_id,
+      const friend = await this.userService.findUserByNickname(
+        userAddFriendRequestDto.nickname,
       );
+      await this.friendService.addFriend(user.id, friend.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

@@ -5,14 +5,12 @@ import { ExtractJwt, Strategy } from "passport-jwt";
 import { User } from "../../user/entity/user.entity";
 import * as config from "config";
 import { Repository } from "typeorm";
-import { JwtService } from "@nestjs/jwt";
 
 @Injectable()
 export class JwtStrategy extends PassportStrategy(Strategy, "jwt") {
   private logger = new Logger(JwtStrategy.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
-    private jwtService: JwtService,
   ) {
     super({
       secretOrKey: process.env.JWT_SECRET || config.get("jwt.secret"),
