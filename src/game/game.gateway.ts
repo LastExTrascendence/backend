@@ -456,57 +456,6 @@ export class GameGateWay {
   //    // Handle other cases or do nothing if not in-game
   //  }
 
-  //  @SubscribeMessage("enterQueue")
-  //  async enterQueue(
-  //    @MessageBody() data: any,
-  //    @ConnectedSocket() socket: Socket,
-  //  ) {
-  //    const { userId, title } = data;
-  //    const gameInfo = await this.gameRepository.findOne({
-  //      where: { title: title },
-  //    });
-
-  //    const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
-
-  //    if (parseInt(creatorId) === userId) {
-  //      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
-  //    } else {
-  //      await this.redisClient.hset(`GM|${title}`, "user", userId);
-  //      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
-  //    }
-
-  //    const TotalUserInfo = [];
-
-  //    const creatorInfo = await this.userService.findUserById(
-  //      parseInt(creatorId),
-  //    );
-
-  //    const CreatorInfo = {
-  //      id: creatorInfo.id,
-  //      nickname: creatorInfo.nickname,
-  //      avatar: creatorInfo.avatar,
-  //    };
-
-  //    TotalUserInfo.push(CreatorInfo);
-
-  //    const user = await this.redisClient.hget(`GM|${title}`, "user");
-  //    if (parseInt(user) !== 0) {
-  //      {
-  //        const userInfo = await this.userService.findUserById(parseInt(user));
-
-  //        const UserInfo = {
-  //          id: userInfo.id,
-  //          nickname: userInfo.nickname,
-  //          avatar: userInfo.avatar,
-  //        };
-  //        TotalUserInfo.push(UserInfo);
-  //      }
-  //      socket.join(gameInfo.id.toString());
-  //      this.server.emit("userList", TotalUserInfo);
-  //    }
-  //  }
-  //}
-
   //function showTime(currentDate: Date) {
   //  const formattedTime = format(currentDate, "h:mm a");
   //  return formattedTime;

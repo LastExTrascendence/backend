@@ -7,7 +7,6 @@ import { AuthModule } from "./auth/auth.module";
 import { UserModule } from "./user/user.module";
 import { ChannelModule } from "./channel/channel.module";
 import { SessionMiddleware } from "./middleware/session-middleware";
-import { DmModule } from "./dm/dm.module";
 import { GameModule } from "./game/game.module";
 import { ConfigModule } from "@nestjs/config";
 
@@ -30,7 +29,6 @@ import { ConfigModule } from "@nestjs/config";
     AuthModule,
     UserModule,
     ChannelModule,
-    DmModule,
     GameModule,
   ],
   controllers: [],
