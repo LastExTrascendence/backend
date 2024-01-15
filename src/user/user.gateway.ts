@@ -125,7 +125,10 @@ export class UserGateway
       receiver: string;
     },
   ): Promise<void> {
-    const chats = await this.fetchChatHistory(payload, this.redisClient);
+    this.logger.verbose(
+      `Received message: ${payload.sender}, ${payload.receiver}`,
+    );
+    const chats = await this.fetchChatHistory(payload);
 
     const receiver = await this.userService.findUserByNickname(
       payload.receiver,
@@ -178,14 +181,14 @@ export class UserGateway
       }
     }
     socket.join(name);
-    //console.log("totalMessages", totalMessages);
+    console.log("totalMessages", totalMessages);
     this.server.to(name).emit("msgToClient", totalMessages);
   }
 
-  private async fetchChatHistory(
-    payload: { sender: number; receiver: string },
-    redisClient: Redis,
-  ): Promise<string[] | void> {
+  private async fetchChatHistory(payload: {
+    sender: number;
+    receiver: string;
+  }): Promise<string[] | void> {
     try {
       const receiverId = await this.userService.findUserByNickname(
         payload.receiver,
@@ -197,7 +200,7 @@ export class UserGateway
       } else {
         name = payload.sender + "," + receiverId.id;
       }
-      const chatHistory = await redisClient.lrange(`DM|${name}`, 0, -1);
+      const chatHistory = await this.redisClient.lrange(`DM|${name}`, 0, -1);
       return chatHistory;
     } catch (error) {
       // Handle errors, log, or emit an error event to the client
@@ -277,9 +280,11 @@ export class UserGateway
     // Store user information in Redis queue
     await this.redisClient.rpush("QM", userId);
 
+    socket.join(`QM|${userId}`);
+
     // Notify the user that they've entered the queue
     socket
-      .to(socket.id)
+      .to(`QM|${userId}`)
       .emit("enteredQueue", { message: "Entered the quick match queue" });
 
     socket.join(`QM|${userId}`);
@@ -287,42 +292,73 @@ export class UserGateway
     // Check if there are enough players in the queue to start a game (two players)
     const queueLength = await this.redisClient.llen("QM");
 
-    if (queueLength >= 2) {
-      // Dequeue the first two players from the queue
-      const homePlayer = await this.redisClient.lpop("QM");
-      const awayPlayer = await this.redisClient.lpop("QM");
+    const makeMatch = setInterval(async () => {
+      if (queueLength >= 2) {
+        // Dequeue the first two players from the queue
+        const homePlayer = await this.redisClient.lpop("QM");
+        const awayPlayer = await this.redisClient.lpop("QM");
 
-      const homePlayerInfo = await this.userService.findUserById(
-        parseInt(homePlayer),
-      );
-      const awayPlayerInfo = await this.userService.findUserById(
-        parseInt(awayPlayer),
-      );
+        const homePlayerInfo = await this.userService.findUserById(
+          parseInt(homePlayer),
+        );
+        const awayPlayerInfo = await this.userService.findUserById(
+          parseInt(awayPlayer),
+        );
 
-      // Create a game instance or use existing logic to set up a game with player1 and player2
+        // Create a game instance or use existing logic to set up a game with player1 and player2
 
-      // Notify players that the game is starting and provide opponent information
-      const gameStartData = {
-        homePlayer: {
-          id: homePlayer,
-          nickname: homePlayerInfo.nickname,
-          avatar: homePlayerInfo.avatar,
-        },
-        awayPlayer: {
-          id: awayPlayer,
-          nickname: awayPlayerInfo.nickname,
-          avatar: awayPlayerInfo.avatar,
-        },
-      };
+        // Notify players that the game is starting and provide opponent information
+        const gameStartData = {
+          homePlayer: {
+            id: homePlayer,
+            nickname: homePlayerInfo.nickname,
+            avatar: homePlayerInfo.avatar,
+          },
+          awayPlayer: {
+            id: awayPlayer,
+            nickname: awayPlayerInfo.nickname,
+            avatar: awayPlayerInfo.avatar,
+          },
+        };
 
-      // Emit an event to start the game for both players
-      this.server.to(`QM|${homePlayer}`).emit("startGame", gameStartData);
-      this.server.to(`QM|${awayPlayer}`).emit("startGame", gameStartData);
-    } else {
-      // There is an odd number of players, wait for another player to join
-      socket.to(socket.id).emit("waitingForOpponent", {
-        message: "Waiting for another player to join",
-      });
+        // Emit an event to start the game for both players
+        this.server.to(`QM|${homePlayer}`).emit("startGame", gameStartData);
+        this.server.to(`QM|${awayPlayer}`).emit("startGame", gameStartData);
+      }
+    }, 1000 / 60);
+    socket.on("exitQueue", () => {
+      clearInterval(makeMatch);
+    });
+    socket.on("startGame", () => {
+      clearInterval(makeMatch);
+    });
+  }
+
+  @SubscribeMessage("exitQueue")
+  async exitQueue(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    try {
+      const { userId } = data;
+
+      socket.join(`QM|${userId}`);
+
+      // Notify the user that they've entered the queue
+      socket
+        .to(`QM|${userId}`)
+        .emit("enteredQueue", { message: "Entered the quick match queue" });
+
+      socket.join(`QM|${userId}`);
+
+      const userList = await this.redisClient.lrange("QM", 0, -1);
+
+      const filteredList = userList.filter((user) => user === userId);
+
+      if (filteredList.length === 0) {
+        throw new HttpException("No user found", 404);
+      } else {
+        await this.redisClient.lrem("QM", 0, userId);
+      }
+    } catch (error) {
+      console.log(error);
     }
   }
 }
