@@ -73,7 +73,7 @@ export class UserGateway
       receiver: string;
       content: string;
     },
-    @ConnectedSocket() Socket: Socket,
+    @ConnectedSocket() socket: Socket,
   ): Promise<void> {
     this.logger.verbose(`Received message: ${payload.content}`);
     //1. UserDB에서 sender, receiver가 있는지 확인
@@ -93,6 +93,7 @@ export class UserGateway
     } else {
       name = sender.id + "," + receiver.id;
     }
+
     //3. Dm 메시지 저장
 
     const RedisPayload = {
@@ -111,7 +112,7 @@ export class UserGateway
       receiver: receiver.nickname,
       content: RedisPayload.content,
     };
-    Socket.join(name);
+
     this.server.to(name).emit("msgToClient", ClientPayload);
   }
 
@@ -136,6 +137,7 @@ export class UserGateway
     } else {
       name = payload.sender + "," + receiver.id;
     }
+    socket.join(name);
 
     //객체 배열로 변경
     const totalMessages = [];
