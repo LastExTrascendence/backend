@@ -30,12 +30,11 @@ export class ChannelsService {
     chatChannelListDto: chatChannelListDto,
   ): Promise<chatChannelListDto | HttpException> {
     try {
-      const ChannelInfo = await this.RedisClient.lrange(
-        `CH|${chatChannelListDto.title}`,
-        0,
-        -1,
-      );
-      if (ChannelInfo.length !== 0) {
+      if (
+        await this.channelsRepository.findOne({
+          where: { title: chatChannelListDto.title },
+        })
+      ) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -59,16 +58,16 @@ export class ChannelsService {
 
       const newChannel = {
         title: chatChannelListDto.title,
-        channelPolicy: ChatChannelPolicy.PUBLIC,
-        creatorId: createInfo.id,
-        creatorAvatar: createInfo.avatar,
-        curUser: 0,
-        maxUser: chatChannelListDto.maxUser,
-        createdAt: new Date(),
-        deletedAt: null,
+        channel_policy: ChatChannelPolicy.PUBLIC,
+        creator_id: createInfo.id,
+        creator_avatar: createInfo.avatar,
+        cur_user: 0,
+        max_user: chatChannelListDto.maxUser,
+        created_at: new Date(),
+        deleted_at: null,
       };
       if (chatChannelListDto.password) {
-        newChannel.channelPolicy = ChatChannelPolicy.PRIVATE;
+        newChannel.channel_policy = ChatChannelPolicy.PRIVATE;
       }
 
       await this.channelsRepository.save(newChannel);
@@ -94,9 +93,9 @@ export class ChannelsService {
       const retChannelInfo = {
         id: newChannelInfo.id,
         title: newChannel.title,
-        channelPolicy: newChannel.channelPolicy,
+        channelPolicy: newChannel.channel_policy,
         password: null,
-        creatorId: newChannel.creatorId,
+        creatorId: newChannel.creator_id,
         curUser: 0,
         maxUser: chatChannelListDto.maxUser,
       };
