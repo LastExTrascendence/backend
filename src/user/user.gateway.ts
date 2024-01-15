@@ -113,7 +113,7 @@ export class UserGateway
       content: RedisPayload.content,
     };
 
-    socket.join(name);
+    this.server.socketsJoin(name);
     this.server.to(name).emit("msgToClient", ClientPayload);
   }
 
@@ -142,8 +142,11 @@ export class UserGateway
       name = payload.sender + "," + receiver.id;
     }
 
+    socket.join(name);
+    console.log("chats", chats);
+    this.server.socketsJoin(name);
     //객체 배열로 변경
-    const totalMessages = [];
+    //const totalMessages = [];
 
     if (chats) {
       for (const idx in chats) {
@@ -161,8 +164,8 @@ export class UserGateway
           message.receiver = (
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
-
-          totalMessages.push(message);
+          console.log(message);
+          this.server.to(socket.id).emit("msgToClient", message);
         } else {
           const message = {
             time: split[0],
@@ -176,13 +179,11 @@ export class UserGateway
           message.receiver = (
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
-          totalMessages.push(message);
+          console.log(message);
+          this.server.to(socket.id).emit("msgToClient", message);
         }
       }
     }
-    socket.join(name);
-    console.log("totalMessages", totalMessages);
-    this.server.to(name).emit("msgToClient", totalMessages);
   }
 
   private async fetchChatHistory(payload: {
@@ -195,11 +196,12 @@ export class UserGateway
       );
 
       let name = null;
-      if (payload.sender > receiverId.id) {
+      if (payload.sender >= receiverId.id) {
         name = receiverId.id + "," + payload.sender;
       } else {
         name = payload.sender + "," + receiverId.id;
       }
+      console.log(name);
       const chatHistory = await this.redisClient.lrange(`DM|${name}`, 0, -1);
       return chatHistory;
     } catch (error) {
