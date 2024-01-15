@@ -6,7 +6,7 @@ import { UserService } from "src/user/user.service";
 import { gameRecordDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
 import { format } from "date-fns";
-import { GameUserRole } from "./enum/game.enum";
+import { GameResult } from "./enum/game.enum";
 
 @Injectable()
 export class GamePlayerService {
@@ -76,25 +76,25 @@ export class GamePlayerService {
           gamePlayerInfo
             .filter(
               (gamePlayerInfo) =>
-                gamePlayerInfo.game_user_role === GameUserRole.WINNER,
+                gamePlayerInfo.game_user_role === GameResult.WINNER,
             )
             .map((gamePlayerInfo) => gamePlayerInfo.score)
             .reduce((a, b) => a + b, 0) /
           gamePlayerInfo.filter(
             (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameUserRole.WINNER,
+              gamePlayerInfo.game_user_role === GameResult.WINNER,
           ).length,
         //winStreaks는 gamePlayerInfo에서 최근 게임을 기준으로 연속적으로 승리한 게임의 개수를 구한다.
         //예를들어 최근부터, win, win, win, lose, win 이라면 winStreaks는 3이 된다.
         winStreaks: gamePlayerInfo
           .filter(
             (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameUserRole.WINNER,
+              gamePlayerInfo.game_user_role === GameResult.WINNER,
           )
           .reverse()
           .findIndex(
             (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameUserRole.LOSER,
+              gamePlayerInfo.game_user_role === GameResult.LOSER,
           ),
         //averageSpeed는 gameInfo.averageSpeed 모두 더한 후 gameInfo의 개수로 나눈다.
         averageSpeed:

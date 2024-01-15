@@ -9,8 +9,8 @@ import { Redis } from "ioredis";
 import { AuthModule } from "src/auth/auth.module";
 import { GamePlayerService } from "./game.player.service";
 import { UserService } from "src/user/user.service";
-import { GameGateWay } from "./game.gateway";
 import { GameChannel } from "./entity/game.channel.entity";
+import { GameGateWay } from "./game.gateway";
 
 @Module({
   imports: [

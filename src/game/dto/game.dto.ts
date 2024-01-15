@@ -37,7 +37,7 @@ export class gameUserInfoDto {
  * @param {string} title - 게임채널의 제목
  * @param {GameChannelPolicy} channelPolicy - 게임채널의 입장 권한 (PUBLIC/PRIVATE)
  * @param {string | null} password - 게임채널의 비밀번호
- * @param {gameUserInfoDto} creator - 게임채널의 생성자 정보
+ * @param {GameUserInfoDto} creator - 게임채널의 생성자 정보
  */
 
 export class gameChannelDto {
@@ -71,7 +71,6 @@ export class gameChannelDto {
 
 // 게임채널 리스트 보여줄 시
 export class gameChannelListDto {
-  @IsNumber()
   id: number;
 
   @IsString()
@@ -80,7 +79,7 @@ export class gameChannelListDto {
   title: string;
 
   @IsEnum(GameChannelPolicy)
-  channelPolicy: GameChannelPolicy;
+  gameChannelPolicy: GameChannelPolicy;
 
   @IsOptional()
   password: string | null;
@@ -88,20 +87,17 @@ export class gameChannelListDto {
   @IsNumber()
   creatorId: number;
 
-  @IsNumber()
-  gameType: GameType;
-
-  @IsNumber()
-  gameMode: GameMode;
-
-  @IsEnum(GameStatus)
-  gameStatus: GameStatus;
-
-  @IsNumber()
   curUser: number;
 
-  @IsNumber()
   maxUser: number;
+
+  @IsEnum(GameType)
+  gameType: GameType;
+
+  @IsEnum(GameMode)
+  gameMode: GameMode;
+
+  gameStatus: GameStatus;
 }
 
 /**
