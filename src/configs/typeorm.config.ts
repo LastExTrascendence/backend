@@ -9,6 +9,7 @@ import { Game } from "src/game/entity/game.entity";
 import { GamePlayer } from "src/game/entity/game.player.entity";
 import { ConfigService } from "@nestjs/config";
 import * as config from "config";
+import { UserOtpSecret } from "src/user/entity/user.otp.entity";
 
 export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
   constructor(private configService: ConfigService) {}
@@ -27,6 +28,7 @@ export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
         ChannelUser,
         UserBlock,
         UserFriend,
+        UserOtpSecret,
         GameChannel,
         Game,
         GamePlayer,
@@ -50,6 +52,7 @@ export const typeORMConfig: TypeOrmModuleOptions = {
     ChannelUser,
     UserBlock,
     UserFriend,
+    UserOtpSecret,
     GameChannel,
     Game,
     GamePlayer,
