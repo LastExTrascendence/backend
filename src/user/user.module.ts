@@ -14,6 +14,8 @@ import { UserFriend } from "./entity/user.friend.entity";
 import { UserBlock } from "./entity/user.block.entity";
 import { GameModule } from "src/game/game.module";
 import { AuthModule } from "src/auth/auth.module";
+import { Redis } from "ioredis";
+import { UserGateway } from "./user.gateway";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -23,9 +25,17 @@ const jwtConfig = config.get("jwt");
     forwardRef(() => AuthModule),
     TypeOrmModule.forFeature([User, UserFriend, UserBlock]),
     GameModule,
+    Redis,
   ],
   controllers: [UserController],
-  providers: [UserService, PassportModule, FriendService, BlockService],
-  exports: [UserService],
+  providers: [
+    UserService,
+    PassportModule,
+    FriendService,
+    BlockService,
+    Redis,
+    UserGateway,
+  ],
+  exports: [UserService, UserGateway],
 })
 export class UserModule {}
