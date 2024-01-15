@@ -18,6 +18,6 @@ export class UserOtpSecret extends BaseEntity {
   @Column({ nullable: true })
   secret: string;
 
-  @Column({ nullable: true })
+  @Column()
   updated_at: Date;
 }
