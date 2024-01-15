@@ -46,14 +46,14 @@ export class UserGateway
     this.logger.debug(`Socket Server Init Complete`);
   }
 
-  async handleConnection(client: Socket) {
+  async handleConnection(socket: Socket) {
     this.logger.verbose(
-      `${client.id}(${client.handshake.query["username"]}) is connected!`,
+      `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
     );
   }
 
-  handleDisconnect(client: Socket) {
-    this.logger.verbose(`${client.id} is disconnected...`);
+  handleDisconnect(socket: Socket) {
+    this.logger.verbose(`${socket.id} is disconnected...`);
   }
 
   /**
@@ -113,6 +113,7 @@ export class UserGateway
       content: RedisPayload.content,
     };
 
+    socket.join(name);
     this.server.to(name).emit("msgToClient", ClientPayload);
   }
 
@@ -137,7 +138,6 @@ export class UserGateway
     } else {
       name = payload.sender + "," + receiver.id;
     }
-    socket.join(name);
 
     //객체 배열로 변경
     const totalMessages = [];
@@ -177,6 +177,8 @@ export class UserGateway
         }
       }
     }
+    socket.join(name);
+    //console.log("totalMessages", totalMessages);
     this.server.to(name).emit("msgToClient", totalMessages);
   }
 
@@ -195,7 +197,7 @@ export class UserGateway
       } else {
         name = payload.sender + "," + receiverId.id;
       }
-      const chatHistory = await redisClient.lrange(`${name}`, 0, -1);
+      const chatHistory = await redisClient.lrange(`DM|${name}`, 0, -1);
       return chatHistory;
     } catch (error) {
       // Handle errors, log, or emit an error event to the client

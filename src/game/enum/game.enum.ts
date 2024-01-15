@@ -23,3 +23,20 @@ export enum GameUserRole {
   WINNER = "WINNER",
   LOSER = "LOSER",
 }
+
+export enum GameTeam {
+  HOME = "HOME",
+  AWAY = "AWAY",
+}
+
+export const GameComponent = {
+  width: 1024,
+  height: 600,
+  map: {
+    normal: "NORMAL",
+  },
+  paddleWidth: 20,
+  paddleHeight: 100,
+  ballSize: 10,
+  paddleSpeed: 5,
+};

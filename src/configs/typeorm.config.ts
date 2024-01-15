@@ -6,7 +6,7 @@ import { Channels } from "src/channel/entity/channels.entity";
 import { ChannelUser } from "src/channel/entity/channel.user.entity";
 import { GameChannel } from "src/game/entity/game.channel.entity";
 import { Game } from "src/game/entity/game.entity";
-import { GamePlayer } from "src/game/entity/game.players.entity";
+import { GamePlayer } from "src/game/entity/game.player.entity";
 import { ConfigService } from "@nestjs/config";
 import * as config from "config";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";

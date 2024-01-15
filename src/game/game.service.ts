@@ -1,7 +1,6 @@
 import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
 import { IsNull, Repository } from "typeorm";
-import { Game } from "./entity/game.entity";
 import { GameChannelPolicy, GameStatus } from "./enum/game.enum";
 import { gameChannelListDto, gameUserVerifyDto } from "./dto/game.dto";
 import { Redis } from "ioredis";
@@ -14,9 +13,7 @@ import { GameChannel } from "./entity/game.channel.entity";
 export class GameService {
   constructor(
     @InjectRepository(GameChannel)
-    private gameRoomsRepository: Repository<GameChannel>,
-    @InjectRepository(Game)
-    private gameRepository: Repository<Game>,
+    private gameChannelRepository: Repository<GameChannel>,
     private userService: UserService,
     private redisClient: Redis,
   ) {}
@@ -53,25 +50,25 @@ export class GameService {
       );
 
       const newGame = {
+        creator_id: createInfo.id,
+        creator_avatar: createInfo.avatar,
         title: gameChannelListDto.title,
-        gameChannelPolicy: GameChannelPolicy.PUBLIC,
-        gameType: gameChannelListDto.gameType,
-        gameMode: gameChannelListDto.gameMode,
-        gameStatus: GameStatus.READY,
-        creatorId: createInfo.id,
-        creatorAvatar: createInfo.avatar,
-        curUser: 0,
-        maxUser: 2,
-        createdAt: new Date(),
-        deletedAt: null,
+        game_channel_policy: GameChannelPolicy.PUBLIC,
+        game_type: gameChannelListDto.gameType,
+        game_mode: gameChannelListDto.gameMode,
+        game_status: GameStatus.READY,
+        cur_user: 0,
+        max_user: 2,
+        created_at: new Date(),
+        deleted_at: null,
       };
       if (gameChannelListDto.password) {
-        newGame.gameChannelPolicy = GameChannelPolicy.PRIVATE;
+        newGame.game_channel_policy = GameChannelPolicy.PRIVATE;
       }
 
-      await this.gameRoomsRepository.save(newGame);
+      await this.gameChannelRepository.save(newGame);
 
-      const newGameInfo = await this.gameRoomsRepository.findOne({
+      const newGameInfo = await this.gameChannelRepository.findOne({
         where: { title: newGame.title },
       });
 
@@ -89,12 +86,12 @@ export class GameService {
         );
       }
 
-      const retGameInfo = {
+      const retGameInfo: gameChannelListDto = {
         id: newGameInfo.id,
         title: newGame.title,
-        channelPolicy: newGame.gameChannelPolicy,
+        channelPolicy: newGame.game_channel_policy,
         password: null,
-        creatorId: newGame.creatorId,
+        creatorId: newGame.creator_id,
         gameType: gameChannelListDto.gameType,
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,
@@ -163,7 +160,7 @@ export class GameService {
 
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      const channelsInfo = await this.gameRoomsRepository.find();
+      const channelsInfo = await this.gameChannelRepository.find();
       if (channelsInfo.length === 0) {
         throw new HttpException(
           {
@@ -184,7 +181,7 @@ export class GameService {
         //  channelUserInfo[i].deletedAt = new Date();
         //}
         for (let i = 0; i < channelsInfo.length; i++) {
-          this.gameRoomsRepository.update(
+          this.gameChannelRepository.update(
             { id: channelsInfo[i].id, deleted_at: IsNull() },
             { cur_user: 0, deleted_at: new Date() },
           );
@@ -222,8 +219,3 @@ export class GameService {
     }
   }
 }
-
-// title
-// password
-// creator
-// user

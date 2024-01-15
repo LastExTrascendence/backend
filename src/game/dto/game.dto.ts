@@ -96,6 +96,12 @@ export class gameChannelListDto {
 
   @IsEnum(GameStatus)
   gameStatus: GameStatus;
+
+  @IsNumber()
+  curUser: number;
+
+  @IsNumber()
+  maxUser: number;
 }
 
 /**
