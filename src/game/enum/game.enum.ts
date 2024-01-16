@@ -35,8 +35,8 @@ export enum GameUserRole {
 }
 
 export const GameComponent = {
-  width: 1024,
-  height: 600,
+  width: 512,
+  height: 300,
   map: {
     normal: "NORMAL",
   },

@@ -1,4 +1,4 @@
-import { HttpException, Inject, Logger, UseGuards } from "@nestjs/common";
+import { HttpException, Logger, UseGuards } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -20,6 +20,13 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { UserFriend } from "./entity/user.friend.entity";
 import * as config from "config";
+import { GameService } from "src/game/game.service";
+import {
+  GameChannelPolicy,
+  GameMode,
+  GameStatus,
+  GameType,
+} from "src/game/enum/game.enum";
 
 //path, endpoint
 
@@ -32,6 +39,7 @@ export class UserGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   private logger = new Logger(UserGateway.name);
+  private connectedClients: Map<number, Socket> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -40,6 +48,7 @@ export class UserGateway
     private userService: UserService,
     @InjectRepository(User)
     private userFriendRepository: Repository<UserFriend>,
+    private gameService: GameService,
   ) {}
 
   afterInit() {
@@ -47,6 +56,7 @@ export class UserGateway
   }
 
   async handleConnection(socket: Socket) {
+    //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
     );
@@ -125,9 +135,7 @@ export class UserGateway
       receiver: string;
     },
   ): Promise<void> {
-    this.logger.verbose(
-      `Received message: ${payload.sender}, ${payload.receiver}`,
-    );
+    this.logger.verbose(`getRedis: ${payload.sender}, ${payload.receiver}`);
     const chats = await this.fetchChatHistory(payload);
 
     const receiver = await this.userService.findUserByNickname(
@@ -142,8 +150,6 @@ export class UserGateway
       name = payload.sender + "," + receiver.id;
     }
 
-    socket.join(name);
-    console.log("chats", chats);
     this.server.socketsJoin(name);
     //객체 배열로 변경
     //const totalMessages = [];
@@ -277,57 +283,66 @@ export class UserGateway
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
+    this.logger.verbose(`enterQueue: ${data.userId}`);
     const { userId } = data;
+
+    if (!userId || !(await this.userService.findUserById(userId))) {
+      throw new HttpException("No user found", 404);
+    }
 
     // Store user information in Redis queue
     await this.redisClient.rpush("QM", userId);
 
-    socket.join(`QM|${userId}`);
+    if (this.connectedClients.has(userId)) {
+      const socket = this.connectedClients.get(userId);
+      socket.disconnect();
+      throw new HttpException("User already in queue", 400);
+    }
 
+    this.server.socketsJoin(`QM|${userId}`);
+    this.connectedClients.set(userId, socket);
+
+    //this.server.to(`QM|${userId}`)
+    //.emit("enteredQueue", { message: "Entered the quick match queue" });
     // Notify the user that they've entered the queue
-    socket
-      .to(`QM|${userId}`)
-      .emit("enteredQueue", { message: "Entered the quick match queue" });
-
-    socket.join(`QM|${userId}`);
 
     // Check if there are enough players in the queue to start a game (two players)
-    const queueLength = await this.redisClient.llen("QM");
 
     const makeMatch = setInterval(async () => {
+      const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
         // Dequeue the first two players from the queue
         const homePlayer = await this.redisClient.lpop("QM");
         const awayPlayer = await this.redisClient.lpop("QM");
 
-        const homePlayerInfo = await this.userService.findUserById(
-          parseInt(homePlayer),
-        );
-        const awayPlayerInfo = await this.userService.findUserById(
-          parseInt(awayPlayer),
-        );
+        console.log(homePlayer, awayPlayer);
+
+        const newGame = {
+          id: 0,
+          title: "test",
+          gameChannelPolicy: GameChannelPolicy.PUBLIC,
+          password: null,
+          creatorId: parseInt(homePlayer),
+          gameType: GameType.NORMAL,
+          gameMode: GameMode.NORMAL,
+          curUser: 0,
+          maxUser: 2,
+          gameStatus: GameStatus.READY,
+        };
+
+        this.gameService.createGame(newGame);
 
         // Create a game instance or use existing logic to set up a game with player1 and player2
 
         // Notify players that the game is starting and provide opponent information
-        const gameStartData = {
-          homePlayer: {
-            id: homePlayer,
-            nickname: homePlayerInfo.nickname,
-            avatar: homePlayerInfo.avatar,
-          },
-          awayPlayer: {
-            id: awayPlayer,
-            nickname: awayPlayerInfo.nickname,
-            avatar: awayPlayerInfo.avatar,
-          },
-        };
-
         // Emit an event to start the game for both players
-        this.server.to(`QM|${homePlayer}`).emit("startGame", gameStartData);
-        this.server.to(`QM|${awayPlayer}`).emit("startGame", gameStartData);
+
+        this.server.to(`QM|${homePlayer}`).emit("gameMatch");
+        this.server.to(`QM|${awayPlayer}`).emit("gameMatch");
+      } else if (queueLength === 0) {
+        return;
       }
-    }, 1000 / 60);
+    }, 1000);
     socket.on("exitQueue", () => {
       clearInterval(makeMatch);
     });
@@ -341,23 +356,16 @@ export class UserGateway
     try {
       const { userId } = data;
 
-      socket.join(`QM|${userId}`);
-
-      // Notify the user that they've entered the queue
-      socket
-        .to(`QM|${userId}`)
-        .emit("enteredQueue", { message: "Entered the quick match queue" });
-
-      socket.join(`QM|${userId}`);
-
       const userList = await this.redisClient.lrange("QM", 0, -1);
 
-      const filteredList = userList.filter((user) => user === userId);
+      //userList에 같은 userId가 있는지 확인
+      const filteredList = userList.filter((user) => parseInt(user) === userId);
 
       if (filteredList.length === 0) {
         throw new HttpException("No user found", 404);
       } else {
         await this.redisClient.lrem("QM", 0, userId);
+        socket.leave(`QM|${userId}`);
       }
     } catch (error) {
       console.log(error);

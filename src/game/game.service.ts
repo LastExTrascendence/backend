@@ -1,6 +1,6 @@
 import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import {
   GameChannelPolicy,
   GameMode,
@@ -99,6 +99,22 @@ export class GameService {
         createInfo.id,
       );
 
+      await this.RedisClient.hset(
+        `GM|${gameChannelListDto.title}`,
+        "userReady",
+        "false",
+      );
+      await this.RedisClient.hset(
+        `GM|${gameChannelListDto.title}`,
+        "userOnline",
+        "false",
+      );
+      await this.RedisClient.hset(
+        `GM|${gameChannelListDto.title}`,
+        "creatorOnline",
+        "false",
+      );
+
       const retGameInfo = {
         id: newGameInfo.id,
         title: newGame.title,
@@ -171,18 +187,20 @@ export class GameService {
 
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      if (connectedClients.size !== 0) {
+      console.log(connectedClients, connectedClients.size);
+      if (connectedClients.size === 0) {
         await this.RedisClient.del("GM|*");
         await this.gameChannelRepository.update(
-          { deleted_at: null },
+          {},
           {
+            cur_user: 0,
             deleted_at: new Date(),
           },
         );
       }
 
       const channelsInfo = await this.gameChannelRepository.find({
-        where: { deleted_at: null },
+        where: { deleted_at: IsNull() },
       });
       if (channelsInfo.length === 0) {
         throw new HttpException(
@@ -216,7 +234,7 @@ export class GameService {
 
         totalChannels.push(channel);
       }
-
+      // console.log(totalChannels);
       return totalChannels;
     } catch (error) {
       throw error;

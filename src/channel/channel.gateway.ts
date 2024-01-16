@@ -79,7 +79,7 @@ export class ChannelGateWay {
         where: { user_id: userId, channel_id: channelInfo.id },
       });
 
-      socket.join(channelInfo.id.toString());
+      this.server.socketsJoin(channelInfo.id.toString());
       connectedClients.set(userId, socket);
 
       //입장불가
@@ -531,4 +531,3 @@ function isMoreThan30SecondsAgo(targetTime: Date): boolean {
 //Channel Gateway 구조 변경(map)
 //ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
 //channel GateWay KICK, BAN, MUTE 구현
-("");
