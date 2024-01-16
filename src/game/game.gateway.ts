@@ -19,7 +19,6 @@ import {
   GameComponent,
 } from "./enum/game.enum";
 import { GamePlayer } from "./entity/game.player.entity";
-import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { format } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
@@ -35,7 +34,6 @@ const awayPaddleState = {
   y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
   dy: 0, // Initial speed in the y direction
 };
-
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
@@ -114,75 +112,92 @@ export class GameGateWay {
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
-    this.logger.debug(`Socket enter Connected ${data.userId}, ${data.title}`);
-    const { userId, title } = data;
+    try {
+      const { userId, title } = data;
+      this.logger.debug(`Socket enter Connected ${data.userId}, ${data.title}`);
 
-    //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
-    if (connectedClients.has(userId)) {
-      const targetClient = connectedClients.get(userId);
-      targetClient.disconnect(true);
-      connectedClients.delete(data.userId);
-    }
+      const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
 
-    const gameChannelInfo = await this.gameChannelRepository.findOne({
-      where: { title: title },
-    });
+      //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
+      if (connectedClients.has(userId)) {
+        const targetClient = connectedClients.get(userId);
+        targetClient.disconnect(true);
+        connectedClients.delete(data.userId);
+      }
 
-    this.server.socketsJoin(gameChannelInfo.id.toString());
-    //socket.join(gameChannelInfo.id.toString());
-    connectedClients.set(userId, socket);
+      const gameChannelInfo = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
 
-    //입장불가
-    //1. 비밀번호 입력자가 아닌 경우
-    //2. 방의 인원이 2명을 초과한 경우
-    if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
-      const isPasswordCorrect = await this.redisClient.lrange(
-        `GM|${gameChannelInfo.title}`,
-        0,
-        -1,
-      );
+      this.server.socketsJoin(gameChannelInfo.id.toString());
+      connectedClients.set(userId, socket);
 
-      //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-      const filter = isPasswordCorrect.filter((value) =>
-        value.startsWith("ACCESS|"),
-      );
+      //입장불가
+      //1. 비밀번호 입력자가 아닌 경우
+      //2. 방의 인원이 2명을 초과한 경우
 
-      //ACCESS 대상이 아닌경우
-      if (!filter) {
+      if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
+        const isPasswordCorrect = await this.redisClient.lrange(
+          `GM|${gameChannelInfo.title}`,
+          0,
+          -1,
+        );
+
+        //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
+        const filter = isPasswordCorrect.filter((value) =>
+          value.startsWith("ACCESS|"),
+        );
+
+        //ACCESS 대상이 아닌경우
+        if (!filter) {
+          const targetClient = connectedClients.get(userId);
+          targetClient.disconnect(true);
+          socket.leave(gameChannelInfo.id.toString());
+          connectedClients.delete(data.userId);
+          return;
+        }
+      } else if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
         const targetClient = connectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
         connectedClients.delete(data.userId);
         return;
       }
-    } else if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
-      const targetClient = connectedClients.get(userId);
-      targetClient.disconnect(true);
-      socket.leave(gameChannelInfo.id.toString());
-      connectedClients.delete(data.userId);
-      return;
+
+      //방에 들어와 있는 인원에 대한 정보를 저장한다
+      const creatorId = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
+
+      if (creatorId.creator_id === userId) {
+        await this.redisClient.hset(`GM|${title}`, "creatorOnline", "true");
+      } else {
+        await this.redisClient.hset(`GM|${title}`, "user", userId);
+        await this.redisClient.hset(`GM|${title}`, "userOnline", "true");
+      }
+
+      //3. 방장이 없는데, 유저가 들어온 경우
+
+      if (
+        redisInfo.creatorOnline === "false" &&
+        redisInfo.userOnline === "true"
+      ) {
+        const targetClient = connectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(gameChannelInfo.id.toString());
+        connectedClients.delete(data.userId);
+        await this.redisClient.hset(`GM|${title}`, "user", null);
+        await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+        return;
+      }
+
+      this.sendUserList(title, gameChannelInfo.id);
+
+      //current_user 수 확인
+      this.updateCurUser(title, gameChannelInfo.id);
+    } catch (error) {
+      console.log(error);
     }
-
-    //방에 들어와 있는 인원에 대한 정보를 저장한다
-    const creatorId = await this.gameChannelRepository.findOne({
-      where: { title: title },
-    });
-
-    if (creatorId.creator_id === userId) {
-      await this.redisClient.hset(`GM|${title}`, "create", 1);
-      await this.redisClient.hset(`GM|${title}`, "creatorOnline", "true");
-    } else {
-      await this.redisClient.hset(`GM|${title}`, "user", userId);
-      await this.redisClient.hset(`GM|${title}`, "userReady", "false");
-      await this.redisClient.hset(`GM|${title}`, "userOnline", "true");
-    }
-
-    const test = await this.redisClient.hgetall(`GM|${title}`);
-
-    this.sendUserList(title, gameChannelInfo.id);
-
-    //current_user 수 확인
-    this.updateCurUser(title, gameChannelInfo.id);
   }
 
   //  //time : 시간
@@ -216,14 +231,20 @@ export class GameGateWay {
   //title : string
   @SubscribeMessage("pressStart")
   async StartGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    this.logger.debug(`pressStart`);
     const startInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
-    if (data.userId === startInfo.creator && startInfo.userReady === "true") {
+    if (
+      data.myId === parseInt(startInfo.creator) &&
+      startInfo.userReady === "true" &&
+      startInfo.creatorOnline === "true"
+    ) {
       await this.gameChannelRepository.update(
         { title: data.title },
         { game_status: GameStatus.INGAME },
       );
-      this.server.to(data.gameId.toString()).emit("pressStart");
+      this.logger.debug(`gameStart`);
+      this.server.to(data.gameId.toString()).emit("gameStart");
     }
   }
 
@@ -232,26 +253,69 @@ export class GameGateWay {
   //  //title : string
   @SubscribeMessage("pressReady")
   async ReadyGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    this.logger.debug(`ReadyGame`);
     const readyInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-    if (data.userId === readyInfo.user && readyInfo.userReady === "true") {
+
+    if (
+      data.myId === parseInt(readyInfo.user) &&
+      readyInfo.userReady == "true"
+    ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
+      console.log("readyOff");
       this.server.to(socket.id).emit("readyOff");
     } else if (
-      data.userId === readyInfo.user &&
-      readyInfo.userReady === "false"
+      data.myId === parseInt(readyInfo.user) &&
+      readyInfo.userReady == "false"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
+      console.log("readyOn");
       this.server.to(socket.id).emit("readyOn");
+    }
+  }
+
+  @SubscribeMessage("kickUser")
+  async kickSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      this.logger.debug(`kickUser`);
+      const { userId, title, kickNick } = data;
+
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
+
+      const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
+
+      const kickUser = await this.userService.findUserByNickname(kickNick);
+
+      if (
+        redisInfo.creatorOnline === "false" ||
+        redisInfo.userOnline === "false"
+      ) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      } else if (userId != channelInfo.creator_id) {
+        throw new Error("방장이 아닙니다.");
+      }
+
+      const targetClient = connectedClients.get(kickUser.id);
+      targetClient.disconnect(true);
+      connectedClients.delete(kickUser.id);
+      await this.redisClient.hset(`GM|${title}`, "user", null);
+      await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+
+      this.updateCurUser(channelInfo.title, channelInfo.id);
+      this.sendUserList(userId, channelInfo.id);
+    } catch (error) {
+      console.log(error);
     }
   }
 
   //title :string
   //userId : number
-  @SubscribeMessage("leaveChannel")
-  async leaveChannel(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
+  @SubscribeMessage("leaveGame")
+  async leaveGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     const channelInfo = await this.gameChannelRepository.findOne({
       where: { title: data.title },
     });
@@ -259,29 +323,30 @@ export class GameGateWay {
     if (channelInfo.game_status === GameStatus.READY) {
       const info = await this.redisClient.hgetall(`GM|${data.title}`);
       //게임 준비 상태에서 연결이 끊긴 경우
-      const creatorId = info.creator;
-      const userId = info.user;
+      const creatorId = parseInt(info.creator);
+      const userId = parseInt(info.user);
 
       if (creatorId === data.userId) {
         //방장이 나간경우
         if (userId) {
-          const targetClient = connectedClients.get(parseInt(userId));
+          const targetClient = connectedClients.get(userId);
           targetClient.disconnect(true);
-          connectedClients.delete(parseInt(userId));
+          connectedClients.delete(userId);
         }
         await this.gameChannelRepository.update(
           { title: data.title },
           { deleted_at: new Date() },
         );
         await this.redisClient.del(`GM|${data.title}`);
-        socket.leave(channelInfo.id.toString());
       } else if (userId === data.userId) {
         //유저가 나간 경우
-        await this.redisClient.hincrby(`GM|${data.title}`, "curUser", -1);
         await this.redisClient.hset(`GM|${data.title}`, "user", null);
-        const targetClient = connectedClients.get(parseInt(userId));
+        await this.redisClient.hset(`GM|${data.title}`, "userOnline", "false");
+        const targetClient = connectedClients.get(userId);
         targetClient.disconnect(true);
-        connectedClients.delete(parseInt(userId));
+        connectedClients.delete(userId);
+        this.updateCurUser(data.title, channelInfo.id);
+        this.sendUserList(data.title, channelInfo.id);
       }
     }
     // 게임중에 연결이 끊긴 경우
@@ -293,41 +358,28 @@ export class GameGateWay {
     //}
   }
 
-  //  @SubscribeMessage("reconnect")
-  //  async Reconnect(@MessageBody() data: any, @ConnectedSocket() Socket: Socket) {
-  //    const channelInfo = await this.gameRepository.findOne({
-  //      where: { title: data.title },
-  //    });
-  //    if (channelInfo.gameStatus === GameStatus.INGAME) {
-  //      // Check if there's a pending timeout for the user
-  //      const timeoutId = this.disconnectTimeouts.get(data.userId);
+  //return
+  //width: number;
+  //height: number;
+  //map: string;
+  //paddleWidth: number;
+  //paddleHeight: number;
+  //ballSize: number;
+  @SubscribeMessage("play")
+  async gameInfo(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    this.logger.debug(`play`);
+    const gameInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
-  //      if (timeoutId) {
-  //        // Cancel the previous timeout
-  //        clearTimeout(timeoutId);
-  //        // Clean up resources, if necessary
-  //        this.disconnectTimeouts.delete(data.userId);
-
-  //        // Proceed with the game as normal
-  //        this.server.emit("msgToClient", "The game is continuing.");
-  //      }
-  //    }
-  //    // Handle other cases or do nothing if not in-game
-  //  }
-
-  //@SubscribeMessage("gameInfo")
-  //async gameInfo(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-  //  const gameInfo = {
-  //    width: GameComponent.width,
-  //    height: GameComponent.height,
-  //    map: GameComponent.map.normal,
-  //    paddleWidth: GameComponent.paddleWidth,
-  //    paddleHeight: GameComponent.paddleHeight,
-  //    ballSize: GameComponent.ballSize,
-  //    team:
-  //  };
-  //  this.server.to(socket.id).emit("gameInfo", gameInfo);
-  //}
+    const gameComponentInfo = {
+      width: GameComponent.width,
+      height: GameComponent.height,
+      map: GameComponent.map.normal,
+      paddleWidth: GameComponent.paddleWidth,
+      paddleHeight: GameComponent.paddleHeight,
+      ballSize: GameComponent.ballSize,
+    };
+    this.server.to(gameInfo.id).emit("play", gameComponentInfo);
+  }
 
   @SubscribeMessage("keyDown")
   async keyDown(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
@@ -413,7 +465,7 @@ export class GameGateWay {
 
       // Add event listeners for paddle movement
 
-      this.server.socketsJoin(data.gameId.toString());
+      //this.server.socketsJoin(data.gameId.toString());
 
       const intervalId = setInterval(async () => {
         const calculatedCoordinates = calculateCoordinates(
@@ -434,9 +486,9 @@ export class GameGateWay {
           r: calculatedCoordinates.awayPaddle.y,
         };
 
-        //this.logger.debug(
-        //  //`loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
-        //);
+        this.logger.debug(
+          `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
+        );
         this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
       }, 1000 / 30);
 
@@ -486,7 +538,6 @@ export class GameGateWay {
       }
     }
 
-    console.log(TotalUserInfo);
     this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
@@ -550,6 +601,20 @@ function calculateCoordinates(
   paddleHeight: number,
   paddleWidth: number,
 ) {
+  if (homePaddlePos < 0) {
+    homePaddlePos = 0;
+  } else if (homePaddlePos + paddleHeight > height) {
+    homePaddlePos = height - paddleHeight;
+  }
+
+  if (awayPaddlePos < 0) {
+    awayPaddlePos = 0;
+  } else if (awayPaddlePos + paddleHeight > height) {
+    awayPaddlePos = height - paddleHeight;
+  }
+
+  homePaddleState.y += homePaddleState.dy;
+  awayPaddleState.y += awayPaddleState.dy;
   // Update ball position based on current direction
   ballState.x += ballState.dx;
   ballState.y += ballState.dy;
@@ -577,20 +642,6 @@ function calculateCoordinates(
   //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
 
   // Ensure the paddles stay within the vertical bounds
-  if (homePaddlePos < 0) {
-    homePaddlePos = 0;
-  } else if (homePaddlePos + paddleHeight > height) {
-    homePaddlePos = height - paddleHeight;
-  }
-
-  if (awayPaddlePos < 0) {
-    awayPaddlePos = 0;
-  } else if (awayPaddlePos + paddleHeight > height) {
-    awayPaddlePos = height - paddleHeight;
-  }
-
-  homePaddleState.y += homePaddleState.dy;
-  awayPaddleState.y += awayPaddleState.dy;
 
   // Check if the ball passes the paddles (you may need to adjust this logic)
   if (ballState.x + ballSize / 2 > width || ballState.x - ballSize / 2 < 0) {
