@@ -125,15 +125,14 @@ export class ChannelsService {
         );
       }
 
-      const ChatPassword = await this.RedisClient.hget(
+      const ChatPassword = await this.RedisClient.hgetall(
         `CH|${channelUserVerify.title}`,
-        "password",
       );
 
       if (channelUserVerify.password) {
         const isMatch = await bcrypt.compare(
           channelUserVerify.password,
-          ChatPassword,
+          ChatPassword.password,
         );
         if (!isMatch) {
           throw new HttpException(

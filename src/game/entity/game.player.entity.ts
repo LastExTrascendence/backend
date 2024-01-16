@@ -6,8 +6,7 @@ import {
   OneToMany,
   PrimaryGeneratedColumn,
 } from "typeorm";
-import { GameUserRole } from "../enum/game.enum";
-
+import { GameResult } from "../enum/game.enum";
 /**
  * @description 게임 유저에 대한 엔터티
  *
@@ -32,7 +31,7 @@ export class GamePlayer extends BaseEntity {
   user_id: number;
 
   @Column()
-  game_user_role: GameUserRole;
+  game_user_role: GameResult;
 
   @Column()
   score: number;

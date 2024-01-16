@@ -7,14 +7,14 @@ import {
   Param,
   Post,
   Req,
+  Res,
   UseGuards,
   ValidationPipe,
 } from "@nestjs/common";
 import {
+  gameChannelListDto,
   gameRecordDto,
   gameUserVerifyDto,
-  gameChannelListDto,
-  gameStatsDto,
 } from "./dto/game.dto";
 import { GameService } from "./game.service";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";

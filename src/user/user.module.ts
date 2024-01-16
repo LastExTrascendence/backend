@@ -16,6 +16,10 @@ import { GameModule } from "src/game/game.module";
 import { AuthModule } from "src/auth/auth.module";
 import { Redis } from "ioredis";
 import { UserGateway } from "./user.gateway";
+import { GameGateWay } from "src/game/game.gateway";
+import { GameChannel } from "src/game/entity/game.channel.entity";
+import { GamePlayer } from "src/game/entity/game.player.entity";
+import { Game } from "src/game/entity/game.entity";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -35,6 +39,9 @@ const jwtConfig = config.get("jwt");
     BlockService,
     Redis,
     UserGateway,
+    Game,
+    GameChannel,
+    GamePlayer,
   ],
   exports: [UserService, UserGateway],
 })
