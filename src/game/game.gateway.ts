@@ -128,7 +128,8 @@ export class GameGateWay {
       where: { title: title },
     });
 
-    socket.join(gameChannelInfo.id.toString());
+    this.server.socketsJoin(gameChannelInfo.id.toString());
+    //socket.join(gameChannelInfo.id.toString());
     connectedClients.set(userId, socket);
 
     //입장불가
@@ -168,30 +169,17 @@ export class GameGateWay {
     });
 
     if (creatorId.creator_id === userId) {
-      const test1 = await this.redisClient.hset(`GM|${title}`, "create", 1);
-      console.log(test1);
-      const test2 = await this.redisClient.hset(
-        `GM|${title}`,
-        "createOnline",
-        "true",
-      );
-      console.log(test2);
+      await this.redisClient.hset(`GM|${title}`, "create", 1);
+      await this.redisClient.hset(`GM|${title}`, "creatorOnline", "true");
     } else {
-      const test1 = await this.redisClient.hset(`GM|${title}`, "user", userId);
-      const test2 = await this.redisClient.hset(
-        `GM|${title}`,
-        "userReady",
-        "false",
-      );
-      const test3 = await this.redisClient.hset(
-        `GM|${title}`,
-        "userOnline",
-        "true",
-      );
-      console.log(test1, test2, test3);
+      await this.redisClient.hset(`GM|${title}`, "user", userId);
+      await this.redisClient.hset(`GM|${title}`, "userReady", "false");
+      await this.redisClient.hset(`GM|${title}`, "userOnline", "true");
     }
 
-    this.sendUserList(title, 1);
+    const test = await this.redisClient.hgetall(`GM|${title}`);
+
+    this.sendUserList(title, gameChannelInfo.id);
 
     //current_user 수 확인
     this.updateCurUser(title, gameChannelInfo.id);
@@ -228,16 +216,14 @@ export class GameGateWay {
   //title : string
   @SubscribeMessage("pressStart")
   async StartGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    if (
-      data.userId ===
-        (await this.redisClient.hget(`GM|${data.title}`, "creator")) &&
-      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "true"
-    ) {
+    const startInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+    if (data.userId === startInfo.creator && startInfo.userReady === "true") {
       await this.gameChannelRepository.update(
         { title: data.title },
         { game_status: GameStatus.INGAME },
       );
-      this.server.to(socket.id).emit("pressStart");
+      this.server.to(data.gameId.toString()).emit("pressStart");
     }
   }
 
@@ -246,20 +232,16 @@ export class GameGateWay {
   //  //title : string
   @SubscribeMessage("pressReady")
   async ReadyGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    if (
-      data.userId ===
-        (await this.redisClient.hget(`GM|${data.title}`, "user")) &&
-      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "true"
-    ) {
+    const readyInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+    if (data.userId === readyInfo.user && readyInfo.userReady === "true") {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
-      this.server.to(socket.id).emit("readyOFF");
+      this.server.to(socket.id).emit("readyOff");
     } else if (
-      data.userId ===
-        (await this.redisClient.hget(`GM|${data.title}`, "user")) &&
-      (await this.redisClient.hget(`GM|${data.title}`, "userReady")) === "false"
+      data.userId === readyInfo.user &&
+      readyInfo.userReady === "false"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
-      this.server.to(socket.id).emit("readyOFF");
+      this.server.to(socket.id).emit("readyOn");
     }
   }
 
@@ -275,12 +257,10 @@ export class GameGateWay {
     });
 
     if (channelInfo.game_status === GameStatus.READY) {
+      const info = await this.redisClient.hgetall(`GM|${data.title}`);
       //게임 준비 상태에서 연결이 끊긴 경우
-      const creatorId = await this.redisClient.hget(
-        `GM|${data.title}`,
-        "cretor",
-      );
-      const userId = await this.redisClient.hget(`GM|${data.title}`, "user");
+      const creatorId = info.creator;
+      const userId = info.user;
 
       if (creatorId === data.userId) {
         //방장이 나간경우
@@ -333,56 +313,6 @@ export class GameGateWay {
   //      }
   //    }
   //    // Handle other cases or do nothing if not in-game
-  //  }
-
-  //  @SubscribeMessage("enterQueue")
-  //  async enterQueue(
-  //    @MessageBody() data: any,
-  //    @ConnectedSocket() socket: Socket,
-  //  ) {
-  //    const { userId, title } = data;
-  //    const gameInfo = await this.gameRepository.findOne({
-  //      where: { title: title },
-  //    });
-
-  //    const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
-
-  //    if (parseInt(creatorId) === userId) {
-  //      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
-  //    } else {
-  //      await this.redisClient.hset(`GM|${title}`, "user", userId);
-  //      await this.redisClient.hincrby(`GM|${title}`, "curUser", 1);
-  //    }
-
-  //    const TotalUserInfo = [];
-
-  //    const creatorInfo = await this.userService.findUserById(
-  //      parseInt(creatorId),
-  //    );
-
-  //    const CreatorInfo = {
-  //      id: creatorInfo.id,
-  //      nickname: creatorInfo.nickname,
-  //      avatar: creatorInfo.avatar,
-  //    };
-
-  //    TotalUserInfo.push(CreatorInfo);
-
-  //    const user = await this.redisClient.hget(`GM|${title}`, "user");
-  //    if (parseInt(user) !== 0) {
-  //      {
-  //        const userInfo = await this.userService.findUserById(parseInt(user));
-
-  //        const UserInfo = {
-  //          id: userInfo.id,
-  //          nickname: userInfo.nickname,
-  //          avatar: userInfo.avatar,
-  //        };
-  //        TotalUserInfo.push(UserInfo);
-  //      }
-  //      socket.join(gameInfo.id.toString());
-  //      this.server.emit("userList", TotalUserInfo);
-  //    }
   //  }
 
   //@SubscribeMessage("gameInfo")
@@ -483,7 +413,7 @@ export class GameGateWay {
 
       // Add event listeners for paddle movement
 
-      socket.join(data.gameId.toString());
+      this.server.socketsJoin(data.gameId.toString());
 
       const intervalId = setInterval(async () => {
         const calculatedCoordinates = calculateCoordinates(
@@ -523,14 +453,13 @@ export class GameGateWay {
   }
 
   async sendUserList(title: string, channelId: number) {
+    this.logger.debug(`sendUserList`);
     const TotalUserInfo = [];
+    const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
 
-    if (
-      (await this.redisClient.hget(`GM|${title}`, "creatorOnline")) === "true"
-    ) {
-      const creatorId = await this.redisClient.hget(`GM|${title}`, "creator");
+    if (redisInfo.creatorOnline === "true") {
       const creatorInfo = await this.userService.findUserById(
-        parseInt(creatorId),
+        parseInt(redisInfo.creator),
       );
 
       const CreatorInfo = {
@@ -541,29 +470,34 @@ export class GameGateWay {
       };
       TotalUserInfo.push(CreatorInfo);
     }
-    if ((await this.redisClient.hget(`GM|${title}`, "userOnline")) === "true") {
-      const user = await this.redisClient.hget(`GM|${title}`, "user");
-      const userInfo = await this.userService.findUserById(parseInt(user));
-      const UserInfo = {
-        id: userInfo.id,
-        nickname: userInfo.nickname,
-        avatar: userInfo.avatar,
-        role: GameUserRole.USER,
-      };
-      TotalUserInfo.push(UserInfo);
+
+    if (redisInfo.userOnline === "true") {
+      {
+        const userInfo = await this.userService.findUserById(
+          parseInt(redisInfo.user),
+        );
+        const UserInfo = {
+          id: userInfo.id,
+          nickname: userInfo.nickname,
+          avatar: userInfo.avatar,
+          role: GameUserRole.USER,
+        };
+        TotalUserInfo.push(UserInfo);
+      }
     }
+
     console.log(TotalUserInfo);
     this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
   async updateCurUser(title: string, channelId: number) {
+    this.logger.debug(`updateCurUser`);
+    const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
     let cur_user = 0;
-    if (
-      (await this.redisClient.hget(`GM|${title}`, "createOnline")) === "true"
-    ) {
+    if (redisInfo.creatorOnline === "true") {
       cur_user++;
     }
-    if ((await this.redisClient.hget(`GM|${title}`, "userOnline")) === "true") {
+    if (redisInfo.userOnline === "true") {
       cur_user++;
     }
     await this.gameChannelRepository.update(

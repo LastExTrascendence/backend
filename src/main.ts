@@ -18,6 +18,6 @@ async function bootstrap() {
     preflightContinue: false,
   });
   app.use(cookieParser());
-  await app.listen(config.get("server").get("port"));
+  await app.listen(config.get("BE").get("port"));
 }
 bootstrap();

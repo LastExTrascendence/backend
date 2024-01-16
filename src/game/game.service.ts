@@ -12,6 +12,7 @@ import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
+import { connectedClients } from "./game.gateway";
 
 @Injectable()
 export class GameService {
@@ -136,15 +137,14 @@ export class GameService {
         );
       }
 
-      const gamePassword = await this.RedisClient.hget(
+      const redisInfo = await this.RedisClient.hgetall(
         `GM|${gameUserVerifyDto.title}`,
-        "password",
       );
 
       if (gameUserVerifyDto.password) {
         const isMatch = await bcrypt.compare(
           gameUserVerifyDto.password,
-          gamePassword,
+          redisInfo.password,
         );
         if (!isMatch) {
           throw new HttpException(
@@ -171,7 +171,19 @@ export class GameService {
 
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      const channelsInfo = await this.gameChannelRepository.find();
+      if (connectedClients.size !== 0) {
+        await this.RedisClient.del("GM|*");
+        await this.gameChannelRepository.update(
+          { deleted_at: null },
+          {
+            deleted_at: new Date(),
+          },
+        );
+      }
+
+      const channelsInfo = await this.gameChannelRepository.find({
+        where: { deleted_at: null },
+      });
       if (channelsInfo.length === 0) {
         throw new HttpException(
           {

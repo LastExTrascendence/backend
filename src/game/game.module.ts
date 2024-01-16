@@ -19,6 +19,6 @@ import { GameGateWay } from "./game.gateway";
   ],
   controllers: [GameController],
   providers: [GameService, GamePlayerService, Redis, UserService, GameGateWay],
-  exports: [GameService, GamePlayerService, Redis],
+  exports: [GameService, GamePlayerService, Redis, GameGateWay],
 })
 export class GameModule {}
