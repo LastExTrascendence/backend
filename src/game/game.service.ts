@@ -1,28 +1,35 @@
-import { HttpException, HttpStatus, Inject, Injectable } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Repository } from "typeorm";
-import { GameChannelPolicy, GameStatus } from "./enum/game.enum";
+import { Repository } from "typeorm";
+import {
+  GameChannelPolicy,
+  GameMode,
+  GameType,
+  GameStatus,
+} from "./enum/game.enum";
 import { gameChannelListDto, gameUserVerifyDto } from "./dto/game.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
-import { connectedClients } from "./game.gateway";
 import { GameChannel } from "./entity/game.channel.entity";
+import { connectedClients } from "./game.gateway";
 
 @Injectable()
 export class GameService {
+  private logger = new Logger(GameService.name);
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
     private userService: UserService,
-    private redisClient: Redis,
+    private RedisClient: Redis,
   ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
   ): Promise<gameChannelListDto | HttpException> {
     try {
-      const gameInfo = await this.redisClient.lrange(
+      this.logger.debug(gameChannelListDto);
+      const gameInfo = await this.RedisClient.lrange(
         `GM|${gameChannelListDto.title}`,
         0,
         -1,
@@ -72,31 +79,37 @@ export class GameService {
         where: { title: newGame.title },
       });
 
-      await this.redisClient.hset(
+      await this.RedisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "title",
-        gameChannelListDto.title,
+        newGame.title,
       );
 
       if (gameChannelListDto.password) {
-        await this.redisClient.hset(
+        await this.RedisClient.hset(
           `GM|${gameChannelListDto.title}`,
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
         );
       }
 
-      const retGameInfo: gameChannelListDto = {
+      await this.RedisClient.hset(
+        `GM|${gameChannelListDto.title}`,
+        "creator",
+        createInfo.id,
+      );
+
+      const retGameInfo = {
         id: newGameInfo.id,
         title: newGame.title,
-        channelPolicy: newGame.game_channel_policy,
+        gameChannelPolicy: newGame.game_channel_policy,
         password: null,
         creatorId: newGame.creator_id,
+        curUser: 0,
+        maxUser: 2,
         gameType: gameChannelListDto.gameType,
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,
-        curUser: 0,
-        maxUser: 2,
       };
 
       return retGameInfo;
@@ -109,7 +122,7 @@ export class GameService {
     gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-      const GameInfo = await this.redisClient.lrange(
+      const GameInfo = await this.RedisClient.lrange(
         `GM|${gameUserVerifyDto.title}`,
         0,
         -1,
@@ -124,15 +137,14 @@ export class GameService {
         );
       }
 
-      const gamePassword = await this.redisClient.hget(
+      const redisInfo = await this.RedisClient.hgetall(
         `GM|${gameUserVerifyDto.title}`,
-        "password",
       );
 
       if (gameUserVerifyDto.password) {
         const isMatch = await bcrypt.compare(
           gameUserVerifyDto.password,
-          gamePassword,
+          redisInfo.password,
         );
         if (!isMatch) {
           throw new HttpException(
@@ -144,13 +156,12 @@ export class GameService {
           );
         }
       } else {
-        const userInfo = await this.userService.findUserByNickname(
-          gameUserVerifyDto.nickname,
-        );
-
-        this.redisClient.rpush(
-          `GM|${gameUserVerifyDto.title}`,
-          `ACCESS|${userInfo.id}`,
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "잘못된 접근입니다.",
+          },
+          HttpStatus.BAD_REQUEST,
         );
       }
     } catch (error) {
@@ -160,7 +171,19 @@ export class GameService {
 
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      const channelsInfo = await this.gameChannelRepository.find();
+      if (connectedClients.size !== 0) {
+        await this.RedisClient.del("GM|*");
+        await this.gameChannelRepository.update(
+          { deleted_at: null },
+          {
+            deleted_at: new Date(),
+          },
+        );
+      }
+
+      const channelsInfo = await this.gameChannelRepository.find({
+        where: { deleted_at: null },
+      });
       if (channelsInfo.length === 0) {
         throw new HttpException(
           {
@@ -169,27 +192,6 @@ export class GameService {
           },
           HttpStatus.BAD_REQUEST,
         );
-      }
-      if (connectedClients.size === 0) {
-        //const gamesInfo = await this.gameRoomsRepository.find();
-        // 소켓에 아무도 없을 시 games deleteAt 어떻게 할건지 논의 필요
-        //for (let i = 0; i < channelUserInfo.length; i++) {
-        //  this.gameRepository.update(
-        //    { id: channelUserInfo[i].id },
-        //    { deletedAt: new Date() },
-        //  );
-        //  channelUserInfo[i].deletedAt = new Date();
-        //}
-        for (let i = 0; i < channelsInfo.length; i++) {
-          this.gameChannelRepository.update(
-            { id: channelsInfo[i].id, deleted_at: IsNull() },
-            { cur_user: 0, deleted_at: new Date() },
-          );
-        }
-
-        for (let i = 0; i < channelsInfo.length; i++) {
-          this.redisClient.del(`GM|*`);
-        }
       }
 
       const totalChannels = [];
@@ -205,6 +207,8 @@ export class GameService {
             ).nickname,
             avatar: channelsInfo[i].creator_avatar,
           },
+          cur_user: 0,
+          max_user: 2,
           gameType: channelsInfo[i].game_type,
           gameMode: channelsInfo[i].game_mode,
           gameStatus: channelsInfo[i].game_status,
@@ -219,3 +223,8 @@ export class GameService {
     }
   }
 }
+
+// title
+// password
+// creator
+// user

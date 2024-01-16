@@ -19,7 +19,7 @@ export enum GameMode {
   SPEED = "SPEED",
 }
 
-export enum GameUserRole {
+export enum GameResult {
   WINNER = "WINNER",
   LOSER = "LOSER",
 }
@@ -27,6 +27,11 @@ export enum GameUserRole {
 export enum GameTeam {
   HOME = "HOME",
   AWAY = "AWAY",
+}
+
+export enum GameUserRole {
+  CREATOR = "CREATOR",
+  USER = "USER",
 }
 
 export const GameComponent = {

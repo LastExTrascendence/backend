@@ -7,7 +7,6 @@ import { Middleware } from "./middleware";
 export class SessionMiddleware {
   cookieParser: Middleware;
   helmet: Middleware;
-
   constructor(@Inject(ConfigService) private configService: ConfigService) {
     this.cookieParser = cookieParser();
   }
