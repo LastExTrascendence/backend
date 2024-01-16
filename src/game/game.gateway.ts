@@ -137,19 +137,15 @@ export class GameGateWay {
       //2. 방의 인원이 2명을 초과한 경우
 
       if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
-        const isPasswordCorrect = await this.redisClient.lrange(
+        const isPasswordCorrect = await this.redisClient.hgetall(
           `GM|${gameChannelInfo.title}`,
-          0,
-          -1,
         );
 
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const filter = isPasswordCorrect.filter((value) =>
-          value.startsWith("ACCESS|"),
-        );
+        const passwordValidate = `isPasswordCorrect.ACCESS${userId}`;
 
         //ACCESS 대상이 아닌경우
-        if (!filter) {
+        if (!passwordValidate) {
           const targetClient = connectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(gameChannelInfo.id.toString());

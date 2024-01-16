@@ -21,7 +21,7 @@ export class GameService {
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
     private userService: UserService,
-    private RedisClient: Redis,
+    private redisClient: Redis,
   ) {}
 
   async createGame(
@@ -29,7 +29,7 @@ export class GameService {
   ): Promise<gameChannelListDto | HttpException> {
     try {
       this.logger.debug(gameChannelListDto);
-      const gameInfo = await this.RedisClient.lrange(
+      const gameInfo = await this.redisClient.lrange(
         `GM|${gameChannelListDto.title}`,
         0,
         -1,
@@ -79,37 +79,49 @@ export class GameService {
         where: { title: newGame.title },
       });
 
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "title",
         newGame.title,
       );
 
-      if (gameChannelListDto.password) {
-        await this.RedisClient.hset(
+      if (
+        gameChannelListDto.password &&
+        gameChannelListDto.gameChannelPolicy === GameChannelPolicy.PRIVATE
+      ) {
+        const hashedPassword = await bcrypt.hash(
+          gameChannelListDto.password,
+          10,
+        );
+        await this.redisClient.hset(
+          `CH|${gameChannelListDto.title}`,
+          "password",
+          hashedPassword,
+        );
+        await this.redisClient.hset(
           `GM|${gameChannelListDto.title}`,
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
         );
       }
 
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "creator",
         createInfo.id,
       );
 
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "userReady",
         "false",
       );
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "userOnline",
         "false",
       );
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `GM|${gameChannelListDto.title}`,
         "creatorOnline",
         "false",
@@ -138,7 +150,7 @@ export class GameService {
     gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-      const GameInfo = await this.RedisClient.lrange(
+      const GameInfo = await this.redisClient.lrange(
         `GM|${gameUserVerifyDto.title}`,
         0,
         -1,
@@ -153,7 +165,7 @@ export class GameService {
         );
       }
 
-      const redisInfo = await this.RedisClient.hgetall(
+      const redisInfo = await this.redisClient.hgetall(
         `GM|${gameUserVerifyDto.title}`,
       );
 
@@ -170,12 +182,22 @@ export class GameService {
             },
             HttpStatus.BAD_REQUEST,
           );
+        } else {
+          const userInfo = await this.userService.findUserByNickname(
+            gameUserVerifyDto.nickname,
+          );
+
+          await this.redisClient.hset(
+            `GM|${gameUserVerifyDto.title}`,
+            `ACCESS|${userInfo.id}`,
+            userInfo.id,
+          );
         }
       } else {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
-            error: "잘못된 접근입니다.",
+            error: "잘못된 요청입니다.",
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -189,7 +211,7 @@ export class GameService {
     try {
       console.log(connectedClients, connectedClients.size);
       if (connectedClients.size === 0) {
-        await this.RedisClient.del("GM|*");
+        await this.redisClient.del("GM|*");
         await this.gameChannelRepository.update(
           {},
           {
