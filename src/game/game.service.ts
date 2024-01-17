@@ -17,6 +17,9 @@ import { Game } from "./entity/game.entity";
 
 @Injectable()
 export class GameService {
+  recordGame(gameId: any, numberOfRounds: number, numberOfBounces: number) {
+    throw new Error("Method not implemented.");
+  }
   private logger = new Logger(GameService.name);
   constructor(
     @InjectRepository(GameChannel)
@@ -25,7 +28,7 @@ export class GameService {
     private gameRepository: Repository<Game>,
     private userService: UserService,
     private redisClient: Redis,
-  ) {}
+  ) { }
 
   async saveGame(channelId: number) {
     try {

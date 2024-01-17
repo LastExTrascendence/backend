@@ -23,8 +23,8 @@ import { format } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
-import { GameService } from "./game.service";
 import { GamePlayerService } from "./game.player.service";
+import { GameService } from "./game.service";
 
 export const connectedClients: Map<number, Socket> = new Map();
 
@@ -36,6 +36,12 @@ const awayPaddleState = {
   y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
   dy: 0, // Initial speed in the y direction
 };
+
+let currentCnt = 0;
+let numberOfRounds = 0;
+let numberOfBounces = 0;
+let homeScore = 0;
+let awayScore = 0;
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
@@ -54,7 +60,7 @@ export class GameGateWay {
     private userService: UserService,
     private gameService: GameService,
     private gamePlayerService: GamePlayerService,
-  ) {}
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -81,29 +87,6 @@ export class GameGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
-  }
-
-  async handleReconnect(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    this.logger.debug(`Socket Reconnected`);
-    //  const channelInfo = await this.gameRepository.findOne({
-    //    where: { title: data.title },
-    //  });
-    //  if (channelInfo.gameStatus === GameStatus.INGAME) {
-    //    // Check if there's a pending timeout for the user
-    //    const timeoutId = this.disconnectTimeouts.get(data.userId);
-    //    if (timeoutId) {
-    //      // Cancel the previous timeout
-    //      clearTimeout(timeoutId);
-    //      // Clean up resources, if necessary
-    //      this.disconnectTimeouts.delete(data.userId);
-    //      // Proceed with the game as normal
-    //      this.server.emit("msgToClient", "The game is continuing.");
-    //    }
-    //  }
-    // Handle other cases or do nothing if not in-game
   }
 
   //입장 불가 조건
@@ -402,12 +385,12 @@ export class GameGateWay {
       }
       // awayPaddleState.y += awayPaddleState.dy;
     }
-    this.logger.debug(`KeyDown`);
+    //this.logger.debug(`KeyDown`);
   }
 
   @SubscribeMessage("keyUp")
   async keyUp(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    this.logger.debug(`KeyUp`);
+    //this.logger.debug(`KeyUp`);
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
     if (data.team === GameTeam.HOME) {
@@ -423,56 +406,31 @@ export class GameGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.debug(`loopPosition`);
       const ballState = {
         // x: Math.floor(GameComponent.width - GameComponent.ballSize),
         // y: Math.floor(GameComponent.height - GameComponent.ballSize),
         x: GameComponent.width - GameComponent.ballSize,
         y: GameComponent.height - GameComponent.ballSize,
-        dx: 10, // Initial speed in the x direction
-        dy: 10, // Initial speed in the y direction
+        dx: 6, // Initial speed in the x direction
+        dy: 6, // Initial speed in the y direction
       };
 
       //  minimumSpeed: number,
       //averageSpeed: number,
       //maximumSpeed: number,
-      let numberOfRounds = 0;
-      let numberOfBounces = 0;
-      let homeScore = 0;
-      let awayScore = 0;
+
       let disconnectTimeout: NodeJS.Timeout | null = null;
 
       // Add event listeners for paddle movement
 
       //this.server.socketsJoin(data.gameId.toString());
-
+      let cnt = 0;
       const intervalId = setInterval(async () => {
-        if (!socket.connected) {
-          // If the socket is not connected, set up a timeout to handle disconnection
-          if (!disconnectTimeout) {
-            disconnectTimeout = setTimeout(
-              () => {
-                clearInterval(intervalId);
-                this.logger.debug(
-                  `Game terminated due to disconnection: ${data.gameId}`,
-                );
-              },
-              3 * 60 * 1000,
-            ); // 3 minutes timeout
-          }
-          return;
-        }
+        cnt++;
 
-        if (disconnectTimeout) {
-          clearTimeout(disconnectTimeout);
-          disconnectTimeout = null;
-        }
-
-        const calculatedCoordinates = await calculateCoordinates(
-          numberOfRounds,
-          numberOfBounces,
+        const calculatedCoordinates = await this.calculateCoordinates(
           data,
-          homeScore,
-          awayScore,
           ballState,
           homePaddleState.y,
           awayPaddleState.y,
@@ -495,22 +453,34 @@ export class GameGateWay {
           r: calculatedCoordinates.awayPaddle.y,
         };
 
-        this.logger.debug(
-          `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
-        );
-        this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        //console.log(cnt);
+
+        //this.logger.debug(
+        //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
+        //);
+
+        // await this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        this.transferData(returnData, cnt, data.gameId.toString(), homeScore, awayScore);
       }, 1000 / 30);
 
-      socket.on("reconnect", () => {
-        // If the user reconnects, clear the disconnect timeout
-        clearTimeout(disconnectTimeout);
-      });
       socket.on("disconnect", () => {
         clearInterval(intervalId);
       });
     } catch (error) {
       console.error(error);
     }
+  }
+
+  async transferData(data: any, cnt: number, gameId: string, homeScore: number, awayScore: number) {
+    if (cnt <= currentCnt) return;
+    currentCnt = cnt;
+    const returnData = {
+      x: data.x,
+      y: data.y,
+      l: data.l,
+      r: data.r,
+    };
+    await this.server.to(gameId).emit("loopGameData", returnData);
   }
 
   async sendUserList(title: string, channelId: number) {
@@ -565,130 +535,155 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
-}
+  async calculateCoordinates(
+    data: any,
+    ballState: { x: number; y: number; dx: number; dy: number },
+    homePaddlePos: number,
+    awayPaddlePos: number,
+    width: number,
+    height: number,
+    ballSize: number,
+    paddleHeight: number,
+    paddleWidth: number,
+  ): Promise<{
+    ball: { x: number; y: number };
+    homePaddle: { x: number; y: number };
+    awayPaddle: { x: number; y: number };
+  }> {
+    if (homePaddlePos < 0) {
+      homePaddlePos = 0;
+    } else if (homePaddlePos + paddleHeight > height) {
+      homePaddlePos = height - paddleHeight;
+    }
 
+    if (awayPaddlePos < 0) {
+      awayPaddlePos = 0;
+    } else if (awayPaddlePos + paddleHeight > height) {
+      awayPaddlePos = height - paddleHeight;
+    }
+
+    homePaddleState.y += homePaddleState.dy;
+    awayPaddleState.y += awayPaddleState.dy;
+    // Update ball position based on current direction
+    ballState.x += ballState.dx;
+    ballState.y += ballState.dy;
+
+    // Reflect ball when hitting top or bottom
+    if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
+      numberOfBounces++;
+      ballState.dy = -ballState.dy;
+    }
+
+    // Reflect the ball when hitting the paddles
+    if (
+      (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
+        ballState.y + ballSize / 2 >= homePaddlePos &&
+        ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
+      (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
+        ballState.y + ballSize / 2 >= awayPaddlePos &&
+        ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
+    ) {
+      numberOfBounces++;
+      ballState.dx = -ballState.dx;
+    }
+    homePaddlePos += homePaddleState.dy;
+    awayPaddlePos += awayPaddleState.dy;
+    // Update paddle positions based on current direction
+    //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+    //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+
+    // Ensure the paddles stay within the vertical bounds
+
+    // Check if the ball passes the paddles (you may need to adjust this logic)
+    if (ballState.x - ballSize / 2 < 0) {
+      //const timeOut = setTimeout(async () => {
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+
+      // homeScore++;
+      numberOfRounds++;
+      if (homeScore === 4) {
+        // 홈팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.homeId,
+          homeScore,
+        );
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.awayId,
+          awayScore,
+        );
+        return;
+      }
+
+      //await this.server.to(data.gameId.toString()).emit("score", [
+      //  homeScore,
+      //  awayScore,
+      //]);
+
+
+      //}, 1000 * 3);
+
+
+      // this.server.to(data.gameId.toString()).emit("score", [
+      //   homeScore,
+      //   awayScore,
+      // ]);
+    } else if (ballState.x + ballSize / 2 > width) {
+
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+      numberOfRounds++;
+
+      //const timeOut = setTimeout(async () => {
+      // awayScore++;
+
+      if (awayScore === 5) {
+        //away팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.homeId,
+          homeScore,
+        );
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.awayId,
+          awayScore,
+        );
+        await this.gameService.recordGame(
+          data.gameId,
+          numberOfRounds,
+          numberOfBounces,
+        );
+        return;
+      }
+      //await this.server.to(data.gameId.toString()).emit("score", [
+      //  homeScore,
+      //  awayScore,
+      //]);
+      //}, 1000 * 3);
+
+
+
+      // this.server.to(data.gameId.toString()).emit("score", [
+      //   homeScore,
+      //   awayScore,
+      // ]);
+
+    }
+
+    return {
+      ball: { x: ballState.x, y: ballState.y },
+      homePaddle: { x: 0, y: homePaddlePos },
+      awayPaddle: { x: width - paddleWidth, y: awayPaddlePos },
+    };
+  }
+}
 // 좌표 계산 로직을 수행하는 함수
-async function calculateCoordinates(
-  numberOfRounds: number,
-  numberOfBounces: number,
-  data: any,
-  homeScore: number,
-  awayScore: number,
-  ballState: { x: number; y: number; dx: number; dy: number },
-  homePaddlePos: number,
-  awayPaddlePos: number,
-  width: number,
-  height: number,
-  ballSize: number,
-  paddleHeight: number,
-  paddleWidth: number,
-): Promise<{
-  ball: { x: number; y: number };
-  homePaddle: { x: number; y: number };
-  awayPaddle: { x: number; y: number };
-}> {
-  if (homePaddlePos < 0) {
-    homePaddlePos = 0;
-  } else if (homePaddlePos + paddleHeight > height) {
-    homePaddlePos = height - paddleHeight;
-  }
 
-  if (awayPaddlePos < 0) {
-    awayPaddlePos = 0;
-  } else if (awayPaddlePos + paddleHeight > height) {
-    awayPaddlePos = height - paddleHeight;
-  }
-
-  homePaddleState.y += homePaddleState.dy;
-  awayPaddleState.y += awayPaddleState.dy;
-  // Update ball position based on current direction
-  ballState.x += ballState.dx;
-  ballState.y += ballState.dy;
-
-  // Reflect ball when hitting top or bottom
-  if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
-    numberOfBounces++;
-    ballState.dy = -ballState.dy;
-  }
-
-  // Reflect the ball when hitting the paddles
-  if (
-    (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
-      ballState.y + ballSize / 2 >= homePaddlePos &&
-      ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
-    (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
-      ballState.y + ballSize / 2 >= awayPaddlePos &&
-      ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
-  ) {
-    numberOfBounces++;
-    ballState.dx = -ballState.dx;
-  }
-  homePaddlePos += homePaddleState.dy;
-  awayPaddlePos += awayPaddleState.dy;
-  // Update paddle positions based on current direction
-  //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-  //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-
-  // Ensure the paddles stay within the vertical bounds
-
-  // Check if the ball passes the paddles (you may need to adjust this logic)
-  if (ballState.x - ballSize / 2 < 0) {
-    numberOfRounds++;
-    homeScore++;
-    if (homeScore === 5) {
-      // 홈팀 승자로 넣기
-      await this.GamePlayerService.saveGamePlayer(
-        data.gameId,
-        data.homeId,
-        homeScore,
-      );
-      await this.GamePlayerService.saveGamePlayer(
-        data.gameId,
-        data.awayId,
-        awayScore,
-      );
-      return;
-    } else {
-      // Reset ball position and direction for the next round
-
-      ballState.x = width / 2;
-      ballState.y = height / 2;
-      ballState.dx = -ballState.dx;
-    }
-  } else if (ballState.x + ballSize / 2 > width) {
-    numberOfRounds++;
-    awayScore++;
-    if (awayScore === 5) {
-      //away팀 승자로 넣기
-      await this.GamePlayerService.saveGamePlayer(
-        data.gameId,
-        data.homeId,
-        homeScore,
-      );
-      await this.GamePlayerService.saveGamePlayer(
-        data.gameId,
-        data.awayId,
-        awayScore,
-      );
-      await this.gameService.recordGame(
-        data.gameId,
-        numberOfRounds,
-        numberOfBounces,
-      );
-      return;
-    } else {
-      ballState.x = width / 2;
-      ballState.y = height / 2;
-      ballState.dx = -ballState.dx;
-    }
-  }
-
-  return {
-    ball: { x: ballState.x, y: ballState.y },
-    homePaddle: { x: 0, y: homePaddlePos },
-    awayPaddle: { x: width - paddleWidth, y: awayPaddlePos },
-  };
-}
 
 function showTime(currentDate: Date) {
   const formattedTime = format(currentDate, "h:mm a");
