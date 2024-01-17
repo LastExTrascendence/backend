@@ -17,9 +17,6 @@ import { Game } from "./entity/game.entity";
 
 @Injectable()
 export class GameService {
-  recordGame(gameId: any, numberOfRounds: number, numberOfBounces: number) {
-    throw new Error("Method not implemented.");
-  }
   private logger = new Logger(GameService.name);
   constructor(
     @InjectRepository(GameChannel)
