@@ -39,47 +39,38 @@ export class Game extends BaseEntity {
   id: number;
 
   @Column()
-  title: string;
+  channel_id: number;
+
+  //@Column()
+  //game_type: GameType;
 
   @Column()
-  gameChannelPolicy: GameChannelPolicy;
+  game_mode: GameMode;
+
+  //@Column()
+  //game_status: GameStatus;
+
+  @Column({ nullable: true })
+  minimum_speed: number;
+
+  @Column({ nullable: true })
+  average_speed: number;
+
+  @Column({ nullable: true })
+  maximum_speed: number;
+
+  @Column({ nullable: true })
+  number_of_rounds: number;
+
+  @Column({ nullable: true })
+  number_of_bounces: number;
+
+  @Column({ nullable: true })
+  play_time: number;
 
   @Column()
-  creatorId: number;
+  created_at: Date;
 
   @Column({ nullable: true })
-  creatorAvatar: string;
-
-  @Column()
-  gameType: GameType;
-
-  @Column()
-  gameMode: GameMode;
-
-  @Column()
-  gameStatus: GameStatus;
-
-  @Column({ nullable: true })
-  minimumSpeed: number;
-
-  @Column({ nullable: true })
-  averageSpeed: number;
-
-  @Column({ nullable: true })
-  maximumSpeed: number;
-
-  @Column({ nullable: true })
-  numberOfRounds: number;
-
-  @Column({ nullable: true })
-  numberOfBounces: number;
-
-  @Column({ nullable: true })
-  playTime: number;
-
-  @Column()
-  createdAt: Date;
-
-  @Column({ nullable: true })
-  endedAt: Date;
+  ended_at: Date;
 }

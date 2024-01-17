@@ -22,16 +22,15 @@ export class GamePlayer extends BaseEntity {
   @PrimaryGeneratedColumn()
   id: number;
 
+  // @ManyToOne()
+  @Column()
+  user_id: number;
   //@ManyToOne(() => Game, (game) => game.id, { eager: true })
   @Column()
   game_id: number;
 
-  // @ManyToOne()
   @Column()
-  user_id: number;
-
-  @Column()
-  game_user_role: GameResult;
+  role: GameResult;
 
   @Column()
   score: number;

@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
+import { GamePlayerService } from "./game.player.service";
+import { GameService } from "./game.service";
 
 export const connectedClients: Map<number, Socket> = new Map();
 
@@ -34,6 +36,12 @@ const awayPaddleState = {
   y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
   dy: 0, // Initial speed in the y direction
 };
+
+let currentCnt = 0;
+let numberOfRounds = 0;
+let numberOfBounces = 0;
+let homeScore = 0;
+let awayScore = 0;
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
@@ -50,7 +58,9 @@ export class GameGateWay {
     private gamePlayerRepository: Repository<GamePlayer>,
     private redisClient: Redis,
     private userService: UserService,
-  ) {}
+    private gamePlayerService: GamePlayerService,
+    private gameService: GameService,
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -77,29 +87,6 @@ export class GameGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     this.logger.debug(`Socket Disconnected`);
-  }
-
-  async handleReconnect(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
-    this.logger.debug(`Socket Reconnected`);
-    //  const channelInfo = await this.gameRepository.findOne({
-    //    where: { title: data.title },
-    //  });
-    //  if (channelInfo.gameStatus === GameStatus.INGAME) {
-    //    // Check if there's a pending timeout for the user
-    //    const timeoutId = this.disconnectTimeouts.get(data.userId);
-    //    if (timeoutId) {
-    //      // Cancel the previous timeout
-    //      clearTimeout(timeoutId);
-    //      // Clean up resources, if necessary
-    //      this.disconnectTimeouts.delete(data.userId);
-    //      // Proceed with the game as normal
-    //      this.server.emit("msgToClient", "The game is continuing.");
-    //    }
-    //  }
-    // Handle other cases or do nothing if not in-game
   }
 
   //입장 불가 조건
@@ -137,19 +124,15 @@ export class GameGateWay {
       //2. 방의 인원이 2명을 초과한 경우
 
       if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
-        const isPasswordCorrect = await this.redisClient.lrange(
+        const isPasswordCorrect = await this.redisClient.hgetall(
           `GM|${gameChannelInfo.title}`,
-          0,
-          -1,
         );
 
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const filter = isPasswordCorrect.filter((value) =>
-          value.startsWith("ACCESS|"),
-        );
+        const passwordValidate = `isPasswordCorrect.ACCESS${userId}`;
 
         //ACCESS 대상이 아닌경우
-        if (!filter) {
+        if (!passwordValidate) {
           const targetClient = connectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(gameChannelInfo.id.toString());
@@ -243,6 +226,7 @@ export class GameGateWay {
         { title: data.title },
         { game_status: GameStatus.INGAME },
       );
+      await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
       this.server.to(data.gameId.toString()).emit("gameStart");
     }
@@ -401,12 +385,12 @@ export class GameGateWay {
       }
       // awayPaddleState.y += awayPaddleState.dy;
     }
-    this.logger.debug(`KeyDown`);
+    //this.logger.debug(`KeyDown`);
   }
 
   @SubscribeMessage("keyUp")
   async keyUp(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    this.logger.debug(`KeyUp`);
+    //this.logger.debug(`KeyUp`);
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
     if (data.team === GameTeam.HOME) {
@@ -422,53 +406,31 @@ export class GameGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.debug(`loopPosition`);
       const ballState = {
         // x: Math.floor(GameComponent.width - GameComponent.ballSize),
         // y: Math.floor(GameComponent.height - GameComponent.ballSize),
         x: GameComponent.width - GameComponent.ballSize,
         y: GameComponent.height - GameComponent.ballSize,
-        dx: 10, // Initial speed in the x direction
-        dy: 10, // Initial speed in the y direction
+        dx: 6, // Initial speed in the x direction
+        dy: 6, // Initial speed in the y direction
       };
 
-      let disconnectTimeout: NodeJS.Timeout;
+      //  minimumSpeed: number,
+      //averageSpeed: number,
+      //maximumSpeed: number,
 
-      //const disconnectIssue = () => {
-      //  // Set a timeout to pause the game for 3 minutes after disconnection
-      //  disconnectTimeout = setTimeout(
-      //    async () => {
-      //      clearInterval(intervalId);
-      //      // Resume the game logic or handle it as needed
-
-      //      // Check if the user reconnected within the timeout
-      //      const isReconnected = await checkReconnectionStatus(socket.id);
-
-      //      if (!isReconnected) {
-      //        // Apply forfeit to the disconnected user
-      //        // Implement your forfeit logic here
-
-      //        // Grant a bye to the remaining users
-      //        grantByeToRemainingUsers(socket.id, data.gameId);
-
-      //        // Optionally emit an event to inform clients about the forfeit
-      //        server
-      //          .to(data.gameId.toString())
-      //          .emit("forfeit", { disconnectedUserId: socket.id });
-
-      //        // Remove the disconnected user from the game
-      //        removeDisconnectedUser(socket.id, data.gameId);
-      //      }
-      //    },
-      //    3 * 60 * 1000,
-      //  );
-      //};
+      let disconnectTimeout: NodeJS.Timeout | null = null;
 
       // Add event listeners for paddle movement
 
       //this.server.socketsJoin(data.gameId.toString());
-
+      let cnt = 0;
       const intervalId = setInterval(async () => {
-        const calculatedCoordinates = calculateCoordinates(
+        cnt++;
+
+        const calculatedCoordinates = await this.calculateCoordinates(
+          data,
           ballState,
           homePaddleState.y,
           awayPaddleState.y,
@@ -479,6 +441,11 @@ export class GameGateWay {
           GameComponent.paddleWidth,
         );
 
+        if (homeScore === 5 || awayScore === 5) {
+          clearInterval(intervalId);
+          return;
+        }
+
         const returnData = {
           x: calculatedCoordinates.ball.x,
           y: calculatedCoordinates.ball.y,
@@ -486,22 +453,34 @@ export class GameGateWay {
           r: calculatedCoordinates.awayPaddle.y,
         };
 
-        this.logger.debug(
-          `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
-        );
-        this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        //console.log(cnt);
+
+        //this.logger.debug(
+        //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
+        //);
+
+        // await this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        this.transferData(returnData, cnt, data.gameId.toString(), homeScore, awayScore);
       }, 1000 / 30);
 
-      socket.on("reconnect", () => {
-        // If the user reconnects, clear the disconnect timeout
-        clearTimeout(disconnectTimeout);
-      });
       socket.on("disconnect", () => {
         clearInterval(intervalId);
       });
     } catch (error) {
       console.error(error);
     }
+  }
+
+  async transferData(data: any, cnt: number, gameId: string, homeScore: number, awayScore: number) {
+    if (cnt <= currentCnt) return;
+    currentCnt = cnt;
+    const returnData = {
+      x: data.x,
+      y: data.y,
+      l: data.l,
+      r: data.r,
+    };
+    await this.server.to(gameId).emit("loopGameData", returnData);
   }
 
   async sendUserList(title: string, channelId: number) {
@@ -556,108 +535,155 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
+  async calculateCoordinates(
+    data: any,
+    ballState: { x: number; y: number; dx: number; dy: number },
+    homePaddlePos: number,
+    awayPaddlePos: number,
+    width: number,
+    height: number,
+    ballSize: number,
+    paddleHeight: number,
+    paddleWidth: number,
+  ): Promise<{
+    ball: { x: number; y: number };
+    homePaddle: { x: number; y: number };
+    awayPaddle: { x: number; y: number };
+  }> {
+    if (homePaddlePos < 0) {
+      homePaddlePos = 0;
+    } else if (homePaddlePos + paddleHeight > height) {
+      homePaddlePos = height - paddleHeight;
+    }
 
-  // gameId: 게임방 id
-  // team: home || away
-  // key: 키값 up || down
-  //@SubscribeMessage("gameKeyDown")
-  //async movePaddle(
-  //  @MessageBody() data: any,
-  //  @ConnectedSocket() socket: Socket,
-  //) {
-  //  try {
-  //    // 해당하는 키를 눌렀음. 이제 해당하는 키를 누른 유저의 패들을 움직여야 함.
-  //    // paddle up / down logic
-  //  } catch (error) {
-  //    console.log(error);
-  //  }
-  //}
+    if (awayPaddlePos < 0) {
+      awayPaddlePos = 0;
+    } else if (awayPaddlePos + paddleHeight > height) {
+      awayPaddlePos = height - paddleHeight;
+    }
 
-  // gameId: 게임방 id
-  // team: home || away
-  // key: 키값 up || down
-  //  @SubscribeMessage("gameKeyUp")
-  //  async stopPaddle(
-  //    @MessageBody() data: any,
-  //    @ConnectedSocket() socket: Socket,
-  //  ) {
-  //    try {
-  //      // 해당하는 키를 때었음. 이제 해당하는 키를 누른 유저의 패들을 멈춰야 함.
-  //      // paddle stop logic
-  //    } catch (error) {
-  //      console.log(error);
-  //    }
-  //  }
+    homePaddleState.y += homePaddleState.dy;
+    awayPaddleState.y += awayPaddleState.dy;
+    // Update ball position based on current direction
+    ballState.x += ballState.dx;
+    ballState.y += ballState.dy;
+
+    // Reflect ball when hitting top or bottom
+    if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
+      numberOfBounces++;
+      ballState.dy = -ballState.dy;
+    }
+
+    // Reflect the ball when hitting the paddles
+    if (
+      (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
+        ballState.y + ballSize / 2 >= homePaddlePos &&
+        ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
+      (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
+        ballState.y + ballSize / 2 >= awayPaddlePos &&
+        ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
+    ) {
+      numberOfBounces++;
+      ballState.dx = -ballState.dx;
+    }
+    homePaddlePos += homePaddleState.dy;
+    awayPaddlePos += awayPaddleState.dy;
+    // Update paddle positions based on current direction
+    //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+    //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+
+    // Ensure the paddles stay within the vertical bounds
+
+    // Check if the ball passes the paddles (you may need to adjust this logic)
+    if (ballState.x - ballSize / 2 < 0) {
+      //const timeOut = setTimeout(async () => {
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+
+      // homeScore++;
+      numberOfRounds++;
+      if (homeScore === 4) {
+        // 홈팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.homeId,
+          homeScore,
+        );
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.awayId,
+          awayScore,
+        );
+        return;
+      }
+
+      //await this.server.to(data.gameId.toString()).emit("score", [
+      //  homeScore,
+      //  awayScore,
+      //]);
+
+
+      //}, 1000 * 3);
+
+
+      // this.server.to(data.gameId.toString()).emit("score", [
+      //   homeScore,
+      //   awayScore,
+      // ]);
+    } else if (ballState.x + ballSize / 2 > width) {
+
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+      numberOfRounds++;
+
+      //const timeOut = setTimeout(async () => {
+      // awayScore++;
+
+      if (awayScore === 5) {
+        //away팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.homeId,
+          homeScore,
+        );
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          data.awayId,
+          awayScore,
+        );
+        //await this.gameService.saveRecord(
+        //  data.gameId,
+        //  numberOfRounds,
+        //  numberOfBounces,
+        //);
+        return;
+      }
+      //await this.server.to(data.gameId.toString()).emit("score", [
+      //  homeScore,
+      //  awayScore,
+      //]);
+      //}, 1000 * 3);
+
+
+
+      // this.server.to(data.gameId.toString()).emit("score", [
+      //   homeScore,
+      //   awayScore,
+      // ]);
+
+    }
+
+    return {
+      ball: { x: ballState.x, y: ballState.y },
+      homePaddle: { x: 0, y: homePaddlePos },
+      awayPaddle: { x: width - paddleWidth, y: awayPaddlePos },
+    };
+  }
 }
-
 // 좌표 계산 로직을 수행하는 함수
-function calculateCoordinates(
-  ballState: { x: number; y: number; dx: number; dy: number },
-  homePaddlePos: number,
-  awayPaddlePos: number,
-  width: number,
-  height: number,
-  ballSize: number,
-  paddleHeight: number,
-  paddleWidth: number,
-) {
-  if (homePaddlePos < 0) {
-    homePaddlePos = 0;
-  } else if (homePaddlePos + paddleHeight > height) {
-    homePaddlePos = height - paddleHeight;
-  }
 
-  if (awayPaddlePos < 0) {
-    awayPaddlePos = 0;
-  } else if (awayPaddlePos + paddleHeight > height) {
-    awayPaddlePos = height - paddleHeight;
-  }
-
-  homePaddleState.y += homePaddleState.dy;
-  awayPaddleState.y += awayPaddleState.dy;
-  // Update ball position based on current direction
-  ballState.x += ballState.dx;
-  ballState.y += ballState.dy;
-
-  // Reflect ball when hitting top or bottom
-  if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
-    ballState.dy = -ballState.dy;
-  }
-
-  // Reflect the ball when hitting the paddles
-  if (
-    (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
-      ballState.y + ballSize / 2 >= homePaddlePos &&
-      ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
-    (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
-      ballState.y + ballSize / 2 >= awayPaddlePos &&
-      ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
-  ) {
-    ballState.dx = -ballState.dx;
-  }
-  homePaddlePos += homePaddleState.dy;
-  awayPaddlePos += awayPaddleState.dy;
-  // Update paddle positions based on current direction
-  //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-  //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-
-  // Ensure the paddles stay within the vertical bounds
-
-  // Check if the ball passes the paddles (you may need to adjust this logic)
-  if (ballState.x + ballSize / 2 > width || ballState.x - ballSize / 2 < 0) {
-    // Handle scoring or game-over logic here
-    // Reset ball position, direction, etc.
-    ballState.x = width / 2;
-    ballState.y = height / 2;
-    ballState.dx = -ballState.dx; // Change direction
-  }
-
-  return {
-    ball: { x: ballState.x, y: ballState.y },
-    homePaddle: { x: 0, y: homePaddlePos },
-    awayPaddle: { x: width - paddleWidth, y: awayPaddlePos },
-  };
-}
 
 function showTime(currentDate: Date) {
   const formattedTime = format(currentDate, "h:mm a");
