@@ -58,8 +58,8 @@ export class GameGateWay {
     private gamePlayerRepository: Repository<GamePlayer>,
     private redisClient: Redis,
     private userService: UserService,
-    private gameService: GameService,
     private gamePlayerService: GamePlayerService,
+    private gameService: GameService,
   ) { }
 
   @WebSocketServer()
@@ -653,11 +653,11 @@ export class GameGateWay {
           data.awayId,
           awayScore,
         );
-        await this.gameService.recordGame(
-          data.gameId,
-          numberOfRounds,
-          numberOfBounces,
-        );
+        //await this.gameService.saveRecord(
+        //  data.gameId,
+        //  numberOfRounds,
+        //  numberOfBounces,
+        //);
         return;
       }
       //await this.server.to(data.gameId.toString()).emit("score", [
