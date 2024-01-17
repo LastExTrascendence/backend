@@ -27,7 +27,7 @@ const jwtConfig = config.get("jwt");
 @Module({
   imports: [
     forwardRef(() => AuthModule),
-    TypeOrmModule.forFeature([User, UserFriend, UserBlock]),
+    TypeOrmModule.forFeature([User, UserFriend, UserBlock, GameChannel]),
     GameModule,
     Redis,
   ],

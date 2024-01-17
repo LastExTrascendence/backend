@@ -17,7 +17,7 @@ import { format } from "date-fns";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { User } from "./entity/user.entity";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Like, Repository } from "typeorm";
 import { UserFriend } from "./entity/user.friend.entity";
 import * as config from "config";
 import { GameService } from "src/game/game.service";
@@ -27,6 +27,9 @@ import {
   GameStatus,
   GameType,
 } from "src/game/enum/game.enum";
+import { GameChannel } from "src/game/entity/game.channel.entity";
+import { UserStatus } from "./entity/user.enum";
+import { connectedClients } from "src/game/game.gateway";
 
 //path, endpoint
 
@@ -47,7 +50,11 @@ export class UserGateway
     private redisClient: Redis,
     private userService: UserService,
     @InjectRepository(User)
+    private userRepository: Repository<User>,
+    @InjectRepository(UserFriend)
     private userFriendRepository: Repository<UserFriend>,
+    @InjectRepository(GameChannel)
+    private gameChannelRepository: Repository<GameChannel>,
     private gameService: GameService,
   ) {}
 
@@ -56,6 +63,8 @@ export class UserGateway
   }
 
   async handleConnection(socket: Socket) {
+    //userId 필요함
+    //this.connectedClients.set(socket.handshake.query["userId"], socket);
     //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
@@ -63,6 +72,7 @@ export class UserGateway
   }
 
   handleDisconnect(socket: Socket) {
+    //this.connectedClients.delete(socket.handshake.query["userId"]);
     this.logger.verbose(`${socket.id} is disconnected...`);
   }
 
@@ -311,15 +321,16 @@ export class UserGateway
     const makeMatch = setInterval(async () => {
       const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
+        const quickMatchNum = await this.gameChannelRepository.find({
+          where: { title: Like(`%Quick Match#%`) },
+        });
         // Dequeue the first two players from the queue
         const homePlayer = await this.redisClient.lpop("QM");
         const awayPlayer = await this.redisClient.lpop("QM");
 
-        console.log(homePlayer, awayPlayer);
-
         const newGame = {
           id: 0,
-          title: "test",
+          title: "Quick Match#" + quickMatchNum,
           gameChannelPolicy: GameChannelPolicy.PUBLIC,
           password: null,
           creatorId: parseInt(homePlayer),
@@ -366,6 +377,90 @@ export class UserGateway
       } else {
         await this.redisClient.lrem("QM", 0, userId);
         socket.leave(`QM|${userId}`);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  @SubscribeMessage("sendInviteList")
+  async sendInviteList(@ConnectedSocket() socket: Socket) {
+    try {
+      //userList에 같은 userId가 있는지 확인
+      const userList = await this.userRepository.find({
+        where: { status: UserStatus.ONLINE },
+      });
+
+      if (userList.length === 0) {
+        throw new HttpException("No user found", 404);
+      } else {
+        const vaildInviteList = [];
+
+        for (const idx in userList) {
+          const connectedUser = connectedClients.has(userList[idx].id);
+          if (!connectedUser) {
+            const userInfo = {
+              nickname: userList[idx].nickname,
+            };
+            vaildInviteList.push(userInfo);
+          }
+        }
+
+        this.server.to(socket.id).emit("inviteList", vaildInviteList);
+      }
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
+  @SubscribeMessage("inviteUser")
+  async inviteUser(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      const { userId, inviteUserNick } = data;
+
+      const inviteUser =
+        await this.userService.findUserByNickname(inviteUserNick);
+
+      const connectedUser = this.connectedClients.get(inviteUser.id);
+
+      if (!inviteUser) {
+        throw new HttpException("No user found", 404);
+      } else if (inviteUser.id === userId) {
+        throw new HttpException("Can't invite yourself", 400);
+      } else if (inviteUser.status === UserStatus.OFFLINE) {
+        throw new HttpException("User is offline", 400);
+      } else if (connectedUser) {
+        throw new HttpException("User is already in game", 400);
+      } else {
+        const quickMatchNum = await this.gameChannelRepository.find({
+          where: { title: Like(`%Quick Match#%`) },
+        });
+
+        const newGame = {
+          id: 0,
+          title: "Quick Match#" + quickMatchNum,
+          gameChannelPolicy: GameChannelPolicy.PUBLIC,
+          password: null,
+          creatorId: parseInt(userId),
+          gameType: GameType.NORMAL,
+          gameMode: GameMode.NORMAL,
+          curUser: 0,
+          maxUser: 2,
+          gameStatus: GameStatus.READY,
+        };
+
+        this.gameService.createGame(newGame);
+
+        // Create a game instance or use existing logic to set up a game with player1 and player2
+
+        // Notify players that the game is starting and provide opponent information
+        // Emit an event to start the game for both players
+
+        this.server.to(`QM|${userId}`).emit("gameMatch");
+        this.server.to(`QM|${inviteUser.id}`).emit("gameMatch");
       }
     } catch (error) {
       console.log(error);
