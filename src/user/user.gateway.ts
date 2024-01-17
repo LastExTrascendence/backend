@@ -17,10 +17,9 @@ import { format } from "date-fns";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { User } from "./entity/user.entity";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, Like, Repository } from "typeorm";
+import { In, IsNull, Like, Repository } from "typeorm";
 import { UserFriend } from "./entity/user.friend.entity";
 import * as config from "config";
-import { GameService } from "src/game/game.service";
 import {
   GameChannelPolicy,
   GameMode,
@@ -30,6 +29,7 @@ import {
 import { GameChannel } from "src/game/entity/game.channel.entity";
 import { UserStatus } from "./entity/user.enum";
 import { connectedClients } from "src/game/game.gateway";
+import { GameChannelService } from "src/game/game.channel.service";
 
 //path, endpoint
 
@@ -55,7 +55,7 @@ export class UserGateway
     private userFriendRepository: Repository<UserFriend>,
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
-    private gameService: GameService,
+    private gameChannelService: GameChannelService,
   ) {}
 
   afterInit() {
@@ -180,7 +180,6 @@ export class UserGateway
           message.receiver = (
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
-          console.log(message);
           this.server.to(socket.id).emit("msgToClient", message);
         } else {
           const message = {
@@ -195,7 +194,6 @@ export class UserGateway
           message.receiver = (
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
-          console.log(message);
           this.server.to(socket.id).emit("msgToClient", message);
         }
       }
@@ -322,7 +320,7 @@ export class UserGateway
       const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
         const quickMatchNum = await this.gameChannelRepository.find({
-          where: { title: Like(`%Quick Match#%`) },
+          where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
         });
         // Dequeue the first two players from the queue
         const homePlayer = await this.redisClient.lpop("QM");
@@ -341,7 +339,7 @@ export class UserGateway
           gameStatus: GameStatus.READY,
         };
 
-        this.gameService.createGame(newGame);
+        this.gameChannelService.createGame(newGame);
 
         // Create a game instance or use existing logic to set up a game with player1 and player2
 
@@ -436,7 +434,7 @@ export class UserGateway
         throw new HttpException("User is already in game", 400);
       } else {
         const quickMatchNum = await this.gameChannelRepository.find({
-          where: { title: Like(`%Quick Match#%`) },
+          where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
         });
 
         const newGame = {
@@ -452,7 +450,7 @@ export class UserGateway
           gameStatus: GameStatus.READY,
         };
 
-        this.gameService.createGame(newGame);
+        this.gameChannelService.createGame(newGame);
 
         // Create a game instance or use existing logic to set up a game with player1 and player2
 

@@ -23,6 +23,8 @@ import { format } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
+import { GameService } from "./game.service";
+import { GamePlayerService } from "./game.player.service";
 
 export const connectedClients: Map<number, Socket> = new Map();
 
@@ -50,6 +52,8 @@ export class GameGateWay {
     private gamePlayerRepository: Repository<GamePlayer>,
     private redisClient: Redis,
     private userService: UserService,
+    private gameService: GameService,
+    private gamePlayerService: GamePlayerService,
   ) {}
 
   @WebSocketServer()
@@ -239,6 +243,7 @@ export class GameGateWay {
         { title: data.title },
         { game_status: GameStatus.INGAME },
       );
+      await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
       this.server.to(data.gameId.toString()).emit("gameStart");
     }
@@ -427,44 +432,47 @@ export class GameGateWay {
         dy: 10, // Initial speed in the y direction
       };
 
-      let disconnectTimeout: NodeJS.Timeout;
-
-      //const disconnectIssue = () => {
-      //  // Set a timeout to pause the game for 3 minutes after disconnection
-      //  disconnectTimeout = setTimeout(
-      //    async () => {
-      //      clearInterval(intervalId);
-      //      // Resume the game logic or handle it as needed
-
-      //      // Check if the user reconnected within the timeout
-      //      const isReconnected = await checkReconnectionStatus(socket.id);
-
-      //      if (!isReconnected) {
-      //        // Apply forfeit to the disconnected user
-      //        // Implement your forfeit logic here
-
-      //        // Grant a bye to the remaining users
-      //        grantByeToRemainingUsers(socket.id, data.gameId);
-
-      //        // Optionally emit an event to inform clients about the forfeit
-      //        server
-      //          .to(data.gameId.toString())
-      //          .emit("forfeit", { disconnectedUserId: socket.id });
-
-      //        // Remove the disconnected user from the game
-      //        removeDisconnectedUser(socket.id, data.gameId);
-      //      }
-      //    },
-      //    3 * 60 * 1000,
-      //  );
-      //};
+      //  minimumSpeed: number,
+      //averageSpeed: number,
+      //maximumSpeed: number,
+      let numberOfRounds = 0;
+      let numberOfBounces = 0;
+      let homeScore = 0;
+      let awayScore = 0;
+      let disconnectTimeout: NodeJS.Timeout | null = null;
 
       // Add event listeners for paddle movement
 
       //this.server.socketsJoin(data.gameId.toString());
 
       const intervalId = setInterval(async () => {
-        const calculatedCoordinates = calculateCoordinates(
+        if (!socket.connected) {
+          // If the socket is not connected, set up a timeout to handle disconnection
+          if (!disconnectTimeout) {
+            disconnectTimeout = setTimeout(
+              () => {
+                clearInterval(intervalId);
+                this.logger.debug(
+                  `Game terminated due to disconnection: ${data.gameId}`,
+                );
+              },
+              3 * 60 * 1000,
+            ); // 3 minutes timeout
+          }
+          return;
+        }
+
+        if (disconnectTimeout) {
+          clearTimeout(disconnectTimeout);
+          disconnectTimeout = null;
+        }
+
+        const calculatedCoordinates = await calculateCoordinates(
+          numberOfRounds,
+          numberOfBounces,
+          data,
+          homeScore,
+          awayScore,
           ballState,
           homePaddleState.y,
           awayPaddleState.y,
@@ -474,6 +482,11 @@ export class GameGateWay {
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
         );
+
+        if (homeScore === 5 || awayScore === 5) {
+          clearInterval(intervalId);
+          return;
+        }
 
         const returnData = {
           x: calculatedCoordinates.ball.x,
@@ -552,42 +565,15 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
-
-  // gameId: 게임방 id
-  // team: home || away
-  // key: 키값 up || down
-  //@SubscribeMessage("gameKeyDown")
-  //async movePaddle(
-  //  @MessageBody() data: any,
-  //  @ConnectedSocket() socket: Socket,
-  //) {
-  //  try {
-  //    // 해당하는 키를 눌렀음. 이제 해당하는 키를 누른 유저의 패들을 움직여야 함.
-  //    // paddle up / down logic
-  //  } catch (error) {
-  //    console.log(error);
-  //  }
-  //}
-
-  // gameId: 게임방 id
-  // team: home || away
-  // key: 키값 up || down
-  //  @SubscribeMessage("gameKeyUp")
-  //  async stopPaddle(
-  //    @MessageBody() data: any,
-  //    @ConnectedSocket() socket: Socket,
-  //  ) {
-  //    try {
-  //      // 해당하는 키를 때었음. 이제 해당하는 키를 누른 유저의 패들을 멈춰야 함.
-  //      // paddle stop logic
-  //    } catch (error) {
-  //      console.log(error);
-  //    }
-  //  }
 }
 
 // 좌표 계산 로직을 수행하는 함수
-function calculateCoordinates(
+async function calculateCoordinates(
+  numberOfRounds: number,
+  numberOfBounces: number,
+  data: any,
+  homeScore: number,
+  awayScore: number,
   ballState: { x: number; y: number; dx: number; dy: number },
   homePaddlePos: number,
   awayPaddlePos: number,
@@ -596,7 +582,11 @@ function calculateCoordinates(
   ballSize: number,
   paddleHeight: number,
   paddleWidth: number,
-) {
+): Promise<{
+  ball: { x: number; y: number };
+  homePaddle: { x: number; y: number };
+  awayPaddle: { x: number; y: number };
+}> {
   if (homePaddlePos < 0) {
     homePaddlePos = 0;
   } else if (homePaddlePos + paddleHeight > height) {
@@ -617,6 +607,7 @@ function calculateCoordinates(
 
   // Reflect ball when hitting top or bottom
   if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
+    numberOfBounces++;
     ballState.dy = -ballState.dy;
   }
 
@@ -629,6 +620,7 @@ function calculateCoordinates(
       ballState.y + ballSize / 2 >= awayPaddlePos &&
       ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
   ) {
+    numberOfBounces++;
     ballState.dx = -ballState.dx;
   }
   homePaddlePos += homePaddleState.dy;
@@ -640,12 +632,55 @@ function calculateCoordinates(
   // Ensure the paddles stay within the vertical bounds
 
   // Check if the ball passes the paddles (you may need to adjust this logic)
-  if (ballState.x + ballSize / 2 > width || ballState.x - ballSize / 2 < 0) {
-    // Handle scoring or game-over logic here
-    // Reset ball position, direction, etc.
-    ballState.x = width / 2;
-    ballState.y = height / 2;
-    ballState.dx = -ballState.dx; // Change direction
+  if (ballState.x - ballSize / 2 < 0) {
+    numberOfRounds++;
+    homeScore++;
+    if (homeScore === 5) {
+      // 홈팀 승자로 넣기
+      await this.GamePlayerService.saveGamePlayer(
+        data.gameId,
+        data.homeId,
+        homeScore,
+      );
+      await this.GamePlayerService.saveGamePlayer(
+        data.gameId,
+        data.awayId,
+        awayScore,
+      );
+      return;
+    } else {
+      // Reset ball position and direction for the next round
+
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+    }
+  } else if (ballState.x + ballSize / 2 > width) {
+    numberOfRounds++;
+    awayScore++;
+    if (awayScore === 5) {
+      //away팀 승자로 넣기
+      await this.GamePlayerService.saveGamePlayer(
+        data.gameId,
+        data.homeId,
+        homeScore,
+      );
+      await this.GamePlayerService.saveGamePlayer(
+        data.gameId,
+        data.awayId,
+        awayScore,
+      );
+      await this.gameService.recordGame(
+        data.gameId,
+        numberOfRounds,
+        numberOfBounces,
+      );
+      return;
+    } else {
+      ballState.x = width / 2;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+    }
   }
 
   return {
