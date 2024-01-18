@@ -18,8 +18,8 @@ import { format } from "date-fns";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 
-// connectedClients를 export 해서 다른 곳에서도 사용할 수 있도록 한다.
-export const connectedClients: Map<number, Socket> = new Map();
+// channelConnectedClients를 export 해서 다른 곳에서도 사용할 수 있도록 한다.
+export const channelConnectedClients: Map<number, Socket> = new Map();
 
 //방에 있는 사람들 속성
 @WebSocketGateway(81, {
@@ -65,10 +65,10 @@ export class ChannelGateWay {
       const { userId, title } = data;
 
       //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
-      if (connectedClients.has(userId)) {
-        const targetClient = connectedClients.get(userId);
+      if (channelConnectedClients.has(userId)) {
+        const targetClient = channelConnectedClients.get(userId);
         targetClient.disconnect(true);
-        connectedClients.delete(data.userId);
+        channelConnectedClients.delete(data.userId);
       }
 
       const channelInfo = await this.channelRepository.findOne({
@@ -80,7 +80,7 @@ export class ChannelGateWay {
       });
 
       this.server.socketsJoin(channelInfo.id.toString());
-      connectedClients.set(userId, socket);
+      channelConnectedClients.set(userId, socket);
 
       //입장불가
       //1. 비밀번호 입력자가 아닌 경우
@@ -98,17 +98,17 @@ export class ChannelGateWay {
 
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
-          const targetClient = connectedClients.get(userId);
+          const targetClient = channelConnectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(channelInfo.id.toString());
-          connectedClients.delete(data.userId);
+          channelConnectedClients.delete(data.userId);
           return;
         }
       } else if (channelInfo.cur_user === channelInfo.max_user) {
-        const targetClient = connectedClients.get(userId);
+        const targetClient = channelConnectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
-        connectedClients.delete(data.userId);
+        channelConnectedClients.delete(data.userId);
         return;
       }
 
@@ -118,10 +118,10 @@ export class ChannelGateWay {
 
       if (checkAccesableUser) {
         if (checkAccesableUser.ban === true) {
-          const targetClient = connectedClients.get(userId);
+          const targetClient = channelConnectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(channelInfo.id.toString());
-          connectedClients.delete(data.userId);
+          channelConnectedClients.delete(data.userId);
           return;
         }
       }
@@ -310,10 +310,10 @@ export class ChannelGateWay {
           { user_id: kickUser.id, channel_id: channelInfo.id },
           { deleted_at: new Date() },
         );
-        const targetClient = connectedClients.get(kickUser.id);
+        const targetClient = channelConnectedClients.get(kickUser.id);
         targetClient.disconnect(true);
         //socket.leave(channelInfo.id.toString());
-        connectedClients.delete(kickUser.id);
+        channelConnectedClients.delete(kickUser.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         kickUserInfo.role === ChatChannelUserRole.USER
@@ -322,10 +322,10 @@ export class ChannelGateWay {
           { user_id: kickUser.id, channel_id: channelInfo.id },
           { deleted_at: new Date() },
         );
-        const targetClient = connectedClients.get(kickUser.id);
+        const targetClient = channelConnectedClients.get(kickUser.id);
         targetClient.disconnect(true);
         //socket.leave(channelInfo.id.toString());
-        connectedClients.delete(kickUser.id);
+        channelConnectedClients.delete(kickUser.id);
       }
 
       this.updateCurUser(channelInfo.title, channelInfo.id);
@@ -371,10 +371,10 @@ export class ChannelGateWay {
           { user_id: banUser.id, channel_id: channelInfo.id },
           { ban: true, deleted_at: new Date() },
         );
-        const targetClient = connectedClients.get(banUser.id);
+        const targetClient = channelConnectedClients.get(banUser.id);
         targetClient.disconnect(true);
         //socket.leave(channelInfo.id.toString());
-        connectedClients.delete(banUser.id);
+        channelConnectedClients.delete(banUser.id);
       } else if (
         userInfo.role === ChatChannelUserRole.OPERATOR &&
         banUserInfo.role === ChatChannelUserRole.USER
@@ -383,10 +383,10 @@ export class ChannelGateWay {
           { user_id: banUser.id, channel_id: channelInfo.id },
           { ban: true, deleted_at: new Date() },
         );
-        const targetClient = connectedClients.get(banUser.id);
+        const targetClient = channelConnectedClients.get(banUser.id);
         targetClient.disconnect(true);
         //socket.leave(channelInfo.id.toString());
-        connectedClients.delete(banUser.id);
+        channelConnectedClients.delete(banUser.id);
       }
       this.updateCurUser(channelInfo.title, channelInfo.id);
 
@@ -465,7 +465,7 @@ export class ChannelGateWay {
         { deleted_at: new Date() },
       );
       socket.leave(channelInfo.id.toString());
-      connectedClients.delete(data.userId);
+      channelConnectedClients.delete(data.userId);
       this.updateCurUser(channelInfo.title, data.channelId);
 
       this.sendUserList(data.userId, channelInfo.id, socket);

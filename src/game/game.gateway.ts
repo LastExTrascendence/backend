@@ -27,7 +27,7 @@ import { GamePlayerService } from "./game.player.service";
 import { GameService } from "./game.service";
 import { Mutex } from "async-mutex";
 
-export const connectedClients: Map<number, Socket> = new Map();
+export const gameConnectedClients: Map<number, Socket> = new Map();
 
 const homePaddleState = {
   y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
@@ -108,10 +108,10 @@ export class GameGateWay {
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
 
       //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
-      if (connectedClients.has(userId)) {
-        const targetClient = connectedClients.get(userId);
+      if (gameConnectedClients.has(userId)) {
+        const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
-        connectedClients.delete(data.userId);
+        gameConnectedClients.delete(data.userId);
       }
 
       const gameChannelInfo = await this.gameChannelRepository.findOne({
@@ -119,7 +119,7 @@ export class GameGateWay {
       });
 
       this.server.socketsJoin(gameChannelInfo.id.toString());
-      connectedClients.set(userId, socket);
+      gameConnectedClients.set(userId, socket);
 
       //입장불가
       //1. 비밀번호 입력자가 아닌 경우
@@ -135,17 +135,17 @@ export class GameGateWay {
 
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
-          const targetClient = connectedClients.get(userId);
+          const targetClient = gameConnectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(gameChannelInfo.id.toString());
-          connectedClients.delete(data.userId);
+          gameConnectedClients.delete(data.userId);
           return;
         }
       } else if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
-        const targetClient = connectedClients.get(userId);
+        const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
-        connectedClients.delete(data.userId);
+        gameConnectedClients.delete(data.userId);
         return;
       }
 
@@ -167,10 +167,10 @@ export class GameGateWay {
         redisInfo.creatorOnline === "false" &&
         redisInfo.userOnline === "true"
       ) {
-        const targetClient = connectedClients.get(userId);
+        const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
-        connectedClients.delete(data.userId);
+        gameConnectedClients.delete(data.userId);
         await this.redisClient.hset(`GM|${title}`, "user", null);
         await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
         return;
@@ -285,9 +285,9 @@ export class GameGateWay {
         throw new Error("방장이 아닙니다.");
       }
 
-      const targetClient = connectedClients.get(kickUser.id);
+      const targetClient = gameConnectedClients.get(kickUser.id);
       targetClient.disconnect(true);
-      connectedClients.delete(kickUser.id);
+      gameConnectedClients.delete(kickUser.id);
       await this.redisClient.hset(`GM|${title}`, "user", null);
       await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
 
@@ -315,9 +315,9 @@ export class GameGateWay {
       if (creatorId === data.userId) {
         //방장이 나간경우
         if (userId) {
-          const targetClient = connectedClients.get(userId);
+          const targetClient = gameConnectedClients.get(userId);
           targetClient.disconnect(true);
-          connectedClients.delete(userId);
+          gameConnectedClients.delete(userId);
         }
         await this.gameChannelRepository.update(
           { title: data.title },
@@ -328,9 +328,9 @@ export class GameGateWay {
         //유저가 나간 경우
         await this.redisClient.hset(`GM|${data.title}`, "user", null);
         await this.redisClient.hset(`GM|${data.title}`, "userOnline", "false");
-        const targetClient = connectedClients.get(userId);
+        const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
-        connectedClients.delete(userId);
+        gameConnectedClients.delete(userId);
         this.updateCurUser(data.title, channelInfo.id);
         this.sendUserList(data.title, channelInfo.id);
       }
@@ -487,6 +487,7 @@ export class GameGateWay {
       l: data.l,
       r: data.r,
     };
+    console.log("returnData", returnData);
     await this.server.to(data.gameId).emit("loopGameData", returnData);
   }
 
