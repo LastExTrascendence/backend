@@ -16,6 +16,7 @@ import {
   GameChannelPolicy,
   GameStatus,
   GameUserRole,
+  GameResult,
 } from "../enum/game.enum";
 
 /**
@@ -141,7 +142,7 @@ export class gameRecordDto {
   nickname: string;
 
   @IsEnum(GameUserRole)
-  gameUserRole: GameUserRole;
+  gameUserRole: GameResult;
 
   @IsEnum(GameType)
   gameType: GameType;

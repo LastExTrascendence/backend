@@ -52,9 +52,9 @@ export class GamePlayerService {
         const gamePlayerRecord: gameRecordDto = {
           nickname: gamePlayer.nickname,
           gameUserRole: gamePlayerInfo[i].game_user_role,
-          gameType: gameInfo.game_type,
-          gameMode: gameInfo.game_mode,
-          date: gameInfo.ended_at,
+          gameType: gameInfo.gameType,
+          gameMode: gameInfo.gameMode,
+          date: gameInfo.endedAt,
         };
 
         totalUserStatsInfo.push(gamePlayerRecord);

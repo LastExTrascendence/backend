@@ -91,15 +91,14 @@ export class UserController {
   }
 
   //특정 유저의 모든 친구 정보 확인
-  @Get("/friend/find/all")
+  @Get("/friend")
   @UseGuards(JWTAuthGuard)
-  findAllFriend(@Req() req: any) {
+  async findAllFriend(@User() user: userSessionDto) {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.findAllFriend.name}`,
+    );
     try {
-      console.log(req);
-      this.logger.debug(
-        `Called ${UserController.name} ${this.findAllFriend.name}`,
-      );
-      return this.friendService.findAllFriend(req.user_id);
+      return await this.friendService.findAllFriend(user.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -126,14 +125,20 @@ export class UserController {
   }
 
   //특정 유저의 특정 한 유저 친구 삭제
-  @Delete("/friend/remove")
+  @Post("/friend/remove")
   @UseGuards(JWTAuthGuard)
-  deleteFriend(@Req() req: any) {
+  async deleteFriend(
+    @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
+    @User() user: userSessionDto,
+  ) {
     this.logger.debug(
       `Called ${UserController.name} ${this.deleteFriend.name}`,
     );
     try {
-      return this.friendService.removeFriend(req.user_id, req.friend_id);
+      const friend = await this.userService.findUserByNickname(
+        userAddFriendRequestDto.nickname,
+      );
+      return this.friendService.removeFriend(user.id, friend.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }

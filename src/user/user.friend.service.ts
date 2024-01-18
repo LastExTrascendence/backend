@@ -3,6 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { And, Repository } from "typeorm";
 import { UserFriend } from "./entity/user.friend.entity";
 import { UserService } from "./user.service";
+import { UserFriendListResponseDto } from "./dto/user.friend.dto";
 
 @Injectable()
 export class FriendService {
@@ -52,25 +53,28 @@ export class FriendService {
       throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
+  // export class UserFriendListResponseDto {
+  //   id: number;
+  //   nickname: string;
+  //   avatar: string;
+  // }
 
-  async findAllFriend(id: number): Promise<UserFriend[]> {
+  async findAllFriend(id: number): Promise<any> {
     try {
-      const user = await this.userService.findUserById(id);
-
-      const user_id = user.id;
-
-      const friendedUser = await this.friendRepository.find({
-        where: { user_id },
+      const friends = await this.friendRepository.find({
+        where: { user_id: id },
       });
-
-      if (!friendedUser) {
-        throw new HttpException(
-          "팔로우할 유저가 존재하지 않습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
-      }
-
-      return friendedUser;
+      const friendIds = friends.map((friend) => friend.friend_id);
+      const friendList = await this.userService.findUserByIds(friendIds);
+      const response = friendList.map((friend) => {
+        return {
+          id: friend.id,
+          nickname: friend.nickname,
+          avatar: friend.avatar || null,
+          status: friend.status,
+        } as UserFriendListResponseDto;
+      });
+      return response;
     } catch (e) {
       throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
@@ -116,8 +120,8 @@ export class FriendService {
         .where("user_id = :user_id", {
           user_id: followedUserId,
         })
-        .andWhere("unfollwing_user_id = :unfollwing_user_id", {
-          unfollwing_user_id: followingUserId,
+        .andWhere("friend_id = :friend_id", {
+          friend_id: followingUserId,
         })
         .execute();
     } catch (e) {

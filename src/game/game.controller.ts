@@ -14,6 +14,7 @@ import {
 import {
   gameChannelListDto,
   gameRecordDto,
+  gameStatsDto,
   gameUserVerifyDto,
 } from "./dto/game.dto";
 import { GameService } from "./game.service";
