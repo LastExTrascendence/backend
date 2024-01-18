@@ -25,6 +25,7 @@ import { GameChannel } from "./entity/game.channel.entity";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { GamePlayerService } from "./game.player.service";
 import { GameService } from "./game.service";
+import { Mutex } from "async-mutex";
 
 export const connectedClients: Map<number, Socket> = new Map();
 
@@ -42,6 +43,7 @@ let numberOfRounds = 0;
 let numberOfBounces = 0;
 let homeScore = 0;
 let awayScore = 0;
+
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
@@ -60,7 +62,7 @@ export class GameGateWay {
     private userService: UserService,
     private gamePlayerService: GamePlayerService,
     private gameService: GameService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -219,7 +221,7 @@ export class GameGateWay {
 
     if (
       data.myId === parseInt(startInfo.creator) &&
-      startInfo.userReady === "true" &&
+      //startInfo.userReady === "true" &&
       startInfo.creatorOnline === "true"
     ) {
       await this.gameChannelRepository.update(
@@ -410,8 +412,10 @@ export class GameGateWay {
       const ballState = {
         // x: Math.floor(GameComponent.width - GameComponent.ballSize),
         // y: Math.floor(GameComponent.height - GameComponent.ballSize),
-        x: GameComponent.width - GameComponent.ballSize,
-        y: GameComponent.height - GameComponent.ballSize,
+        //x: GameComponent.width - GameComponent.ballSize,
+        //y: GameComponent.height - GameComponent.ballSize,
+        x: GameComponent.width / 2,
+        y: GameComponent.height / 2,
         dx: 6, // Initial speed in the x direction
         dy: 6, // Initial speed in the y direction
       };
@@ -420,14 +424,13 @@ export class GameGateWay {
       //averageSpeed: number,
       //maximumSpeed: number,
 
-      let disconnectTimeout: NodeJS.Timeout | null = null;
-
       // Add event listeners for paddle movement
 
       //this.server.socketsJoin(data.gameId.toString());
+      const mutex = new Mutex();
       let cnt = 0;
       const intervalId = setInterval(async () => {
-        cnt++;
+        mutex.acquire();
 
         const calculatedCoordinates = await this.calculateCoordinates(
           data,
@@ -440,8 +443,10 @@ export class GameGateWay {
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
         );
+        console.log("scores", homeScore, awayScore);
 
         if (homeScore === 5 || awayScore === 5) {
+          mutex.release();
           clearInterval(intervalId);
           return;
         }
@@ -453,15 +458,17 @@ export class GameGateWay {
           r: calculatedCoordinates.awayPaddle.y,
         };
 
-        //console.log(cnt);
+        //console.log(mutex);
 
         //this.logger.debug(
         //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
         //);
 
         // await this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
-        this.transferData(returnData, cnt, data.gameId.toString(), homeScore, awayScore);
-      }, 1000 / 30);
+        ++cnt;
+        this.transferData(returnData, cnt, data.gameId.toString());
+        mutex.release();
+      }, 1000 / 60);
 
       socket.on("disconnect", () => {
         clearInterval(intervalId);
@@ -471,7 +478,7 @@ export class GameGateWay {
     }
   }
 
-  async transferData(data: any, cnt: number, gameId: string, homeScore: number, awayScore: number) {
+  async transferData(data: any, cnt: number, gameId: string) {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
     const returnData = {
@@ -480,7 +487,7 @@ export class GameGateWay {
       l: data.l,
       r: data.r,
     };
-    await this.server.to(gameId).emit("loopGameData", returnData);
+    await this.server.to(data.gameId).emit("loopGameData", returnData);
   }
 
   async sendUserList(title: string, channelId: number) {
@@ -601,9 +608,12 @@ export class GameGateWay {
       ballState.y = height / 2;
       ballState.dx = -ballState.dx;
 
-      // homeScore++;
+      homeScore++;
       numberOfRounds++;
-      if (homeScore === 4) {
+      this.server
+        .to(data.gameId.toString())
+        .emit("score", [homeScore, awayScore]);
+      if (homeScore === 5) {
         // 홈팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
           data.gameId,
@@ -615,32 +625,22 @@ export class GameGateWay {
           data.awayId,
           awayScore,
         );
+        //await this.gameService.saveRecord(
+        //  data.gameId,
+        //  numberOfRounds,
+        //  numberOfBounces,
+        //);
         return;
       }
-
-      //await this.server.to(data.gameId.toString()).emit("score", [
-      //  homeScore,
-      //  awayScore,
-      //]);
-
-
-      //}, 1000 * 3);
-
-
-      // this.server.to(data.gameId.toString()).emit("score", [
-      //   homeScore,
-      //   awayScore,
-      // ]);
     } else if (ballState.x + ballSize / 2 > width) {
-
       ballState.x = width / 2;
       ballState.y = height / 2;
       ballState.dx = -ballState.dx;
       numberOfRounds++;
-
-      //const timeOut = setTimeout(async () => {
-      // awayScore++;
-
+      awayScore++;
+      this.server
+        .to(data.gameId.toString())
+        .emit("score", [homeScore, awayScore]);
       if (awayScore === 5) {
         //away팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
@@ -660,19 +660,6 @@ export class GameGateWay {
         //);
         return;
       }
-      //await this.server.to(data.gameId.toString()).emit("score", [
-      //  homeScore,
-      //  awayScore,
-      //]);
-      //}, 1000 * 3);
-
-
-
-      // this.server.to(data.gameId.toString()).emit("score", [
-      //   homeScore,
-      //   awayScore,
-      // ]);
-
     }
 
     return {
@@ -683,7 +670,6 @@ export class GameGateWay {
   }
 }
 // 좌표 계산 로직을 수행하는 함수
-
 
 function showTime(currentDate: Date) {
   const formattedTime = format(currentDate, "h:mm a");
