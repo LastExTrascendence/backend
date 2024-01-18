@@ -32,7 +32,37 @@ export class GamePlayerService {
     }
   }
 
-  //Record
+  async saveGamePlayer(
+    game_id: number,
+    user_id: number,
+    score: number,
+  ): Promise<void | HttpException> {
+    try {
+      let userRole = null;
+      if (score == 5) {
+        userRole = GameResult.WINNER;
+      } else if (score < 5 && score >= 0) {
+        userRole = GameResult.LOSER;
+      } else {
+        throw new HttpException(
+          "게임 플레이어 저장에 실패하였습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+      const gamePlayer = await this.gamePlayerRepository.save({
+        game_id: game_id,
+        user_id: user_id,
+        role: userRole,
+        score: score,
+      });
+    } catch (error) {
+      throw new HttpException(
+        "게임 플레이어 저장에 실패하였습니다.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   async getGamePlayerRecord(
     _nickname: string,
   ): Promise<gameRecordDto[] | HttpException> {
@@ -115,26 +145,20 @@ export class GamePlayerService {
         averageScorePerWin:
           gamePlayerInfo
             .filter(
-              (gamePlayerInfo) =>
-                gamePlayerInfo.game_user_role === GameResult.WINNER,
+              (gamePlayerInfo) => gamePlayerInfo.role === GameResult.WINNER,
             )
             .map((gamePlayerInfo) => gamePlayerInfo.score)
             .reduce((a, b) => a + b, 0) /
           gamePlayerInfo.filter(
-            (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameResult.WINNER,
+            (gamePlayerInfo) => gamePlayerInfo.role === GameResult.WINNER,
           ).length,
         //winStreaks는 gamePlayerInfo에서 최근 게임을 기준으로 연속적으로 승리한 게임의 개수를 구한다.
         //예를들어 최근부터, win, win, win, lose, win 이라면 winStreaks는 3이 된다.
         winStreaks: gamePlayerInfo
-          .filter(
-            (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameResult.WINNER,
-          )
+          .filter((gamePlayerInfo) => gamePlayerInfo.role === GameResult.WINNER)
           .reverse()
           .findIndex(
-            (gamePlayerInfo) =>
-              gamePlayerInfo.game_user_role === GameResult.LOSER,
+            (gamePlayerInfo) => gamePlayerInfo.role === GameResult.LOSER,
           ),
         //averageSpeed는 gameInfo.averageSpeed 모두 더한 후 gameInfo의 개수로 나눈다.
         averageSpeed:

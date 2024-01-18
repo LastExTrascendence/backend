@@ -245,10 +245,8 @@ export class UserController {
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
-          .length,
-        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
-          .length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
       };
       return Userprofile;
     } catch (e) {
@@ -337,10 +335,8 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
-          .length,
-        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
-          .length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
       };
@@ -376,10 +372,8 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
-        wins: UserGameInfo.filter((game) => game.game_user_role === "WINNER")
-          .length,
-        loses: UserGameInfo.filter((game) => game.game_user_role === "LOSER")
-          .length,
+        wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
+        loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
         is_friend: UserFriendInfo ? true : false,
         at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
       };

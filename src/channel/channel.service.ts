@@ -2,7 +2,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 //import { ChannelsRepository } from "./channels.repository";
 import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
 import { Channels } from "./entity/channels.entity";
-import { Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { chatChannelListDto } from "./dto/channels.dto";
 import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
@@ -23,7 +23,7 @@ export class ChannelsService {
     @InjectRepository(ChannelUser)
     private channelUserRepository: Repository<ChannelUser>,
     private userService: UserService,
-    private RedisClient: Redis,
+    private redisClient: Redis,
   ) {}
 
   async createChannel(
@@ -66,7 +66,10 @@ export class ChannelsService {
         created_at: new Date(),
         deleted_at: null,
       };
-      if (chatChannelListDto.password) {
+      if (
+        chatChannelListDto.password &&
+        chatChannelListDto.channelPolicy === ChatChannelPolicy.PRIVATE
+      ) {
         newChannel.channel_policy = ChatChannelPolicy.PRIVATE;
       }
 
@@ -76,17 +79,29 @@ export class ChannelsService {
         where: { title: newChannel.title },
       });
 
-      await this.RedisClient.hset(
+      await this.redisClient.hset(
         `CH|${chatChannelListDto.title}`,
         "title",
         chatChannelListDto.title,
       );
 
-      if (chatChannelListDto.password) {
-        await this.RedisClient.hset(
+      if (
+        chatChannelListDto.password &&
+        chatChannelListDto.channelPolicy === ChatChannelPolicy.PRIVATE
+      ) {
+        const hashedPassword = await bcrypt.hash(
+          chatChannelListDto.password,
+          10,
+        );
+        await this.redisClient.hset(
           `CH|${chatChannelListDto.title}`,
           "password",
-          await bcrypt.hash(chatChannelListDto.password, 10),
+          hashedPassword,
+        );
+        await this.redisClient.hset(
+          `CH|${chatChannelListDto.title}`,
+          `ACCESS|${chatChannelListDto.creatorId}`,
+          chatChannelListDto.creatorId,
         );
       }
 
@@ -110,7 +125,7 @@ export class ChannelsService {
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
-      const ChannelInfo = await this.RedisClient.lrange(
+      const ChannelInfo = await this.redisClient.lrange(
         `CH|${channelUserVerify.title}`,
         0,
         -1,
@@ -125,7 +140,7 @@ export class ChannelsService {
         );
       }
 
-      const ChatPassword = await this.RedisClient.hgetall(
+      const ChatPassword = await this.redisClient.hgetall(
         `CH|${channelUserVerify.title}`,
       );
 
@@ -147,9 +162,10 @@ export class ChannelsService {
             channelUserVerify.nickname,
           );
 
-          this.RedisClient.rpush(
+          await this.redisClient.hset(
             `CH|${channelUserVerify.title}`,
             `ACCESS|${userInfo.id}`,
+            userInfo.id,
           );
         }
       } else {
@@ -168,7 +184,25 @@ export class ChannelsService {
 
   async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
+      if (connectedClients.size === 0) {
+        const channelUserInfo = await this.channelUserRepository.find();
+        for (let i = 0; i < channelUserInfo.length; i++) {
+          this.channelUserRepository.update(
+            { id: channelUserInfo[i].id },
+            { deleted_at: new Date() },
+          );
+        }
+        const channelsInfo = await this.channelsRepository.find();
+        for (let i = 0; i < channelsInfo.length; i++) {
+          this.channelsRepository.update(
+            { id: channelsInfo[i].id },
+            { cur_user: 0 },
+          );
+        }
+      }
+
       const channelsInfo = await this.channelsRepository.find({
+        where: { deleted_at: IsNull() },
         order: {
           created_at: "ASC",
         },
@@ -182,22 +216,6 @@ export class ChannelsService {
           },
           HttpStatus.BAD_REQUEST,
         );
-      }
-      if (connectedClients.size === 0) {
-        const channelUserInfo = await this.channelUserRepository.find();
-        for (let i = 0; i < channelUserInfo.length; i++) {
-          this.channelUserRepository.update(
-            { id: channelUserInfo[i].id },
-            { deleted_at: new Date() },
-          );
-          channelUserInfo[i].deleted_at = new Date();
-        }
-        for (let i = 0; i < channelsInfo.length; i++) {
-          this.channelsRepository.update(
-            { id: channelsInfo[i].id },
-            { cur_user: 0 },
-          );
-        }
       }
 
       const totalChannels = [];

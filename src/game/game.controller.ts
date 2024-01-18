@@ -17,16 +17,16 @@ import {
   gameStatsDto,
   gameUserVerifyDto,
 } from "./dto/game.dto";
-import { GameService } from "./game.service";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { GamePlayerService } from "./game.player.service";
+import { GameChannelService } from "./game.channel.service";
 
 @Controller("game")
 @UseGuards(JWTAuthGuard)
 export class GameController {
   private logger = new Logger(GameController.name);
   constructor(
-    private gameService: GameService,
+    private gameChannelService: GameChannelService,
     private gamePlayerSerivce: GamePlayerService,
   ) {}
 
@@ -39,7 +39,7 @@ export class GameController {
       `Called ${GameController.name} ${this.getGameRooms.name}`,
     );
     try {
-      return await this.gameService.getGames(req);
+      return await this.gameChannelService.getGames(req);
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -53,7 +53,7 @@ export class GameController {
   ): Promise<gameChannelListDto | HttpException> {
     this.logger.debug(`Called ${GameController.name} ${this.createGame.name}`);
     try {
-      return await this.gameService.createGame(gameChannelListDto);
+      return await this.gameChannelService.createGame(gameChannelListDto);
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -67,7 +67,7 @@ export class GameController {
   ): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${GameController.name} ${this.enterGame.name}`);
-      await this.gameService.enterGame(gameUserVerifyDto);
+      await this.gameChannelService.enterGame(gameUserVerifyDto);
     } catch (error) {
       this.logger.error(error);
       throw error;

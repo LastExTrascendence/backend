@@ -11,6 +11,7 @@ import { GamePlayerService } from "./game.player.service";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { GameGateWay } from "./game.gateway";
+import { GameChannelService } from "./game.channel.service";
 
 @Module({
   imports: [
@@ -18,7 +19,20 @@ import { GameGateWay } from "./game.gateway";
     TypeOrmModule.forFeature([User, Game, GameChannel, GamePlayer]),
   ],
   controllers: [GameController],
-  providers: [GameService, GamePlayerService, Redis, UserService, GameGateWay],
-  exports: [GameService, GamePlayerService, Redis, GameGateWay],
+  providers: [
+    GameChannelService,
+    GameService,
+    GamePlayerService,
+    Redis,
+    UserService,
+    GameGateWay,
+  ],
+  exports: [
+    GameChannelService,
+    GameService,
+    GamePlayerService,
+    Redis,
+    GameGateWay,
+  ],
 })
 export class GameModule {}

@@ -74,6 +74,7 @@ export class gameChannelDto {
 
 // 게임채널 리스트 보여줄 시
 export class gameChannelListDto {
+  @IsOptional()
   id: number;
 
   @IsString()

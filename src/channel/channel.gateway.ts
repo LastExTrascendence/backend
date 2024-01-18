@@ -79,7 +79,7 @@ export class ChannelGateWay {
         where: { user_id: userId, channel_id: channelInfo.id },
       });
 
-      socket.join(channelInfo.id.toString());
+      this.server.socketsJoin(channelInfo.id.toString());
       connectedClients.set(userId, socket);
 
       //입장불가
@@ -88,19 +88,16 @@ export class ChannelGateWay {
       //3. 벤 상태인 경우
 
       if (channelInfo.channel_policy === ChatChannelPolicy.PRIVATE) {
-        const isPasswordCorrect = await this.redisClient.lrange(
+        //문제되는 부분
+        const isPasswordCorrect = await this.redisClient.hgetall(
           `CH|${channelInfo.title}`,
-          0,
-          -1,
         );
 
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const filter = isPasswordCorrect.filter((value) =>
-          value.startsWith("ACCESS|"),
-        );
+        const passwordValidate = `isPasswordCorrect.ACCESS${userId}`;
 
         //ACCESS 대상이 아닌경우
-        if (!filter) {
+        if (!passwordValidate) {
           const targetClient = connectedClients.get(userId);
           targetClient.disconnect(true);
           socket.leave(channelInfo.id.toString());
@@ -531,4 +528,3 @@ function isMoreThan30SecondsAgo(targetTime: Date): boolean {
 //Channel Gateway 구조 변경(map)
 //ChatChannelListDto 변경 (id : number 추가, FE => BE 시, id는 0)
 //channel GateWay KICK, BAN, MUTE 구현
-("");
