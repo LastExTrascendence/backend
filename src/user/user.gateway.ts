@@ -44,7 +44,6 @@ export class UserGateway
   implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
 {
   private logger = new Logger(UserGateway.name);
-  private connectedClients: Map<number, Socket> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -67,7 +66,8 @@ export class UserGateway
   async handleConnection(socket: Socket) {
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
-    this.connectedClients.set(userId, socket);
+    console.log(userId);
+    userConnectedClients.set(userId, socket);
     //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
@@ -304,14 +304,14 @@ export class UserGateway
     // Store user information in Redis queue
     await this.redisClient.rpush("QM", userId);
 
-    if (this.connectedClients.has(userId)) {
-      const socket = this.connectedClients.get(userId);
+    if (userConnectedClients.has(userId)) {
+      const socket = userConnectedClients.get(userId);
       socket.disconnect();
       throw new HttpException("User already in queue", 400);
     }
 
     this.server.socketsJoin(`QM|${userId}`);
-    this.connectedClients.set(userId, socket);
+    userConnectedClients.set(userId, socket);
 
     //this.server.to(`QM|${userId}`)
     //.emit("enteredQueue", { message: "Entered the quick match queue" });
@@ -396,8 +396,6 @@ export class UserGateway
       const inviteUser =
         await this.userService.findUserByNickname(inviteUserNick);
 
-      const connectedUser = this.connectedClients.get(inviteUser.id);
-
       const splitUrl = url.split("?");
 
       const gameId = splitUrl[0].split("/")[2];
@@ -410,6 +408,10 @@ export class UserGateway
           cur_user: 1,
         },
       });
+
+      if (!gameId || !gameTitle) {
+        throw new HttpException("No game found", 404);
+      }
 
       //입장 불가인 경우
       //1. 게임 방이 없는 경우 || 게임이 시작 된 경우
@@ -425,7 +427,7 @@ export class UserGateway
         throw new HttpException("No game found", 404);
       } else if (inviteUser.id === userId) {
         throw new HttpException("Can't invite yourself", 400);
-      } else if (connectedUser) {
+      } else if (gameConnectedClients) {
         throw new HttpException("User is already in game", 400);
       } else if (inviteUser.status === UserStatus.OFFLINE) {
         throw new HttpException("User is offline", 400);
