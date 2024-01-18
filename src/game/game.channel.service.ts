@@ -12,7 +12,7 @@ import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
-import { connectedClients } from "./game.gateway";
+import { gameConnectedClients } from "./game.gateway";
 
 @Injectable()
 export class GameChannelService {
@@ -209,7 +209,7 @@ export class GameChannelService {
 
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
-      if (connectedClients.size === 0) {
+      if (gameConnectedClients.size === 0) {
         await this.redisClient.del("GM|*");
         await this.gameChannelRepository.update(
           {},
