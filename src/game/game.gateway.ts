@@ -1,4 +1,4 @@
-import { Logger, OnModuleInit, UseGuards } from "@nestjs/common";
+import { HttpException, HttpStatus, Logger, OnModuleInit, UseGuards } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -30,11 +30,11 @@ import { Mutex } from "async-mutex";
 export const gameConnectedClients: Map<number, Socket> = new Map();
 
 const homePaddleState = {
-  y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
+  y: Math.floor(GameComponent.height / 2 - GameComponent.paddleHeight / 2),
   dy: 0, // Initial speed in the y direction
 };
 const awayPaddleState = {
-  y: Math.floor(GameComponent.height - GameComponent.paddleHeight),
+  y: Math.floor(GameComponent.height / 2 - GameComponent.paddleHeight / 2),
   dy: 0, // Initial speed in the y direction
 };
 
@@ -62,7 +62,7 @@ export class GameGateWay {
     private userService: UserService,
     private gamePlayerService: GamePlayerService,
     private gameService: GameService,
-  ) {}
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -103,6 +103,23 @@ export class GameGateWay {
   ) {
     try {
       const { userId, title } = data;
+
+      const gameChannelInfo = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
+
+      if (!userId || !title) {
+        throw new HttpException({
+          status: HttpStatus.NOT_FOUND,
+          error: '입력값이 없습니다',
+        }, HttpStatus.NOT_FOUND);
+      } else if (!gameChannelInfo) {
+        throw new HttpException({
+          status: HttpStatus.NOT_FOUND,
+          error: '존재하지 않는 방입니다.',
+        }, HttpStatus.NOT_FOUND);
+      }
+
       this.logger.debug(`Socket enter Connected ${data.userId}, ${data.title}`);
 
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
@@ -114,16 +131,14 @@ export class GameGateWay {
         gameConnectedClients.delete(data.userId);
       }
 
-      const gameChannelInfo = await this.gameChannelRepository.findOne({
-        where: { title: title },
-      });
 
       this.server.socketsJoin(gameChannelInfo.id.toString());
       gameConnectedClients.set(userId, socket);
 
       //입장불가
-      //1. 비밀번호 입력자가 아닌 경우
-      //2. 방의 인원이 2명을 초과한 경우
+      //1. 방이 존재하지 않을 경우
+      //2. 비밀번호 입력자가 아닌 경우
+      //3. 방의 인원이 2명을 초과한 경우
 
       if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
         const isPasswordCorrect = await this.redisClient.hgetall(
@@ -181,7 +196,10 @@ export class GameGateWay {
       //current_user 수 확인
       this.updateCurUser(title, gameChannelInfo.id);
     } catch (error) {
-      console.log(error);
+      throw new HttpException({
+        status: HttpStatus.NOT_FOUND,
+        error: error.message,
+      }, HttpStatus.NOT_FOUND);
     }
   }
 
@@ -443,13 +461,13 @@ export class GameGateWay {
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
         );
-        console.log("scores", homeScore, awayScore);
+        //console.log("scores", homeScore, awayScore);
 
-        if (homeScore === 5 || awayScore === 5) {
-          mutex.release();
-          clearInterval(intervalId);
-          return;
-        }
+        //if (homeScore === 5 || awayScore === 5) {
+        //  mutex.release();
+        //  clearInterval(intervalId);
+        //  return;
+        //}
 
         const returnData = {
           x: calculatedCoordinates.ball.x,
@@ -464,9 +482,10 @@ export class GameGateWay {
         //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
         //);
 
-        // await this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
         ++cnt;
-        this.transferData(returnData, cnt, data.gameId.toString());
+        //console.log(cnt);
+        //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        this.transferData(returnData, cnt, data);
         mutex.release();
       }, 1000 / 60);
 
@@ -478,17 +497,10 @@ export class GameGateWay {
     }
   }
 
-  async transferData(data: any, cnt: number, gameId: string) {
+  async transferData(returnData: any, cnt: number, gameData: any) {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
-    const returnData = {
-      x: data.x,
-      y: data.y,
-      l: data.l,
-      r: data.r,
-    };
-    console.log("returnData", returnData);
-    await this.server.to(data.gameId).emit("loopGameData", returnData);
+    this.server.to(gameData.gameId.toString()).emit("loopGameData", returnData);
   }
 
   async sendUserList(title: string, channelId: number) {
@@ -524,7 +536,6 @@ export class GameGateWay {
         TotalUserInfo.push(UserInfo);
       }
     }
-
     this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
@@ -543,6 +554,8 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
+
+
   async calculateCoordinates(
     data: any,
     ballState: { x: number; y: number; dx: number; dy: number },
@@ -609,64 +622,64 @@ export class GameGateWay {
       ballState.y = height / 2;
       ballState.dx = -ballState.dx;
 
-      homeScore++;
-      numberOfRounds++;
-      this.server
-        .to(data.gameId.toString())
-        .emit("score", [homeScore, awayScore]);
-      if (homeScore === 5) {
-        // 홈팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          data.homeId,
-          homeScore,
-        );
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          data.awayId,
-          awayScore,
-        );
-        //await this.gameService.saveRecord(
-        //  data.gameId,
-        //  numberOfRounds,
-        //  numberOfBounces,
-        //);
-        return;
-      }
-    } else if (ballState.x + ballSize / 2 > width) {
-      ballState.x = width / 2;
-      ballState.y = height / 2;
-      ballState.dx = -ballState.dx;
       numberOfRounds++;
       awayScore++;
       this.server
         .to(data.gameId.toString())
         .emit("score", [homeScore, awayScore]);
-      if (awayScore === 5) {
-        //away팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          data.homeId,
-          homeScore,
-        );
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          data.awayId,
-          awayScore,
-        );
-        //await this.gameService.saveRecord(
-        //  data.gameId,
-        //  numberOfRounds,
-        //  numberOfBounces,
-        //);
-        return;
-      }
+      //if (homeScore === 5) {
+      //  // 홈팀 승자로 넣기
+      //  await this.gamePlayerService.saveGamePlayer(
+      //    data.gameId,
+      //    data.homeId,
+      //    homeScore,
+      //  );
+      //  await this.gamePlayerService.saveGamePlayer(
+      //    data.gameId,
+      //    data.awayId,
+      //    awayScore,
+      //  );
+      //  //await this.gameService.saveRecord(
+      //  //  data.gameId,
+      //  //  numberOfRounds,
+      //  //  numberOfBounces,
+      //  //);
+      //  return;
+      //}
+    } else if (ballState.x + ballSize / 2 > width) {
+      ballState.x = width / 2;
+      homeScore++;
+      ballState.y = height / 2;
+      ballState.dx = -ballState.dx;
+      numberOfRounds++;
+      this.server
+        .to(data.gameId.toString())
+        .emit("score", [homeScore, awayScore]);
+      //if (awayScore === 5) {
+      //  //away팀 승자로 넣기
+      //  await this.gamePlayerService.saveGamePlayer(
+      //    data.gameId,
+      //    data.homeId,
+      //    homeScore,
+      //  );
+      //  await this.gamePlayerService.saveGamePlayer(
+      //    data.gameId,
+      //    data.awayId,
+      //    awayScore,
+      //  );
+      //  //await this.gameService.saveRecord(
+      //  //  data.gameId,
+      //  //  numberOfRounds,
+      //  //  numberOfBounces,
+      //  //);
+      //  return;
+      //}
     }
 
     return {
       ball: { x: ballState.x, y: ballState.y },
-      homePaddle: { x: 0, y: homePaddlePos },
-      awayPaddle: { x: width - paddleWidth, y: awayPaddlePos },
+      homePaddle: { x: 5, y: homePaddlePos },
+      awayPaddle: { x: width - paddleWidth - 5, y: awayPaddlePos },
     };
   }
 }

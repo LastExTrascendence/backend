@@ -25,7 +25,7 @@ export class GameService {
     private gameRepository: Repository<Game>,
     private userService: UserService,
     private redisClient: Redis,
-  ) {}
+  ) { }
 
   async saveGame(channelId: number) {
     try {

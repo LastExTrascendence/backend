@@ -41,8 +41,7 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -57,7 +56,7 @@ export class UserGateway
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
     private gameChannelService: GameChannelService,
-  ) {}
+  ) { }
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -66,7 +65,6 @@ export class UserGateway
   async handleConnection(socket: Socket) {
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
-    console.log(userId);
     userConnectedClients.set(userId, socket);
     //이미 들어온 유저 까투
     this.logger.verbose(
@@ -390,6 +388,7 @@ export class UserGateway
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.verbose(`inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`);
       // "/game/{id}?name={gameTitle}"
       const { userId, inviteUserNick, url } = data;
 
@@ -400,6 +399,7 @@ export class UserGateway
 
       const gameId = splitUrl[0].split("/")[2];
       const gameTitle = splitUrl[1].split("=")[1];
+
       const gameInfo = await this.gameChannelRepository.findOne({
         where: {
           id: gameId,
@@ -423,30 +423,32 @@ export class UserGateway
       //해야할 것
       //초대 받은 사람이, 초대한 사람을 싫어하는 경우
 
-      if (!gameInfo) {
-        throw new HttpException("No game found", 404);
-      } else if (inviteUser.id === userId) {
-        throw new HttpException("Can't invite yourself", 400);
-      } else if (gameConnectedClients) {
-        throw new HttpException("User is already in game", 400);
-      } else if (inviteUser.status === UserStatus.OFFLINE) {
-        throw new HttpException("User is offline", 400);
-      } else {
-        if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
-          await this.redisClient.hset(
-            `GM|${gameTitle}`,
-            `ACCESS|${userId}`,
-            userId,
-          );
-          const inviteUserSocket = userConnectedClients.get(inviteUser.id);
-          this.server.to(inviteUserSocket.id).emit("inviteUser", {
-            gameTitle: gameTitle,
-            url: url,
-          });
-        }
-      }
+      //if (!gameInfo) {
+      //  throw new HttpException("No game found", 404);
+      // } else if (inviteUser.id === userId) {
+      //   throw new HttpException("Can't invite yourself", 400);
+      // } else if (gameConnectedClients) {
+      //   throw new HttpException("User is already in game", 400);
+      // } else if (inviteUser.status === UserStatus.OFFLINE) {
+      //   throw new HttpException("User is offline", 400);
+      //} else {
+      //if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
+      //  await this.redisClient.hset(
+      //    `GM|${gameTitle}`,
+      //    `ACCESS|${userId}`,
+      //    userId,
+      //  );
+      //}
+      const inviteUserSocket = userConnectedClients.get(inviteUser.id);
+      console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
+      this.server.to(inviteUserSocket.id).emit("invitedUser", {
+        hostNickname: (await this.userService.findUserById(userId)).nickname,
+        url: url,
+      });
+
+      //}
     } catch (error) {
-      console.log(error);
+      throw new HttpException(error, 400);
     }
   }
 }
