@@ -84,6 +84,10 @@ export class userAddFriendRequestDto {
   nickname: string;
 }
 
+export class userRemoveFriendRequestDto {
+  nickname: string;
+}
+
 export class userFriendDto {
   id: number;
   user_id: number;
