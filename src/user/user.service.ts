@@ -86,6 +86,15 @@ export class UserService {
     return user;
   }
 
+  async reconnectUser() {
+    const users = await this.userRepository.update(
+      {
+        status: UserStatus.ONLINE,
+      },
+      { status: UserStatus.OFFLINE },
+    );
+  }
+
   //  async updateAvatar(
   //    nickname: string,
   //    profileUrl: string,

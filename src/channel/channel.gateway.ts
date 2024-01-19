@@ -1,4 +1,10 @@
-import { Logger, OnModuleInit, UseGuards } from "@nestjs/common";
+import {
+  Inject,
+  Logger,
+  OnModuleInit,
+  UseGuards,
+  forwardRef,
+} from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -30,13 +36,14 @@ export const channelConnectedClients: Map<number, Socket> = new Map();
 export class ChannelGateWay {
   private logger = new Logger("ChannelGateWay");
   constructor(
-    private readonly channelsService: ChannelsService,
-    private userService: UserService,
     @InjectRepository(Channels)
     private readonly channelRepository: Repository<Channels>,
     @InjectRepository(ChannelUser)
     private readonly channelUserRepository: Repository<ChannelUser>,
+    @Inject(forwardRef(() => Redis))
     private redisClient: Redis,
+    @Inject(forwardRef(() => UserService))
+    private userService: UserService,
   ) {}
 
   @WebSocketServer()
@@ -64,8 +71,8 @@ export class ChannelGateWay {
     try {
       const { userId, title } = data;
 
-      //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
       if (channelConnectedClients.has(userId)) {
+        //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
         const targetClient = channelConnectedClients.get(userId);
         targetClient.disconnect(true);
         channelConnectedClients.delete(data.userId);
@@ -88,7 +95,6 @@ export class ChannelGateWay {
       //3. 벤 상태인 경우
 
       if (channelInfo.channel_policy === ChatChannelPolicy.PRIVATE) {
-        //문제되는 부분
         const isPasswordCorrect = await this.redisClient.hgetall(
           `CH|${channelInfo.title}`,
         );
@@ -105,6 +111,7 @@ export class ChannelGateWay {
           return;
         }
       } else if (channelInfo.cur_user === channelInfo.max_user) {
+        //방이 꽉 찬 경우
         const targetClient = channelConnectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(channelInfo.id.toString());
@@ -125,8 +132,6 @@ export class ChannelGateWay {
           return;
         }
       }
-
-      //해당 유저가 처음 들어왔는지, 아니면 다시 들어온건지 확인
 
       if (currentUserInfo) {
         if (currentUserInfo.role === ChatChannelUserRole.CREATOR) {

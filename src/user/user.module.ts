@@ -20,6 +20,13 @@ import { GameGateWay } from "src/game/game.gateway";
 import { GameChannel } from "src/game/entity/game.channel.entity";
 import { GamePlayer } from "src/game/entity/game.player.entity";
 import { Game } from "src/game/entity/game.entity";
+import { ChannelModule } from "src/channel/channel.module";
+import { Channels } from "src/channel/entity/channels.entity";
+import { ChannelUser } from "src/channel/entity/channel.user.entity";
+import { GameChannelService } from "src/game/game.channel.service";
+import { ChannelsService } from "src/channel/channel.service";
+import { GameService } from "src/game/game.service";
+import { GamePlayerService } from "src/game/game.player.service";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -34,9 +41,9 @@ const jwtConfig = config.get("jwt");
       GameChannel,
       GamePlayer,
       Game,
+      Channels,
+      ChannelUser,
     ]),
-    GameModule,
-    Redis,
   ],
   controllers: [UserController],
   providers: [
@@ -49,6 +56,11 @@ const jwtConfig = config.get("jwt");
     Game,
     GameChannel,
     GamePlayer,
+    UserGateway,
+    GamePlayerService,
+    GameChannelService,
+    GameService,
+    ChannelsService,
   ],
   exports: [UserService, UserGateway],
 })

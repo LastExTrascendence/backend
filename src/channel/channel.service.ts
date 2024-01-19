@@ -1,6 +1,11 @@
 import { InjectRepository } from "@nestjs/typeorm";
-//import { ChannelsRepository } from "./channels.repository";
-import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  forwardRef,
+} from "@nestjs/common";
 import { Channels } from "./entity/channels.entity";
 import { IsNull, Repository } from "typeorm";
 import { chatChannelListDto } from "./dto/channels.dto";
@@ -11,6 +16,7 @@ import { UserService } from "src/user/user.service";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { channelUserVerify } from "./dto/channel.user.dto";
 import { channelConnectedClients } from "./channel.gateway";
+import { userConnectedClients } from "src/user/user.gateway";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
 //2. 채널 입장 시 유저 정보를 channelsUser DB에 담기
@@ -185,20 +191,21 @@ export class ChannelsService {
   async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
       if (channelConnectedClients.size === 0) {
-        const channelUserInfo = await this.channelUserRepository.find();
-        for (let i = 0; i < channelUserInfo.length; i++) {
-          this.channelUserRepository.update(
-            { id: channelUserInfo[i].id },
-            { deleted_at: new Date() },
-          );
-        }
-        const channelsInfo = await this.channelsRepository.find();
-        for (let i = 0; i < channelsInfo.length; i++) {
-          this.channelsRepository.update(
-            { id: channelsInfo[i].id },
-            { cur_user: 0 },
-          );
-        }
+        this.resetChatChannel();
+        //const channelUserInfo = await this.channelUserRepository.find();
+        //for (let i = 0; i < channelUserInfo.length; i++) {
+        //  this.channelUserRepository.update(
+        //    { id: channelUserInfo[i].id },
+        //    { deleted_at: new Date() },
+        //  );
+        //}
+        //const channelsInfo = await this.channelsRepository.find();
+        //for (let i = 0; i < channelsInfo.length; i++) {
+        //  this.channelsRepository.update(
+        //    { id: channelsInfo[i].id },
+        //    { cur_user: 0 },
+        //  );
+        //}
       }
 
       const channelsInfo = await this.channelsRepository.find({
@@ -242,6 +249,23 @@ export class ChannelsService {
       return totalChannels;
     } catch (error) {
       throw error;
+    }
+  }
+
+  async resetChatChannel() {
+    const channelUserInfo = await this.channelUserRepository.find();
+    for (let i = 0; i < channelUserInfo.length; i++) {
+      this.channelUserRepository.update(
+        { id: channelUserInfo[i].id },
+        { deleted_at: new Date() },
+      );
+    }
+    const channelsInfo = await this.channelsRepository.find();
+    for (let i = 0; i < channelsInfo.length; i++) {
+      this.channelsRepository.update(
+        { id: channelsInfo[i].id },
+        { cur_user: 0 },
+      );
     }
   }
 }

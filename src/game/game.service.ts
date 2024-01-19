@@ -23,9 +23,7 @@ export class GameService {
     private gameChannelRepository: Repository<Game>,
     @InjectRepository(Game)
     private gameRepository: Repository<Game>,
-    private userService: UserService,
-    private redisClient: Redis,
-  ) { }
+  ) {}
 
   async saveGame(channelId: number) {
     try {
@@ -86,6 +84,20 @@ export class GameService {
           },
         );
       }
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  async deleteAllGame() {
+    try {
+      await this.gameRepository.update(
+        { ended_at: IsNull() },
+        {
+          ended_at: new Date(),
+        },
+      );
     } catch (error) {
       this.logger.error(error);
       throw error;

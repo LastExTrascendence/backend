@@ -17,6 +17,6 @@ import { AuthModule } from "src/auth/auth.module";
   ],
   controllers: [ChannelController],
   providers: [UserService, ChannelGateWay, ChannelsService, Redis],
-  exports: [ChannelsService, Redis],
+  exports: [ChannelsService, Redis, ChannelGateWay],
 })
 export class ChannelModule {}
