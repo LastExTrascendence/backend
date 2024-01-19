@@ -14,6 +14,7 @@ import {
 import {
   gameChannelListDto,
   gameRecordDto,
+  gameStatsDto,
   gameUserVerifyDto,
 } from "./dto/game.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
@@ -27,7 +28,7 @@ export class GameController {
   constructor(
     private gameChannelService: GameChannelService,
     private gamePlayerSerivce: GamePlayerService,
-  ) { }
+  ) {}
 
   //게임 방 조회
   @Get("/")
@@ -74,12 +75,30 @@ export class GameController {
   }
 
   @Get("/record/:nickname")
-  async getRecord(
+  async getRecordByNickname(
     @Param("nickname") nickname: string,
-  ): Promise<gameRecordDto | HttpException> {
+  ): Promise<gameRecordDto[] | HttpException> {
     try {
-      this.logger.debug(`Called ${GameController.name} ${this.getRecord.name}`);
+      this.logger.debug(
+        `Called ${GameController.name} ${this.getRecordByNickname.name}`,
+      );
       return await this.gamePlayerSerivce.getGamePlayerRecord(nickname);
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  @Get("/stats/:nickname")
+  async getStatsByNickname(
+    @Param("nickname") nickname: string,
+  ): Promise<void | gameStatsDto | HttpException> {
+    this.logger.debug(
+      `Called ${GameController.name} ${this.getStatsByNickname.name}`,
+    );
+    try {
+      // return await this.gamePlayerSerivce.getGamePlayerStats(nickname);
+      return await this.gamePlayerSerivce.getGamePlayerStats(nickname);
     } catch (error) {
       this.logger.error(error);
       throw error;

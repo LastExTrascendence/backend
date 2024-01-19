@@ -41,14 +41,14 @@ export class Game extends BaseEntity {
   @Column()
   channel_id: number;
 
-  //@Column()
-  //game_type: GameType;
+  @Column()
+  game_type: GameType;
 
   @Column()
   game_mode: GameMode;
 
-  //@Column()
-  //game_status: GameStatus;
+  @Column()
+  game_status: GameStatus;
 
   @Column({ nullable: true })
   minimum_speed: number;

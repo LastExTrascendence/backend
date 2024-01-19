@@ -20,6 +20,7 @@ import * as config from "config";
 import { User } from "src/decorator/user.decorator";
 import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
+import { JWTAuthGuard } from "./jwt/jwtAuth.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -58,6 +59,9 @@ export class AuthController {
       if (!isRegistered) {
         return res.redirect(`${url}/register`);
       } else {
+        if (user.two_fa === true) {
+          return res.redirect(`${url}/login/otp`);
+        }
         return res.redirect(`${url}`);
       }
     } catch (error) {
@@ -66,14 +70,14 @@ export class AuthController {
   }
 
   @Post("/otp/generate")
-  //@UseGuards(JWTSignGuard)
+  @UseGuards(JWTAuthGuard)
   async generateOtp(
-    @Body(ValidationPipe) user: userOtpDto,
-    @Res({ passthrough: true }) res: any,
+    @Res({ passthrough: true }) res: Response,
+    @User() user: userSessionDto,
   ) {
     this.logger.debug(`Called ${AuthController.name} ${this.generateOtp.name}`);
     try {
-      const userInfo = await this.userService.findUserById(user.userId);
+      const userInfo = await this.userService.findUserById(user.id);
       if (!userInfo) {
         return new HttpException(
           "해당 유저가 존재하지 않습니다.",
@@ -86,35 +90,62 @@ export class AuthController {
         );
       }
       const otp = await this.authService.generateOtp(userInfo);
-      res.json({ otp });
+      return res.send(otp);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   @Post("/otp/verify")
+  @UseGuards(JWTAuthGuard)
   async verifyOtp(
-    @Body() user: userOtpDto,
+    @Body() otp: any,
     @Res({ passthrough: true }) res: any,
-  ): Promise<void> {
+    @User() user: userSessionDto,
+  ) {
+    this.logger.debug(`Called ${AuthController.name} ${this.verifyOtp.name}`);
     try {
       // Assuming you have a 'User' entity
-      const userInfo = await this.userService.findUserById(user.userId);
+      const userInfo = await this.userService.findUserById(user.id);
 
-      if (!user) {
-        throw new Error("User not found");
+      if (!userInfo) {
+        return new HttpException(
+          "해당 유저가 존재하지 않습니다.",
+          HttpStatus.NOT_FOUND,
+        );
       } else if (userInfo.two_fa === false) {
-        throw new Error("2FA 기능이 활성화 되어있지 않습니다.");
+        return new HttpException(
+          "2FA 기능이 활성화 되어있지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
-      const isValid = await this.authService.verifyOtp(userInfo, user.otp);
+      const isValid = await this.authService.verifyOtp(userInfo, otp.otp);
       if (isValid) {
-        res.status(HttpStatus.OK).json({ message: "OTP is valid" });
+        const payload: userSessionDto = {
+          id: userInfo.id,
+          nickname: userInfo.nickname,
+          avatar: userInfo.avatar,
+          email: userInfo.email,
+          two_fa: userInfo.two_fa,
+          status: userInfo.status,
+          intra_name: userInfo.intra_name,
+          two_fa_complete: isValid,
+        };
+        const newToken = this.jwtService.sign(payload);
+        res.cookie("access_token", newToken);
+        const url = `http://${config.get("FE").get("domain")}:${config
+          .get("FE")
+          .get("port")}`;
+        return res.redirect(url);
       } else {
-        res.status(HttpStatus.UNAUTHORIZED).json({ error: "Invalid OTP" });
+        return new HttpException(
+          "OTP 코드가 일치하지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
       }
     } catch (error) {
-      res.status(500).json({ error: error.message });
+      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 }

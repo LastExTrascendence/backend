@@ -1,4 +1,10 @@
-import { HttpException, HttpStatus, Logger, OnModuleInit, UseGuards } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Logger,
+  OnModuleInit,
+  UseGuards,
+} from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -62,7 +68,7 @@ export class GameGateWay {
     private userService: UserService,
     private gamePlayerService: GamePlayerService,
     private gameService: GameService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -109,15 +115,21 @@ export class GameGateWay {
       });
 
       if (!userId || !title) {
-        throw new HttpException({
-          status: HttpStatus.NOT_FOUND,
-          error: '입력값이 없습니다',
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            status: HttpStatus.NOT_FOUND,
+            error: "입력값이 없습니다",
+          },
+          HttpStatus.NOT_FOUND,
+        );
       } else if (!gameChannelInfo) {
-        throw new HttpException({
-          status: HttpStatus.NOT_FOUND,
-          error: '존재하지 않는 방입니다.',
-        }, HttpStatus.NOT_FOUND);
+        throw new HttpException(
+          {
+            status: HttpStatus.NOT_FOUND,
+            error: "존재하지 않는 방입니다.",
+          },
+          HttpStatus.NOT_FOUND,
+        );
       }
 
       this.logger.debug(`Socket enter Connected ${data.userId}, ${data.title}`);
@@ -130,7 +142,6 @@ export class GameGateWay {
         targetClient.disconnect(true);
         gameConnectedClients.delete(data.userId);
       }
-
 
       this.server.socketsJoin(gameChannelInfo.id.toString());
       gameConnectedClients.set(userId, socket);
@@ -196,10 +207,13 @@ export class GameGateWay {
       //current_user 수 확인
       this.updateCurUser(title, gameChannelInfo.id);
     } catch (error) {
-      throw new HttpException({
-        status: HttpStatus.NOT_FOUND,
-        error: error.message,
-      }, HttpStatus.NOT_FOUND);
+      throw new HttpException(
+        {
+          status: HttpStatus.NOT_FOUND,
+          error: error.message,
+        },
+        HttpStatus.NOT_FOUND,
+      );
     }
   }
 
@@ -461,10 +475,9 @@ export class GameGateWay {
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
         );
-        //console.log("scores", homeScore, awayScore);
 
         //if (homeScore === 5 || awayScore === 5) {
-        //  mutex.release();
+        //  mutex.release(); s
         //  clearInterval(intervalId);
         //  return;
         //}
@@ -554,7 +567,6 @@ export class GameGateWay {
       { cur_user: cur_user },
     );
   }
-
 
   async calculateCoordinates(
     data: any,

@@ -2,7 +2,7 @@ import { Injectable, Logger } from "@nestjs/common";
 import { userDto, userSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
-import { Like, Repository } from "typeorm";
+import { In, Like, Repository } from "typeorm";
 import { UserStatus } from "./entity/user.enum";
 import { updateUserInfoDto } from "./dto/user.profile.dto";
 
@@ -51,6 +51,13 @@ export class UserService {
   async findUserById(id: number): Promise<User> {
     const user = await this.userRepository.findOne({ where: { id } });
     return user;
+  }
+
+  async findUserByIds(ids: number[]): Promise<User[]> {
+    const users = await this.userRepository.findBy({
+      id: In(ids),
+    });
+    return users;
   }
 
   //유저 검색 창에서 유저 검색 기능
