@@ -1,6 +1,13 @@
-import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+  forwardRef,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Repository } from "typeorm";
+import { IsNull, Like, Repository } from "typeorm";
 import {
   GameChannelPolicy,
   GameMode,
@@ -13,6 +20,7 @@ import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { gameConnectedClients } from "./game.gateway";
+import { GameService } from "./game.service";
 
 @Injectable()
 export class GameChannelService {
@@ -22,7 +30,8 @@ export class GameChannelService {
     private gameChannelRepository: Repository<GameChannel>,
     private userService: UserService,
     private redisClient: Redis,
-  ) { }
+    private gameService: GameService,
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -210,14 +219,8 @@ export class GameChannelService {
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
       if (gameConnectedClients.size === 0) {
-        await this.redisClient.del("GM|*");
-        await this.gameChannelRepository.update(
-          {},
-          {
-            cur_user: 0,
-            deleted_at: new Date(),
-          },
-        );
+        this.deleteAllGameChannel();
+        this.gameService.deleteAllGame();
       }
 
       const channelsInfo = await this.gameChannelRepository.find({
@@ -281,6 +284,77 @@ export class GameChannelService {
 
     if (gameInfo) {
       return true;
+    } else {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: "존재하지 않는 게임입니다.",
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async deleteAllGameChannel() {
+    if (gameConnectedClients.size === 0) {
+      await this.redisClient.keys("GM|*").then((keys) => {
+        keys.forEach((key) => {
+          this.redisClient.del(key);
+        });
+      });
+      await this.gameChannelRepository.update(
+        { deleted_at: IsNull() },
+        {
+          cur_user: 0,
+          deleted_at: new Date(),
+        },
+      );
+    }
+  }
+
+  async findOneGameChannelById(gameId: number) {
+    const gameInfo = await this.gameChannelRepository.findOne({
+      where: { id: gameId },
+    });
+
+    if (gameInfo) {
+      return gameInfo;
+    } else {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: "존재하지 않는 게임입니다.",
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async findAllGameChannelByTitle(gameTitle: string) {
+    const gameInfo = await this.gameChannelRepository.find({
+      where: { title: gameTitle },
+    });
+
+    if (gameInfo) {
+      return gameInfo;
+    } else {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: "존재하지 않는 게임입니다.",
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async findQuickMatches() {
+    const gameInfo = await this.gameChannelRepository.find({
+      where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
+    });
+
+    if (gameInfo) {
+      return gameInfo.length;
     } else {
       throw new HttpException(
         {

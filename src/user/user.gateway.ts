@@ -1,4 +1,10 @@
-import { HttpException, Logger, UseGuards } from "@nestjs/common";
+import {
+  HttpException,
+  Inject,
+  Logger,
+  UseGuards,
+  forwardRef,
+} from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -26,10 +32,12 @@ import {
   GameStatus,
   GameType,
 } from "src/game/enum/game.enum";
-import { GameChannel } from "src/game/entity/game.channel.entity";
 import { UserStatus } from "./entity/user.enum";
-import { gameConnectedClients } from "src/game/game.gateway";
 import { GameChannelService } from "src/game/game.channel.service";
+import { FriendService } from "./user.friend.service";
+import { ChannelsService } from "src/channel/channel.service";
+import { GameService } from "src/game/game.service";
+import { gameConnectedClients } from "src/game/game.gateway";
 
 //path, endpoint
 
@@ -41,22 +49,24 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
   server: Server;
   constructor(
-    private redisClient: Redis,
-    private userService: UserService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserFriend)
     private userFriendRepository: Repository<UserFriend>,
-    @InjectRepository(GameChannel)
-    private gameChannelRepository: Repository<GameChannel>,
     private gameChannelService: GameChannelService,
-  ) { }
+    private gameService: GameService,
+    private channelsService: ChannelsService,
+    private redisClient: Redis,
+    private userService: UserService,
+    private friendService: FriendService,
+  ) {}
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -66,6 +76,14 @@ export class UserGateway
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
     userConnectedClients.set(userId, socket);
+    this.userRepository.update(userId, { status: UserStatus.ONLINE });
+    if (userConnectedClients.size === 1) {
+      this.reconnectedServer();
+      this.channelsService.resetChatChannel();
+      this.gameChannelService.deleteAllGameChannel();
+      this.gameService.deleteAllGame();
+    }
+    this.sendFriendStatus();
     //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
@@ -74,6 +92,11 @@ export class UserGateway
 
   handleDisconnect(socket: Socket) {
     //this.connectedClients.delete(socket.handshake.query["userId"]);
+    const userId = parseInt(socket.handshake.auth.user.id);
+    this.leaveServer(userId);
+    userConnectedClients.delete(userId);
+    this.sendFriendStatus();
+
     this.logger.verbose(`${socket.id} is disconnected...`);
   }
 
@@ -320,16 +343,14 @@ export class UserGateway
     const makeMatch = setInterval(async () => {
       const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
-        const quickMatchNum = await this.gameChannelRepository.find({
-          where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
-        });
+        const quickMatchNum = await this.gameChannelService.findQuickMatches();
         // Dequeue the first two players from the queue
         const homePlayer = await this.redisClient.lpop("QM");
         const awayPlayer = await this.redisClient.lpop("QM");
 
         const newGame = {
           id: 0,
-          title: "Quick Match#" + quickMatchNum,
+          title: "Quick Match#" + quickMatchNum.toString(),
           gameChannelPolicy: GameChannelPolicy.PUBLIC,
           password: null,
           creatorId: parseInt(homePlayer),
@@ -388,7 +409,9 @@ export class UserGateway
     @ConnectedSocket() socket: Socket,
   ) {
     try {
-      this.logger.verbose(`inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`);
+      this.logger.verbose(
+        `inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`,
+      );
       // "/game/{id}?name={gameTitle}"
       const { userId, inviteUserNick, url } = data;
 
@@ -400,16 +423,16 @@ export class UserGateway
       const gameId = splitUrl[0].split("/")[2];
       const gameTitle = splitUrl[1].split("=")[1];
 
-      const gameInfo = await this.gameChannelRepository.findOne({
-        where: {
-          id: gameId,
-          deleted_at: IsNull(),
-          game_status: GameStatus.READY,
-          cur_user: 1,
-        },
-      });
+      const gameInfo =
+        await this.gameChannelService.findOneGameChannelById(gameId);
 
       if (!gameId || !gameTitle) {
+        throw new HttpException("No game found", 404);
+      } else if (
+        gameInfo.deleted_at !== null ||
+        gameInfo.game_status !== GameStatus.READY ||
+        gameInfo.cur_user !== 1
+      ) {
         throw new HttpException("No game found", 404);
       }
 
@@ -449,6 +472,47 @@ export class UserGateway
       //}
     } catch (error) {
       throw new HttpException(error, 400);
+    }
+  }
+
+  async sendFriendStatus() {
+    userConnectedClients.forEach(async (socket, userId) => {
+      const user = await this.friendService.findAllFriend(userId);
+      const friends = [];
+
+      for (const idx in user) {
+        const friendInfo = await this.userService.findUserById(
+          user[idx].friend_id,
+        );
+        const friendData = {
+          friendId: friendInfo.id,
+          friendNickname: friendInfo.nickname,
+          friendAvatar: friendInfo.avatar,
+          status: friendInfo.status,
+        };
+        friends.push(friendData);
+      }
+      console.log(friends);
+      this.server.to(socket.id).emit("friendStatus", friends);
+    });
+  }
+
+  async leaveServer(userId: number) {
+    const socket = userConnectedClients.get(userId);
+    if (socket) {
+      socket.disconnect();
+    }
+    this.userRepository.update(userId, { status: UserStatus.OFFLINE });
+  }
+
+  async reconnectedServer() {
+    if (userConnectedClients.size === 1) {
+      userConnectedClients.forEach(async (socket, userId) => {
+        const user = await this.userService.findUserById(userId);
+        if (user.status === UserStatus.OFFLINE) {
+          socket.disconnect();
+        }
+      });
     }
   }
 }

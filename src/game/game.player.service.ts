@@ -1,6 +1,12 @@
-import { HttpException, HttpStatus, Injectable } from "@nestjs/common";
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  forwardRef,
+} from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Repository } from "typeorm";
+import { In, Repository } from "typeorm";
 import { GamePlayer } from "./entity/game.player.entity";
 import { UserService } from "src/user/user.service";
 import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
@@ -15,6 +21,7 @@ export class GamePlayerService {
     private gameRepository: Repository<Game>,
     @InjectRepository(GamePlayer)
     private gamePlayerRepository: Repository<GamePlayer>,
+    @Inject(forwardRef(() => UserService))
     private userServie: UserService,
   ) {}
 

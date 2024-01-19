@@ -358,7 +358,7 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
-      console.log(UserInfo);
+      //console.log(UserInfo);
       const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );

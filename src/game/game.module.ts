@@ -12,6 +12,8 @@ import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { GameGateWay } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
+import { UserModule } from "src/user/user.module";
+import { ChannelsService } from "src/channel/channel.service";
 
 @Module({
   imports: [
