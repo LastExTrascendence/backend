@@ -10,7 +10,7 @@ import { ChannelUser } from "./entity/channel.user.entity";
 import { UserService } from "src/user/user.service";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { channelUserVerify } from "./dto/channel.user.dto";
-import { connectedClients } from "./channel.gateway";
+import { channelConnectedClients } from "./channel.gateway";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
 //2. 채널 입장 시 유저 정보를 channelsUser DB에 담기
@@ -184,7 +184,7 @@ export class ChannelsService {
 
   async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
-      if (connectedClients.size === 0) {
+      if (channelConnectedClients.size === 0) {
         const channelUserInfo = await this.channelUserRepository.find();
         for (let i = 0; i < channelUserInfo.length; i++) {
           this.channelUserRepository.update(
@@ -231,7 +231,8 @@ export class ChannelsService {
             ).nickname,
             avatar: channelsInfo[i].creator_avatar,
           },
-          curUser: connectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
+          curUser:
+            channelConnectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
           maxUser: channelsInfo[i].max_user,
         };
 

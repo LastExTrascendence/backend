@@ -28,10 +28,12 @@ import {
 } from "src/game/enum/game.enum";
 import { GameChannel } from "src/game/entity/game.channel.entity";
 import { UserStatus } from "./entity/user.enum";
-import { connectedClients } from "src/game/game.gateway";
+import { gameConnectedClients } from "src/game/game.gateway";
 import { GameChannelService } from "src/game/game.channel.service";
 
 //path, endpoint
+
+export const userConnectedClients: Map<number, Socket> = new Map();
 
 @WebSocketGateway(config.get("FE").get("dm_port"), {
   namespace: "user",
@@ -39,10 +41,8 @@ import { GameChannelService } from "src/game/game.channel.service";
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   private logger = new Logger(UserGateway.name);
-  private connectedClients: Map<number, Socket> = new Map();
 
   @WebSocketServer()
   server: Server;
@@ -56,7 +56,7 @@ export class UserGateway
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
     private gameChannelService: GameChannelService,
-  ) {}
+  ) { }
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -64,7 +64,8 @@ export class UserGateway
 
   async handleConnection(socket: Socket) {
     //userId 필요함
-    //this.connectedClients.set(socket.handshake.query["userId"], socket);
+    const userId = parseInt(socket.handshake.auth.user.id);
+    userConnectedClients.set(userId, socket);
     //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
@@ -301,14 +302,14 @@ export class UserGateway
     // Store user information in Redis queue
     await this.redisClient.rpush("QM", userId);
 
-    if (this.connectedClients.has(userId)) {
-      const socket = this.connectedClients.get(userId);
+    if (userConnectedClients.has(userId)) {
+      const socket = userConnectedClients.get(userId);
       socket.disconnect();
       throw new HttpException("User already in queue", 400);
     }
 
     this.server.socketsJoin(`QM|${userId}`);
-    this.connectedClients.set(userId, socket);
+    userConnectedClients.set(userId, socket);
 
     //this.server.to(`QM|${userId}`)
     //.emit("enteredQueue", { message: "Entered the quick match queue" });
@@ -381,87 +382,73 @@ export class UserGateway
     }
   }
 
-  @SubscribeMessage("sendInviteList")
-  async sendInviteList(@ConnectedSocket() socket: Socket) {
-    try {
-      //userList에 같은 userId가 있는지 확인
-      const userList = await this.userRepository.find({
-        where: { status: UserStatus.ONLINE },
-      });
-
-      if (userList.length === 0) {
-        throw new HttpException("No user found", 404);
-      } else {
-        const vaildInviteList = [];
-
-        for (const idx in userList) {
-          const connectedUser = connectedClients.has(userList[idx].id);
-          if (!connectedUser) {
-            const userInfo = {
-              nickname: userList[idx].nickname,
-            };
-            vaildInviteList.push(userInfo);
-          }
-        }
-
-        this.server.to(socket.id).emit("inviteList", vaildInviteList);
-      }
-    } catch (error) {
-      console.log(error);
-    }
-  }
-
-  @SubscribeMessage("inviteUser")
+  @SubscribeMessage("gameInvite")
   async inviteUser(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
     try {
-      const { userId, inviteUserNick } = data;
+      this.logger.verbose(`inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`);
+      // "/game/{id}?name={gameTitle}"
+      const { userId, inviteUserNick, url } = data;
 
       const inviteUser =
         await this.userService.findUserByNickname(inviteUserNick);
 
-      const connectedUser = this.connectedClients.get(inviteUser.id);
+      const splitUrl = url.split("?");
 
-      if (!inviteUser) {
-        throw new HttpException("No user found", 404);
-      } else if (inviteUser.id === userId) {
-        throw new HttpException("Can't invite yourself", 400);
-      } else if (inviteUser.status === UserStatus.OFFLINE) {
-        throw new HttpException("User is offline", 400);
-      } else if (connectedUser) {
-        throw new HttpException("User is already in game", 400);
-      } else {
-        const quickMatchNum = await this.gameChannelRepository.find({
-          where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
-        });
+      const gameId = splitUrl[0].split("/")[2];
+      const gameTitle = splitUrl[1].split("=")[1];
 
-        const newGame = {
-          id: 0,
-          title: "Quick Match#" + quickMatchNum,
-          gameChannelPolicy: GameChannelPolicy.PUBLIC,
-          password: null,
-          creatorId: parseInt(userId),
-          gameType: GameType.NORMAL,
-          gameMode: GameMode.NORMAL,
-          curUser: 0,
-          maxUser: 2,
-          gameStatus: GameStatus.READY,
-        };
+      const gameInfo = await this.gameChannelRepository.findOne({
+        where: {
+          id: gameId,
+          deleted_at: IsNull(),
+          game_status: GameStatus.READY,
+          cur_user: 1,
+        },
+      });
 
-        this.gameChannelService.createGame(newGame);
-
-        // Create a game instance or use existing logic to set up a game with player1 and player2
-
-        // Notify players that the game is starting and provide opponent information
-        // Emit an event to start the game for both players
-
-        this.server.to(`QM|${userId}`).emit("gameMatch");
-        this.server.to(`QM|${inviteUser.id}`).emit("gameMatch");
+      if (!gameId || !gameTitle) {
+        throw new HttpException("No game found", 404);
       }
+
+      //입장 불가인 경우
+      //1. 게임 방이 없는 경우 || 게임이 시작 된 경우
+      //2. 초대한 사람이랑 초대받은 사람이 같은 경우
+      //3. 이미 게임 소켓을 사용하고 있는 경우
+      //4. 초대한 사람이 OFFLINE인 경우
+      //5. 게임 방의 정원이 2명인 경우
+
+      //해야할 것
+      //초대 받은 사람이, 초대한 사람을 싫어하는 경우
+
+      //if (!gameInfo) {
+      //  throw new HttpException("No game found", 404);
+      // } else if (inviteUser.id === userId) {
+      //   throw new HttpException("Can't invite yourself", 400);
+      // } else if (gameConnectedClients) {
+      //   throw new HttpException("User is already in game", 400);
+      // } else if (inviteUser.status === UserStatus.OFFLINE) {
+      //   throw new HttpException("User is offline", 400);
+      //} else {
+      //if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
+      //  await this.redisClient.hset(
+      //    `GM|${gameTitle}`,
+      //    `ACCESS|${userId}`,
+      //    userId,
+      //  );
+      //}
+      const inviteUserSocket = userConnectedClients.get(inviteUser.id);
+      console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
+      this.server.to(inviteUserSocket.id).emit("invitedUser", {
+        hostNickname: (await this.userService.findUserById(userId)).nickname,
+        url: url,
+      });
+
+      //}
     } catch (error) {
-      console.log(error);
+      throw new HttpException(error, 400);
     }
   }
 }

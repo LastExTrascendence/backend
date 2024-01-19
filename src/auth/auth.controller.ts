@@ -49,7 +49,6 @@ export class AuthController {
     this.logger.debug(
       `Called ${AuthController.name} ${this.loginCallback.name}`,
     );
-    console.log("userSessionDto after JWTSignGuard: ", user);
     const url = `http://${config.get("FE").get("domain")}:${config
       .get("FE")
       .get("port")}`;
@@ -105,8 +104,6 @@ export class AuthController {
     @User() user: userSessionDto,
   ) {
     this.logger.debug(`Called ${AuthController.name} ${this.verifyOtp.name}`);
-    console.log("otp: ", otp);
-    console.log("otp.otp ", otp.otp);
     try {
       // Assuming you have a 'User' entity
       const userInfo = await this.userService.findUserById(user.id);

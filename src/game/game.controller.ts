@@ -104,4 +104,16 @@ export class GameController {
       throw error;
     }
   }
+
+  //@Get("/:id")
+  //async checkId(
+  //  @Param("id") id: string,
+  //): Promise<boolean | HttpException> {
+  //  try {
+  //    this.logger.debug(`Called checkId${GameController.name} ${this.checkId.name}`);
+  //    return await this.gameChannelService.checkId(id);
+  //  } catch (error) {
+  //    throw new HttpException(error, 400);
+  //  }
+  //}
 }
