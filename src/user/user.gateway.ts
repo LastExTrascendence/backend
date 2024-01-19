@@ -30,6 +30,7 @@ import { GameChannel } from "src/game/entity/game.channel.entity";
 import { UserStatus } from "./entity/user.enum";
 import { gameConnectedClients } from "src/game/game.gateway";
 import { GameChannelService } from "src/game/game.channel.service";
+import { FriendService } from "./user.friend.service";
 
 //path, endpoint
 
@@ -41,7 +42,8 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -49,6 +51,7 @@ export class UserGateway
   constructor(
     private redisClient: Redis,
     private userService: UserService,
+    private friendService: FriendService,
     @InjectRepository(User)
     private userRepository: Repository<User>,
     @InjectRepository(UserFriend)
@@ -56,7 +59,7 @@ export class UserGateway
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
     private gameChannelService: GameChannelService,
-  ) { }
+  ) {}
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -66,6 +69,7 @@ export class UserGateway
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
     userConnectedClients.set(userId, socket);
+    this.sendFriendStatus();
     //이미 들어온 유저 까투
     this.logger.verbose(
       `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
@@ -74,6 +78,11 @@ export class UserGateway
 
   handleDisconnect(socket: Socket) {
     //this.connectedClients.delete(socket.handshake.query["userId"]);
+    const userId = parseInt(socket.handshake.auth.user.id);
+    this.leaveServer(userId);
+    userConnectedClients.delete(userId);
+    this.sendFriendStatus();
+
     this.logger.verbose(`${socket.id} is disconnected...`);
   }
 
@@ -388,7 +397,9 @@ export class UserGateway
     @ConnectedSocket() socket: Socket,
   ) {
     try {
-      this.logger.verbose(`inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`);
+      this.logger.verbose(
+        `inviteUser: ${data.userId}, ${data.inviteUserNick}, ${data.url}`,
+      );
       // "/game/{id}?name={gameTitle}"
       const { userId, inviteUserNick, url } = data;
 
@@ -450,5 +461,32 @@ export class UserGateway
     } catch (error) {
       throw new HttpException(error, 400);
     }
+  }
+
+  async sendFriendStatus() {
+    userConnectedClients.forEach(async (socket, userId) => {
+      const user = await this.friendService.findAllFriend(userId);
+      const friends = [];
+
+      for (const idx in user) {
+        const friendInfo = await this.userService.findUserById(
+          user[idx].friend_id,
+        );
+        const friendData = {
+          userId: friendInfo.id,
+          status: friendInfo.status,
+        };
+        friends.push(friendData);
+      }
+      this.server.to(socket.id).emit("friendStatus", friends);
+    });
+  }
+
+  async leaveServer(userId: number) {
+    const socket = userConnectedClients.get(userId);
+    if (socket) {
+      socket.disconnect();
+    }
+    this.userRepository.update(userId, { status: UserStatus.OFFLINE });
   }
 }
