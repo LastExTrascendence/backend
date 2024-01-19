@@ -8,7 +8,6 @@ import {
 } from "@nestjs/common";
 import { Observable } from "rxjs";
 import { JwtService } from "@nestjs/jwt";
-import { ConfigService } from "@nestjs/config";
 import { userSessionDto } from "src/user/dto/user.dto";
 import * as config from "config";
 import { UserService } from "src/user/user.service";
@@ -20,7 +19,6 @@ export class JWTSignGuard implements CanActivate {
   constructor(
     private jwtService: JwtService,
     private userService: UserService,
-    @Inject(ConfigService) private configService: ConfigService,
   ) {}
 
   canActivate(
@@ -42,13 +40,18 @@ export class JWTSignGuard implements CanActivate {
       const result = await this.userService.findUserByIntraname(
         user.intra_name,
       );
+      user.id = result.id;
       user.nickname = result.nickname;
+      user.two_fa = result.two_fa;
+      user.two_fa_complete = !result.two_fa;
     } catch (error) {
       this.logger.verbose(`cannot find user ${user.intra_name} in DB`);
+      user.two_fa_complete = true;
     }
     const token = this.jwtService.sign(user);
     this.logger.debug(`genereted ${user.intra_name}'s JWT`);
-    if (this.configService.get<boolean>("is_local") === true) {
+
+    if (config.get("IS_LOCAL") === true) {
       response.cookie("access_token", token);
     } else {
       const expires = new Date(this.jwtService.decode(token)["exp"] * 1000);

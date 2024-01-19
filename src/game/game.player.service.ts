@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { Repository } from "typeorm";
 import { GamePlayer } from "./entity/game.player.entity";
 import { UserService } from "src/user/user.service";
-import { gameRecordDto } from "./dto/game.dto";
+import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
 import { format } from "date-fns";
 import { GameResult } from "./enum/game.enum";
@@ -65,10 +65,49 @@ export class GamePlayerService {
 
   async getGamePlayerRecord(
     _nickname: string,
-  ): Promise<gameRecordDto | HttpException> {
+  ): Promise<gameRecordDto[] | HttpException> {
     try {
       const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+      const gamePlayerInfo = await this.gamePlayerRepository.find({
+        where: { user_id: gamePlayer.id },
+      });
 
+      const totalUserStatsInfo = [];
+
+      for (let i = 0; i < gamePlayerInfo.length; i++) {
+        const gameInfo = await this.gameRepository.findOne({
+          where: { id: gamePlayerInfo[i].game_id },
+        });
+
+        const gamePlayerRecord: gameRecordDto = {
+          nickname: gamePlayer.nickname,
+          gameUserRole: gamePlayerInfo[i].game_user_role,
+          gameType: gameInfo.gameType,
+          gameMode: gameInfo.gameMode,
+          date: gameInfo.endedAt,
+        };
+
+        totalUserStatsInfo.push(gamePlayerRecord);
+      }
+
+      return totalUserStatsInfo;
+    } catch (error) {
+      throw new HttpException(
+        "게임 기록 조회에 실패하였습니다.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  //Status
+  async getGamePlayerStats(
+    _nickname: string,
+  ): Promise<gameStatsDto | HttpException> {
+    try {
+      //User DB 들고오기
+      const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+
+      //GamePlayer DB 전부 다 들고오기
       const gamePlayerInfo = await this.gamePlayerRepository.find({
         where: { user_id: gamePlayer.id },
       });
@@ -82,7 +121,7 @@ export class GamePlayerService {
         totalGameInfo.push(gameInfo);
       }
 
-      const gamePlayerRecord: gameRecordDto = {
+      const gamePlayerRecord: gameStatsDto = {
         nickname: _nickname,
         //longestGame은 gameInfo.gameTime을 기준으로 내림차순 정렬하여 가장 첫번째 값을 가져온다.
         longestGame: totalGameInfo.sort((a, b) => b.gameTime - a.gameTime)[0],
@@ -127,7 +166,7 @@ export class GamePlayerService {
             .map((gameInfo) => gameInfo.averageSpeed)
             .reduce((a, b) => a + b, 0) / totalGameInfo.length,
         //fatestGame은 gameInfo.averageSpeed을 기준으로 오름차순 정렬하여 가장 첫번째 값을 가져온다.
-        fatestGame: totalGameInfo.sort(
+        fastestGame: totalGameInfo.sort(
           (a, b) => a.averageSpeed - b.averageSpeed,
         )[0],
       };

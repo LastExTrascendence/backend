@@ -49,6 +49,7 @@ export class userDto {
  */
 export class userSessionDto extends userDto {
   intra_name: string;
+  two_fa_complete: boolean;
   iat?: number;
   ext?: number;
 }
@@ -77,6 +78,14 @@ export class userBlockDto {
   user_id: number;
   blocked_user_id: number;
   created_at: Date;
+}
+
+export class userAddFriendRequestDto {
+  nickname: string;
+}
+
+export class userRemoveFriendRequestDto {
+  nickname: string;
 }
 
 export class userFriendDto {

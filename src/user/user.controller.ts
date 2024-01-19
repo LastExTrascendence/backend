@@ -14,6 +14,7 @@ import {
   ValidationPipe,
 } from "@nestjs/common";
 import {
+  userAddFriendRequestDto,
   userBlockDto,
   userDto,
   userFriendDto,
@@ -62,6 +63,7 @@ export class UserController {
       two_fa: decoded_token["two_fa"],
       intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
+      two_fa_complete: decoded_token["two_fa_complete"],
     };
     try {
       this.userService.createUser(userSessionDto);
@@ -73,30 +75,30 @@ export class UserController {
   //특정 유저의 특정 한 유저 친구 추가
   @Post("/friend/add")
   @UseGuards(JWTAuthGuard)
-  addFriend(
-    @Body(ValidationPipe) regist: userFriendDto,
-  ): Promise<UserFriend> | HttpException {
+  async addFriend(
+    @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
+    @User() user: userSessionDto,
+  ): Promise<void | HttpException> {
     try {
       this.logger.debug(`Called ${UserController.name} ${this.addFriend.name}`);
-      return this.friendService.addFriend(
-        regist.user_id,
-        regist.friend_user_id,
+      const friend = await this.userService.findUserByNickname(
+        userAddFriendRequestDto.nickname,
       );
+      await this.friendService.addFriend(user.id, friend.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 모든 친구 정보 확인
-  @Get("/friend/find/all")
+  @Get("/friend")
   @UseGuards(JWTAuthGuard)
-  findAllFriend(@Req() req: any) {
+  async findAllFriend(@User() user: userSessionDto) {
+    this.logger.debug(
+      `Called ${UserController.name} ${this.findAllFriend.name}`,
+    );
     try {
-      console.log(req);
-      this.logger.debug(
-        `Called ${UserController.name} ${this.findAllFriend.name}`,
-      );
-      return this.friendService.findAllFriend(req.user_id);
+      return await this.friendService.findAllFriend(user.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -123,14 +125,20 @@ export class UserController {
   }
 
   //특정 유저의 특정 한 유저 친구 삭제
-  @Delete("/friend/remove")
+  @Post("/friend/remove")
   @UseGuards(JWTAuthGuard)
-  deleteFriend(@Req() req: any) {
+  async deleteFriend(
+    @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
+    @User() user: userSessionDto,
+  ) {
     this.logger.debug(
       `Called ${UserController.name} ${this.deleteFriend.name}`,
     );
     try {
-      return this.friendService.removeFriend(req.user_id, req.friend_id);
+      const friend = await this.userService.findUserByNickname(
+        userAddFriendRequestDto.nickname,
+      );
+      return this.friendService.removeFriend(user.id, friend.id);
     } catch (error) {
       return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
@@ -350,6 +358,7 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
+      console.log(UserInfo);
       const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );
