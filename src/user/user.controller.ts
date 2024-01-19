@@ -236,12 +236,13 @@ export class UserController {
         req.user.id,
       );
 
-      const Userprofile: userProfileDto = {
+      const Userprofile = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
         avatar: UserInfo.avatar,
         email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
