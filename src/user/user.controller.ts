@@ -255,7 +255,7 @@ export class UserController {
   }
 
   //사용자의 닉네임, 프로필 사진, 2FA 설정 변경
-  @Put("/me/update")
+  @Post("/me/update")
   @UseGuards(JWTAuthGuard)
   async updateMyInfo(
     @User() user: userSessionDto,

@@ -49,7 +49,7 @@ export class updateUserInfoDto {
   @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
   nickname: string | null;
 
-  @IsBase64()
+  // @IsBase64()
   avatar: string | null;
 
   @IsBoolean()

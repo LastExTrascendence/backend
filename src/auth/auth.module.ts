@@ -31,31 +31,3 @@ const jwtConfig = config.get("jwt");
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
-
-//@Module({
-//  imports: [
-//    JwtModule.register({
-//      secret: jwtConstants.secret,
-//      signOptions: { expiresIn: '7d' },
-//    }),
-//    forwardRef(() => UsersModule),
-//  ],
-//  controllers: [AuthController],
-//  providers: [
-//    FtStrategy,
-//    SessionSerializer,
-//    {
-//      provide: 'AUTH_SERVICE',
-//      useClass: AuthService,
-//    },
-//    JwtStrategy,
-//  ],
-//  exports: [
-//    {
-//      provide: 'AUTH_SERVICE',
-//      useClass: AuthService,
-//    },
-//    JwtModule,
-//  ],
-//})
-//export class AuthModule {}
