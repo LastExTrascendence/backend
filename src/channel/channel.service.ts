@@ -256,7 +256,7 @@ export class ChannelsService {
     const channelUserInfo = await this.channelUserRepository.find();
     for (let i = 0; i < channelUserInfo.length; i++) {
       this.channelUserRepository.update(
-        { id: channelUserInfo[i].id },
+        { id: channelUserInfo[i].id, deleted_at: IsNull() },
         { deleted_at: new Date() },
       );
     }
