@@ -31,7 +31,11 @@ import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.player.service";
-import { updateUserInfoDto, userProfileDto } from "./dto/user.profile.dto";
+import {
+  myProfileResponseDto,
+  updateUserInfoDto,
+  userProfileDto,
+} from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
@@ -236,7 +240,7 @@ export class UserController {
         req.user.id,
       );
 
-      const Userprofile = {
+      const Userprofile: myProfileResponseDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,

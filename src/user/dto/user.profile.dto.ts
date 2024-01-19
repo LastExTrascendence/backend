@@ -36,6 +36,10 @@ export class userProfileDto {
   loses: number;
 }
 
+export class myProfileResponseDto extends userProfileDto {
+  two_fa: boolean;
+}
+
 /**
  * @description 유저 프로필을 업데이트할 때 사용하는 DTO
  * @param {string} nickname - 유저의 LET 닉네임
