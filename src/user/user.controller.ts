@@ -31,7 +31,11 @@ import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.player.service";
-import { updateUserInfoDto, userProfileDto } from "./dto/user.profile.dto";
+import {
+  myProfileResponseDto,
+  updateUserInfoDto,
+  userProfileDto,
+} from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
@@ -236,12 +240,13 @@ export class UserController {
         req.user.id,
       );
 
-      const Userprofile: userProfileDto = {
+      const Userprofile: myProfileResponseDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
         avatar: UserInfo.avatar,
         email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
@@ -255,7 +260,7 @@ export class UserController {
   }
 
   //사용자의 닉네임, 프로필 사진, 2FA 설정 변경
-  @Put("/me/update")
+  @Post("/me/update")
   @UseGuards(JWTAuthGuard)
   async updateMyInfo(
     @User() user: userSessionDto,

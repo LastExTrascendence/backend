@@ -36,6 +36,10 @@ export class userProfileDto {
   loses: number;
 }
 
+export class myProfileResponseDto extends userProfileDto {
+  two_fa: boolean;
+}
+
 /**
  * @description 유저 프로필을 업데이트할 때 사용하는 DTO
  * @param {string} nickname - 유저의 LET 닉네임
@@ -49,7 +53,7 @@ export class updateUserInfoDto {
   @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
   nickname: string | null;
 
-  @IsBase64()
+  // @IsBase64()
   avatar: string | null;
 
   @IsBoolean()

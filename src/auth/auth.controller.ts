@@ -83,16 +83,12 @@ export class AuthController {
           "해당 유저가 존재하지 않습니다.",
           HttpStatus.NOT_FOUND,
         );
-      } else if (userInfo.two_fa === false) {
-        return new HttpException(
-          "2FA 기능이 활성화 되어있지 않습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
       }
+
       const otp = await this.authService.generateOtp(userInfo);
       return res.send(otp);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -102,26 +98,24 @@ export class AuthController {
     @Body() otp: any,
     @Res({ passthrough: true }) res: any,
     @User() user: userSessionDto,
-  ) {
+  ): Promise<void | HttpException> {
     this.logger.debug(`Called ${AuthController.name} ${this.verifyOtp.name}`);
     try {
       // Assuming you have a 'User' entity
       const userInfo = await this.userService.findUserById(user.id);
 
       if (!userInfo) {
-        return new HttpException(
+        throw new HttpException(
           "해당 유저가 존재하지 않습니다.",
           HttpStatus.NOT_FOUND,
-        );
-      } else if (userInfo.two_fa === false) {
-        return new HttpException(
-          "2FA 기능이 활성화 되어있지 않습니다.",
-          HttpStatus.BAD_REQUEST,
         );
       }
 
       const isValid = await this.authService.verifyOtp(userInfo, otp.otp);
       if (isValid) {
+        if (userInfo.two_fa === false) {
+          return;
+        }
         const payload: userSessionDto = {
           id: userInfo.id,
           nickname: userInfo.nickname,
@@ -137,15 +131,15 @@ export class AuthController {
         const url = `http://${config.get("FE").get("domain")}:${config
           .get("FE")
           .get("port")}`;
-        return res.redirect(url);
+        return res.redirect(`${url}`);
       } else {
-        return new HttpException(
+        throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",
           HttpStatus.BAD_REQUEST,
         );
       }
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 }
