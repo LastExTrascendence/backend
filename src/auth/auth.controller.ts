@@ -11,7 +11,7 @@ import {
   Body,
   ValidationPipe,
 } from "@nestjs/common";
-import { Response } from "express";
+import { CookieOptions, Response } from "express";
 import { AuthService } from "./auth.service";
 import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
@@ -113,10 +113,46 @@ export class AuthController {
 
       const isValid = await this.authService.verifyOtp(userInfo, otp.otp);
       if (isValid) {
-        if (userInfo.two_fa === false) {
-          return;
+        if (userInfo.two_fa === true) {
+          new HttpException("너 잘못했잖아", HttpStatus.BAD_REQUEST);
         }
-        const payload: userSessionDto = {
+        await this.authService.setOtpSecret(userInfo, otp.otp);
+      } else {
+        throw new HttpException(
+          "OTP 코드가 일치하지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Get("/otp/login")
+  @UseGuards(JWTAuthGuard)
+  async otpLogin(
+    @Body() otp: any,
+    @Res({ passthrough: true }) res: any,
+    @User() user: userSessionDto,
+  ) {
+    try {
+      this.logger.debug(`Called ${AuthController.name} ${this.otpLogin.name}`);
+      const userInfo = await this.userService.findUserById(user.id);
+      if (!userInfo) {
+        throw new HttpException(
+          "해당 유저가 존재하지 않습니다.",
+          HttpStatus.NOT_FOUND,
+        );
+      } else if (userInfo.two_fa === false || user.two_fa_complete === true) {
+        new HttpException(
+          "OTP 로그인을 할 수 없습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const isValid = this.authService.loginOtp(userInfo, otp.otp);
+      if (isValid) {
+        const payload = {
           id: userInfo.id,
           nickname: userInfo.nickname,
           avatar: userInfo.avatar,
@@ -127,7 +163,11 @@ export class AuthController {
           two_fa_complete: isValid,
         };
         const newToken = this.jwtService.sign(payload);
-        res.cookie("access_token", newToken);
+        const cookieOptions: CookieOptions = {
+          httpOnly: false,
+          domain: config.get("FE").get("domain"),
+        };
+        res.cookie("access_token", newToken, cookieOptions);
         const url = `http://${config.get("FE").get("domain")}:${config
           .get("FE")
           .get("port")}`;
