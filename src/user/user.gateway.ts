@@ -49,8 +49,7 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -66,7 +65,7 @@ export class UserGateway
     private redisClient: Redis,
     private userService: UserService,
     private friendService: FriendService,
-  ) {}
+  ) { }
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -75,29 +74,46 @@ export class UserGateway
   async handleConnection(socket: Socket) {
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
-    userConnectedClients.set(userId, socket);
-    this.userRepository.update(userId, { status: UserStatus.ONLINE });
-    if (userConnectedClients.size === 1) {
-      this.reconnectedServer();
-      this.channelsService.resetChatChannel();
-      this.gameChannelService.deleteAllGameChannel();
-      this.gameService.deleteAllGame();
+    if (userId === 0) {
+      socket.disconnect();
+      return;
     }
-    this.sendFriendStatus();
+    userConnectedClients.set(userId, socket);
+    this.server.socketsJoin(userId.toString());
+    this.logger.debug(`user ONLINE: ${userId}`);
+    await this.userRepository.update(
+      { id: userId },
+      { status: UserStatus.ONLINE },
+    );
+
+    await this.sendMyStatus(userId);
+
+    if (userConnectedClients.size === 1) {
+      await this.channelsService.resetChatChannel();
+      await this.gameChannelService.deleteAllGameChannel();
+      await this.gameService.deleteAllGame();
+    }
+
     //이미 들어온 유저 까투
     this.logger.verbose(
-      `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
+      `${socket.id}, ${userId} is connected!`,
     );
   }
 
-  handleDisconnect(socket: Socket) {
-    //this.connectedClients.delete(socket.handshake.query["userId"]);
+  async handleDisconnect(socket: Socket) {
     const userId = parseInt(socket.handshake.auth.user.id);
-    this.leaveServer(userId);
+    if (userId === 0) {
+      return;
+    }
+    this.logger.debug(`user OFFLINE: ${userId}`);
+    await this.userRepository.update(
+      { id: userId },
+      { status: UserStatus.OFFLINE },
+    );
     userConnectedClients.delete(userId);
-    this.sendFriendStatus();
+    await this.sendMyStatus(userId);
 
-    this.logger.verbose(`${socket.id} is disconnected...`);
+    this.logger.verbose(`${socket.id}, ${userId} is disconnected...`);
   }
 
   /**
@@ -475,25 +491,18 @@ export class UserGateway
     }
   }
 
-  async sendFriendStatus() {
-    userConnectedClients.forEach(async (socket, userId) => {
-      const user = await this.friendService.findAllFriend(userId);
-      const friends = [];
+  async sendMyStatus(myId: number) {
+    this.logger.debug(`sendMyStatus: ${myId}`);
+    const myInfo = await this.userService.findUserById(myId);
+    const myData = {
+      id: myInfo.id,
+      nickname: myInfo.nickname,
+      avatar: myInfo.avatar,
+      status: myInfo.status,
+    };
 
-      for (const idx in user) {
-        const friendInfo = await this.userService.findUserById(
-          user[idx].friend_id,
-        );
-        const friendData = {
-          friendId: friendInfo.id,
-          friendNickname: friendInfo.nickname,
-          friendAvatar: friendInfo.avatar,
-          status: friendInfo.status,
-        };
-        friends.push(friendData);
-      }
-      console.log(friends);
-      this.server.to(socket.id).emit("friendStatus", friends);
+    userConnectedClients.forEach(async (socket, userId) => {
+      this.server.to(userId.toString()).emit("followingStatus", myData);
     });
   }
 
