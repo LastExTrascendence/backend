@@ -11,6 +11,7 @@ import { UserModule } from "src/user/user.module";
 import { JwtStrategy } from "./jwt/jwt.strategy";
 import { FortyTwoStrategy } from "./fortytwo/fortytwo.strategy";
 import { Redis } from "ioredis";
+import { UserOtpSecret } from "src/user/entity/user.otp.entity";
 
 const jwtConfig = config.get("jwt");
 
@@ -24,7 +25,7 @@ const jwtConfig = config.get("jwt");
       },
     }),
     forwardRef(() => UserModule),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, UserOtpSecret]),
   ],
   controllers: [AuthController],
   providers: [UserService, JwtStrategy, AuthService, FortyTwoStrategy, Redis],
