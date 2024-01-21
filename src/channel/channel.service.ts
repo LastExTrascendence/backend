@@ -56,6 +56,18 @@ export class ChannelsService {
           },
           HttpStatus.BAD_REQUEST,
         );
+      } else if (
+        chatChannelListDto.maxUser < 0 ||
+        chatChannelListDto.maxUser > 50
+      ) {
+        // 최대 인원 수 논의 필요
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "최대 인원은 0명 이상 50명 이하여야 합니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       const createInfo = await this.userService.findUserById(

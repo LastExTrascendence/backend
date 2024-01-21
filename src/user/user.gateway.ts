@@ -50,7 +50,8 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -66,7 +67,7 @@ export class UserGateway
     private redisClient: Redis,
     private userService: UserService,
     private friendService: FriendService,
-  ) { }
+  ) {}
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -76,6 +77,11 @@ export class UserGateway
     //userId 필요함
     const userId = parseInt(socket.handshake.auth.user.id);
     if (userId === 0) {
+      socket.disconnect();
+      return;
+    }
+    //이미 들어온 유저 까투
+    else if (userConnectedClients.has(userId)) {
       socket.disconnect();
       return;
     }
@@ -94,9 +100,11 @@ export class UserGateway
       await this.gameChannelService.deleteAllGameChannel();
       await this.gameService.deleteAllGame();
     }
-
+    //this.sendFriendStatus();
     //이미 들어온 유저 까투
-    this.logger.verbose(`${socket.id}, ${userId} is connected!`);
+    this.logger.verbose(
+      `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
+    );
   }
 
   async handleDisconnect(socket: Socket) {
@@ -420,7 +428,6 @@ export class UserGateway
     const { userId } = data;
 
     if (!userId || !(await this.userService.findUserById(userId))) {
-
       throw new HttpException("No user found", 404);
     }
 
@@ -438,7 +445,6 @@ export class UserGateway
 
     console.log("QM", await this.redisClient.lrange("QM", 0, -1));
 
-
     await socket.join(`QM|${userId}`);
     userConnectedClients.set(userId, socket);
 
@@ -449,7 +455,6 @@ export class UserGateway
     // Check if there are enough players in the queue to start a game (two players)
 
     const makeMatch = setInterval(async () => {
-
       const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
         const quickMatchNum = await this.gameChannelService.findQuickMatches();
@@ -481,7 +486,7 @@ export class UserGateway
         const gameinfo = {
           gameId: game.id,
           title: game.title,
-        }
+        };
 
         // Create a game instance or use existing logic to set up a game with player1 and player2
 
