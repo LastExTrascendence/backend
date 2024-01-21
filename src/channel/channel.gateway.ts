@@ -44,7 +44,7 @@ export class ChannelGateWay {
     private redisClient: Redis,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-  ) {}
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -87,6 +87,7 @@ export class ChannelGateWay {
       });
 
       await socket.join(channelInfo.id.toString());
+      //this.server.socketsJoin(channelInfo.id.toString());
       channelConnectedClients.set(userId, socket);
 
       //입장불가
@@ -161,11 +162,13 @@ export class ChannelGateWay {
         await this.channelUserRepository.save(newEnterUser);
       }
 
+      console.log(socket.rooms);
+
       //현재 채널의 인원수를 업데이트 한다.
-      this.updateCurUser(title, channelInfo.id);
+      await this.updateCurUser(title, channelInfo.id);
 
       //현재 입장한 유저의 정보를 보내준다.
-      this.sendUserList(userId, channelInfo.id, socket);
+      await this.sendUserList(userId, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
@@ -198,19 +201,19 @@ export class ChannelGateWay {
             { user_id: data.sender, channel_id: channelInfo.id },
             { mute: null },
           );
-          socket.to(channelInfo.id.toString()).emit("msgToClient", {
+          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: data.content,
           });
         } else
-          socket.to(channelInfo.id.toString()).emit("msgToClient", {
+          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: "뮤트 상태입니다.",
           });
       } else {
-        socket.to(channelInfo.id.toString()).emit("msgToClient", {
+        this.server.to(channelInfo.id.toString()).emit("msgToClient", {
           time: showTime(data.time),
           sender: senderInfo.nickname,
           content: data.content,
@@ -500,7 +503,9 @@ export class ChannelGateWay {
       TotalUserInfo.push(UserInfo);
     }
 
-    socket.to(channelId.toString()).emit("userList", TotalUserInfo);
+    //console.log(TotalUserInfo);
+    //this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
+    this.server.in(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
   async updateCurUser(title: string, channelId: number) {
