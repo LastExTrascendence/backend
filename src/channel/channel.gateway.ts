@@ -86,7 +86,7 @@ export class ChannelGateWay {
         where: { user_id: userId, channel_id: channelInfo.id },
       });
 
-      this.server.socketsJoin(channelInfo.id.toString());
+      await socket.join(channelInfo.id.toString());
       channelConnectedClients.set(userId, socket);
 
       //입장불가
@@ -198,19 +198,19 @@ export class ChannelGateWay {
             { user_id: data.sender, channel_id: channelInfo.id },
             { mute: null },
           );
-          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
+          socket.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: data.content,
           });
         } else
-          this.server.to(channelInfo.id.toString()).emit("msgToClient", {
+          socket.to(channelInfo.id.toString()).emit("msgToClient", {
             time: showTime(data.time),
             sender: senderInfo.nickname,
             content: "뮤트 상태입니다.",
           });
       } else {
-        this.server.to(channelInfo.id.toString()).emit("msgToClient", {
+        socket.to(channelInfo.id.toString()).emit("msgToClient", {
           time: showTime(data.time),
           sender: senderInfo.nickname,
           content: data.content,
@@ -500,7 +500,7 @@ export class ChannelGateWay {
       TotalUserInfo.push(UserInfo);
     }
 
-    this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
+    socket.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
   async updateCurUser(title: string, channelId: number) {

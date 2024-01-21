@@ -143,7 +143,7 @@ export class GameGateWay {
         gameConnectedClients.delete(data.userId);
       }
 
-      this.server.socketsJoin(gameChannelInfo.id.toString());
+      await socket.join(gameChannelInfo.id.toString());
       gameConnectedClients.set(userId, socket);
 
       //입장불가
@@ -202,7 +202,7 @@ export class GameGateWay {
         return;
       }
 
-      this.sendUserList(title, gameChannelInfo.id);
+      this.sendUserList(title, gameChannelInfo.id, socket);
 
       //current_user 수 확인
       this.updateCurUser(title, gameChannelInfo.id);
@@ -233,7 +233,7 @@ export class GameGateWay {
         where: { title: data.title },
       });
 
-      this.server.to(gameInfo.id.toString()).emit("msgToClient", {
+      socket.to(gameInfo.id.toString()).emit("msgToClient", {
         time: showTime(data.time),
         sender: senderInfo.nickname,
         content: data.content,
@@ -262,7 +262,7 @@ export class GameGateWay {
       );
       await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
-      this.server.to(data.gameId.toString()).emit("gameStart");
+      socket.to(data.gameId.toString()).emit("gameStart");
     }
   }
 
@@ -280,14 +280,14 @@ export class GameGateWay {
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
       console.log("readyOff");
-      this.server.to(socket.id).emit("readyOff");
+      socket.to(socket.id).emit("readyOff");
     } else if (
       data.myId === parseInt(readyInfo.user) &&
       readyInfo.userReady == "false"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
       console.log("readyOn");
-      this.server.to(socket.id).emit("readyOn");
+      socket.to(socket.id).emit("readyOn");
     }
   }
 
@@ -324,7 +324,7 @@ export class GameGateWay {
       await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
 
       this.updateCurUser(channelInfo.title, channelInfo.id);
-      this.sendUserList(userId, channelInfo.id);
+      this.sendUserList(userId, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
@@ -364,7 +364,7 @@ export class GameGateWay {
         targetClient.disconnect(true);
         gameConnectedClients.delete(userId);
         this.updateCurUser(data.title, channelInfo.id);
-        this.sendUserList(data.title, channelInfo.id);
+        this.sendUserList(data.title, channelInfo.id, socket);
       }
     }
     // 게임중에 연결이 끊긴 경우
@@ -396,7 +396,7 @@ export class GameGateWay {
       paddleHeight: GameComponent.paddleHeight,
       ballSize: GameComponent.ballSize,
     };
-    this.server.to(gameInfo.id).emit("play", gameComponentInfo);
+    socket.to(gameInfo.id).emit("play", gameComponentInfo);
   }
 
   @SubscribeMessage("keyDown")
@@ -458,7 +458,7 @@ export class GameGateWay {
 
       // Add event listeners for paddle movement
 
-      //this.server.socketsJoin(data.gameId.toString());
+      //socket.socketsJoin(data.gameId.toString());
       const mutex = new Mutex();
       let cnt = 0;
       const intervalId = setInterval(async () => {
@@ -474,6 +474,7 @@ export class GameGateWay {
           GameComponent.ballSize,
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
+          socket,
         );
 
         //if (homeScore === 5 || awayScore === 5) {
@@ -497,8 +498,8 @@ export class GameGateWay {
 
         ++cnt;
         //console.log(cnt);
-        //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
-        this.transferData(returnData, cnt, data);
+        //socket.to(data.gameId.toString()).emit("loopGameData", returnData);
+        this.transferData(returnData, cnt, data, socket);
         mutex.release();
       }, 1000 / 60);
 
@@ -510,13 +511,18 @@ export class GameGateWay {
     }
   }
 
-  async transferData(returnData: any, cnt: number, gameData: any) {
+  async transferData(
+    returnData: any,
+    cnt: number,
+    gameData: any,
+    socket: Socket,
+  ) {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
-    this.server.to(gameData.gameId.toString()).emit("loopGameData", returnData);
+    socket.to(gameData.gameId.toString()).emit("loopGameData", returnData);
   }
 
-  async sendUserList(title: string, channelId: number) {
+  async sendUserList(title: string, channelId: number, socket: Socket) {
     this.logger.debug(`sendUserList`);
     const TotalUserInfo = [];
     const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
@@ -549,7 +555,7 @@ export class GameGateWay {
         TotalUserInfo.push(UserInfo);
       }
     }
-    this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
+    socket.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
   async updateCurUser(title: string, channelId: number) {
@@ -578,6 +584,7 @@ export class GameGateWay {
     ballSize: number,
     paddleHeight: number,
     paddleWidth: number,
+    socket: Socket,
   ): Promise<{
     ball: { x: number; y: number };
     homePaddle: { x: number; y: number };
@@ -636,9 +643,7 @@ export class GameGateWay {
 
       numberOfRounds++;
       awayScore++;
-      this.server
-        .to(data.gameId.toString())
-        .emit("score", [homeScore, awayScore]);
+      socket.to(data.gameId.toString()).emit("score", [homeScore, awayScore]);
       //if (homeScore === 5) {
       //  // 홈팀 승자로 넣기
       //  await this.gamePlayerService.saveGamePlayer(
@@ -664,9 +669,7 @@ export class GameGateWay {
       ballState.y = height / 2;
       ballState.dx = -ballState.dx;
       numberOfRounds++;
-      this.server
-        .to(data.gameId.toString())
-        .emit("score", [homeScore, awayScore]);
+      socket.to(data.gameId.toString()).emit("score", [homeScore, awayScore]);
       //if (awayScore === 5) {
       //  //away팀 승자로 넣기
       //  await this.gamePlayerService.saveGamePlayer(

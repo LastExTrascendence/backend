@@ -38,6 +38,7 @@ import { FriendService } from "./user.friend.service";
 import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
 import { gameConnectedClients } from "src/game/game.gateway";
+import { Console } from "console";
 
 //path, endpoint
 
@@ -49,7 +50,8 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
+{
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -65,7 +67,7 @@ export class UserGateway
     private redisClient: Redis,
     private userService: UserService,
     private friendService: FriendService,
-  ) { }
+  ) {}
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -79,7 +81,7 @@ export class UserGateway
       return;
     }
     userConnectedClients.set(userId, socket);
-    this.server.socketsJoin(userId.toString());
+    await socket.join(userId.toString());
     this.logger.debug(`user ONLINE: ${userId}`);
     await this.userRepository.update(
       { id: userId },
@@ -95,9 +97,7 @@ export class UserGateway
     }
 
     //이미 들어온 유저 까투
-    this.logger.verbose(
-      `${socket.id}, ${userId} is connected!`,
-    );
+    this.logger.verbose(`${socket.id}, ${userId} is connected!`);
   }
 
   async handleDisconnect(socket: Socket) {
@@ -123,6 +123,42 @@ export class UserGateway
    * @SubscribeMessage("getRedis")
    *
    */
+
+  @SubscribeMessage("switchDmRoom")
+  async switchDmRoom(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    this.logger.verbose(`switchDmRoom: ${data.userId}, ${data.friendId}`);
+    const { beforeUserNick, switchUserId, afterUserNick } = data;
+
+    const beforeUser =
+      await this.userService.findUserByNickname(beforeUserNick);
+
+    if (beforeUserNick) {
+      let beforeRoomName = null;
+
+      if (beforeUser.id >= switchUserId) {
+        beforeRoomName = switchUserId + "," + beforeUser.id;
+      } else {
+        beforeRoomName = beforeUser.id + "," + switchUserId;
+      }
+
+      await socket.leave(beforeRoomName);
+    }
+
+    const afterUser = await this.userService.findUserByNickname(afterUserNick);
+
+    let afterRoomName = null;
+
+    if (afterUser.id >= switchUserId) {
+      afterRoomName = switchUserId + "," + afterUser.id;
+    } else {
+      afterRoomName = afterUser.id + "," + switchUserId;
+    }
+
+    await socket.join(afterRoomName);
+  }
 
   @SubscribeMessage("msgToServer")
   async handleMessage(
@@ -154,6 +190,24 @@ export class UserGateway
       name = sender.id + "," + receiver.id;
     }
 
+    console.log(
+      "before",
+      "dm 소켓 방 확인",
+      socket.rooms,
+      "dm name 확인",
+      name.toString(),
+    );
+
+    socket.join(name);
+
+    console.log(
+      "after",
+      "dm 소켓 방 확인",
+      socket.rooms,
+      "dm name 확인",
+      name.toString(),
+    );
+
     //3. Dm 메시지 저장
 
     const RedisPayload = {
@@ -173,19 +227,47 @@ export class UserGateway
       content: RedisPayload.content,
     };
 
-    this.server.socketsJoin(name);
     this.server.to(name).emit("msgToClient", ClientPayload);
+
+    //socket.in(name).emit("msgToClient", ClientPayload);
+    //socket.emit("msgToClient", ClientPayload);
+
+    //console.log(
+    //  "leave",
+    //  "dm 소켓 방 확인",
+    //  socket.rooms,
+    //  "dm name 확인",
+    //  name.toString(),
+    //);
   }
 
   @SubscribeMessage("getRedis")
   async giveRedis(
     socket: Socket,
     payload: {
+      beforeUserNick: string;
       sender: number;
       receiver: string;
     },
   ): Promise<void> {
     this.logger.verbose(`getRedis: ${payload.sender}, ${payload.receiver}`);
+
+    const beforeUser = await this.userService.findUserByNickname(
+      payload.beforeUserNick,
+    );
+
+    if (payload.beforeUserNick) {
+      let beforeRoomName = null;
+
+      if (beforeUser.id >= payload.sender) {
+        beforeRoomName = payload.sender + "," + beforeUser.id;
+      } else {
+        beforeRoomName = beforeUser.id + "," + payload.sender;
+      }
+
+      await socket.leave(beforeRoomName);
+    }
+
     const chats = await this.fetchChatHistory(payload);
 
     const receiver = await this.userService.findUserByNickname(
@@ -200,7 +282,8 @@ export class UserGateway
       name = payload.sender + "," + receiver.id;
     }
 
-    this.server.socketsJoin(name);
+    await socket.join(name);
+
     //객체 배열로 변경
     //const totalMessages = [];
 
@@ -221,6 +304,8 @@ export class UserGateway
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
           this.server.to(socket.id).emit("msgToClient", message);
+          //socket.to(socket.id).emit("msgToClient", message);
+          //socket.emit("msgToClient", message);
         } else {
           const message = {
             time: split[0],
@@ -235,6 +320,8 @@ export class UserGateway
             await this.userService.findUserById(Number(split[2]))
           ).nickname;
           this.server.to(socket.id).emit("msgToClient", message);
+          //socket.to(socket.id).emit("msgToClient", message);
+          //socket.emit("msgToClient", message);
         }
       }
     }
@@ -255,7 +342,6 @@ export class UserGateway
       } else {
         name = payload.sender + "," + receiverId.id;
       }
-      console.log(name);
       const chatHistory = await this.redisClient.lrange(`DM|${name}`, 0, -1);
       return chatHistory;
     } catch (error) {
@@ -314,7 +400,7 @@ export class UserGateway
       totalFriendList.push(friendData);
     }
 
-    this.server.to(socket.id).emit("friendList", totalFriendList);
+    socket.to(socket.id).emit("friendList", totalFriendList);
   }
 
   /**
@@ -347,10 +433,10 @@ export class UserGateway
       throw new HttpException("User already in queue", 400);
     }
 
-    this.server.socketsJoin(`QM|${userId}`);
+    await socket.join(`QM|${userId}`);
     userConnectedClients.set(userId, socket);
 
-    //this.server.to(`QM|${userId}`)
+    //socket.to(`QM|${userId}`)
     //.emit("enteredQueue", { message: "Entered the quick match queue" });
     // Notify the user that they've entered the queue
 
@@ -384,8 +470,8 @@ export class UserGateway
         // Notify players that the game is starting and provide opponent information
         // Emit an event to start the game for both players
 
-        this.server.to(`QM|${homePlayer}`).emit("gameMatch");
-        this.server.to(`QM|${awayPlayer}`).emit("gameMatch");
+        socket.to(`QM|${homePlayer}`).emit("gameMatch");
+        socket.to(`QM|${awayPlayer}`).emit("gameMatch");
       } else if (queueLength === 0) {
         return;
       }
@@ -480,7 +566,7 @@ export class UserGateway
       //}
       const inviteUserSocket = userConnectedClients.get(inviteUser.id);
       console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
-      this.server.to(inviteUserSocket.id).emit("invitedUser", {
+      socket.to(inviteUserSocket.id).emit("invitedUser", {
         hostNickname: (await this.userService.findUserById(userId)).nickname,
         url: url,
       });
@@ -502,7 +588,9 @@ export class UserGateway
     };
 
     userConnectedClients.forEach(async (socket, userId) => {
-      this.server.to(userId.toString()).emit("followingStatus", myData);
+      //console.log("followingStatus", userId);
+
+      socket.to(userId.toString()).emit("followingStatus", myData);
     });
   }
 
