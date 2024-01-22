@@ -21,6 +21,7 @@ import { User } from "src/decorator/user.decorator";
 import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 import { JWTAuthGuard } from "./jwt/jwtAuth.guard";
+import Redis from "ioredis";
 
 @Controller("auth")
 export class AuthController {
@@ -29,6 +30,7 @@ export class AuthController {
     private authService: AuthService,
     private readonly userService: UserService,
     private jwtService: JwtService,
+    private redisService: Redis,
   ) {}
 
   @Get("/login")
@@ -116,7 +118,7 @@ export class AuthController {
         if (userInfo.two_fa === true) {
           new HttpException("너 잘못했잖아", HttpStatus.BAD_REQUEST);
         }
-        await this.authService.setOtpSecret(userInfo, otp.otp);
+        await this.authService.setOtpSecret(userInfo);
       } else {
         throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",
@@ -128,7 +130,7 @@ export class AuthController {
     }
   }
 
-  @Get("/otp/login")
+  @Post("/otp/login")
   @UseGuards(JWTAuthGuard)
   async otpLogin(
     @Body() otp: any,
@@ -149,8 +151,10 @@ export class AuthController {
           HttpStatus.BAD_REQUEST,
         );
       }
+      console.log(otp);
 
-      const isValid = this.authService.loginOtp(userInfo, otp.otp);
+      const isValid = await this.authService.loginOtp(userInfo, otp.otp);
+      console.log(isValid);
       if (isValid) {
         const payload = {
           id: userInfo.id,
@@ -162,6 +166,7 @@ export class AuthController {
           intra_name: userInfo.intra_name,
           two_fa_complete: isValid,
         };
+
         const newToken = this.jwtService.sign(payload);
         const cookieOptions: CookieOptions = {
           httpOnly: false,

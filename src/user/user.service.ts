@@ -5,12 +5,14 @@ import { User } from "./entity/user.entity";
 import { In, Like, Repository } from "typeorm";
 import { UserStatus } from "./entity/user.enum";
 import { updateUserInfoDto } from "./dto/user.profile.dto";
+import { UserOtpService } from "./user.otp.service";
 
 @Injectable()
 export class UserService {
   private logger = new Logger(UserService.name);
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
+    private userOtpService: UserOtpService,
   ) {}
 
   async createUser(userSessionDto: userSessionDto): Promise<void> {
@@ -83,6 +85,9 @@ export class UserService {
     user.avatar = avatar;
     user.two_fa = two_fa;
     await this.userRepository.save(user);
+
+    //todo, user.two_fa_complete 이슈 물어보기
+    if (two_fa === false) this.userOtpService.resetSecret(user);
     return user;
   }
 

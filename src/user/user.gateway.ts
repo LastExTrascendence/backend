@@ -78,7 +78,6 @@ export class UserGateway
     userConnectedClients.set(userId, socket);
     this.userRepository.update(userId, { status: UserStatus.ONLINE });
     if (userConnectedClients.size === 1) {
-      this.reconnectedServer();
       this.channelsService.resetChatChannel();
       this.gameChannelService.deleteAllGameChannel();
       this.gameService.deleteAllGame();

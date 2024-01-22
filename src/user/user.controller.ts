@@ -263,6 +263,7 @@ export class UserController {
   @Post("/me/update")
   @UseGuards(JWTAuthGuard)
   async updateMyInfo(
+    @Headers() headers: any,
     @User() user: userSessionDto,
     @Body(ValidationPipe) updateUserInfoDto: updateUserInfoDto,
   ): Promise<void | HttpException> {

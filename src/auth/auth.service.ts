@@ -11,6 +11,8 @@ import * as qr from "qrcode";
 import { UserStatus } from "src/user/entity/user.enum";
 import * as bcrypt from "bcrypt";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";
+import * as CryptoJS from "crypto-js";
+import { UserOtpService } from "src/user/user.otp.service";
 
 @Injectable()
 export class AuthService {
@@ -21,6 +23,7 @@ export class AuthService {
     private userOtpRepositoty: Repository<UserOtpSecret>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
+    private userOtpSevice: UserOtpService,
     private redisService: Redis,
   ) {}
 
@@ -38,9 +41,8 @@ export class AuthService {
   public async generateOtp(user: User): Promise<string> {
     try {
       // otplib를 설치한 후, 해당 라이브러리를 통해 시크릿 키 생성
-      const secret = authenticator.generateSecret();
 
-      const hashedSecret = await bcrypt.hash(secret, 12);
+      const secret = authenticator.generateSecret();
 
       const otpConfig = Config.get("OTP");
 
@@ -48,13 +50,19 @@ export class AuthService {
       const otpAuthUrl = authenticator.keyuri(
         user.email,
         otpConfig.TWO_FACTOR_AUTHENTICATION_APP_NAME,
-        hashedSecret,
+        secret,
       );
-
       if (!otpAuthUrl) throw new Error("OTP Auth Url is not generated");
 
+      const crpytoSecret = CryptoJS.AES.encrypt(
+        secret,
+        Config.get("jwt").secret,
+      ).toString();
+
       // User 테이블 내부에 시크릿 키 저장 (UserService에 작성)
-      await this.redisService.set(`OTP|${user.id}`, hashedSecret);
+      if (await this.redisService.get(`OTP|${user.id}`))
+        await this.redisService.del(`OTP|${user.id}`);
+      await this.redisService.set(`OTP|${user.id}`, crpytoSecret);
 
       // const qrCodeBuffer = await qr.toBuffer(otpAuthUrl);
       // const writeStream = createWriteStream(`./qr-codes/${user.id}_qrcode.png`);
@@ -67,19 +75,25 @@ export class AuthService {
     }
   }
 
-  public async verifyOtp(user: User, otp: string): Promise<boolean> {
+  async verifyOtp(user: User, otp: string): Promise<boolean> {
     try {
       // Retrieve the stored secret key from Redis
       const storedSecret = await this.redisService.get(`OTP|${user.id}`);
+
+      //sha256으로 encode된 것을 decode 해주셈
 
       if (!storedSecret) {
         throw new Error("Secret key not found for the user");
       }
 
+      const decodeSecret = CryptoJS.AES.decrypt(
+        storedSecret,
+        Config.get("jwt").secret,
+      ).toString(CryptoJS.enc.Utf8);
       // Verify the provided OTP against the stored secret
       const isValid = authenticator.verify({
         token: otp,
-        secret: storedSecret,
+        secret: decodeSecret,
       });
 
       return isValid;
@@ -104,34 +118,51 @@ export class AuthService {
     }
   }
 
-  async setOtpSecret(user: User, secret: string): Promise<void> {
+  async setOtpSecret(user: User): Promise<void> {
     try {
       await this.userRepository.update(user.id, {
         two_fa: true,
       });
-      const newUserOtpSecret = {
-        user_id: user.id,
-        secret: secret,
-        updated_at: new Date(),
-      };
-      await this.userOtpRepositoty.save(newUserOtpSecret);
-      await this.redisService.del(`OTP|${user.id}`);
+      const userOtpInfo = await this.userOtpSevice.findOneUserOtpInfo(user);
+
+      const storedSecret = await this.redisService.get(`OTP|${user.id}`);
+
+      if (userOtpInfo) {
+        await this.userOtpRepositoty.update(
+          { user_id: user.id },
+          { secret: storedSecret, updated_at: new Date() },
+        );
+        await this.redisService.del(`OTP|${user.id}`);
+      } else {
+        const newUserOtpSecret = {
+          user_id: user.id,
+          secret: storedSecret,
+          updated_at: new Date(),
+        };
+        await this.userOtpRepositoty.save(newUserOtpSecret);
+        await this.redisService.del(`OTP|${user.id}`);
+      }
     } catch (error) {
       throw error;
     }
   }
 
-  public async loginOtp(user: User, otp: string): Promise<boolean> {
+  async loginOtp(user: User, otp: string): Promise<boolean> {
     try {
       const storedSecret = await this.getOtpSecret(user);
 
-      if (!storedSecret) {
+      const decodeSecret = CryptoJS.AES.decrypt(
+        storedSecret.secret,
+        Config.get("jwt").secret,
+      ).toString(CryptoJS.enc.Utf8);
+
+      if (!decodeSecret) {
         throw new Error("Secret key not found for the user");
       }
 
       const isValid = authenticator.verify({
         token: otp,
-        secret: storedSecret.secret,
+        secret: decodeSecret,
       });
 
       return isValid;
