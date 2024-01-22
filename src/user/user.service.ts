@@ -88,6 +88,7 @@ export class UserService {
 
     //todo, user.two_fa_complete 이슈 물어보기
     if (two_fa === false) this.userOtpService.resetSecret(user);
+    else this.userOtpService.setOtpSecret(user);
     return user;
   }
 

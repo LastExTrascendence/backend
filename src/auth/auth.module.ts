@@ -30,12 +30,12 @@ const jwtConfig = config.get("jwt");
   ],
   controllers: [AuthController],
   providers: [
+    UserOtpService,
     UserService,
     JwtStrategy,
     AuthService,
     FortyTwoStrategy,
     Redis,
-    UserOtpService,
   ],
   exports: [AuthService, JwtModule],
 })

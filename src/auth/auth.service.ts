@@ -23,7 +23,7 @@ export class AuthService {
     private userOtpRepositoty: Repository<UserOtpSecret>,
     @InjectRepository(User)
     private userRepository: Repository<User>,
-    private userOtpSevice: UserOtpService,
+    private userOtpService: UserOtpService,
     private redisService: Redis,
   ) {}
 
@@ -102,54 +102,9 @@ export class AuthService {
     }
   }
 
-  async getOtpSecret(user: User): Promise<UserOtpSecret> {
-    try {
-      const userOtpSecret = await this.userOtpRepositoty.findOne({
-        where: { user_id: user.id },
-      });
-
-      if (!userOtpSecret) {
-        throw new Error("Secret key not found for the user");
-      }
-
-      return userOtpSecret;
-    } catch (error) {
-      throw error;
-    }
-  }
-
-  async setOtpSecret(user: User): Promise<void> {
-    try {
-      await this.userRepository.update(user.id, {
-        two_fa: true,
-      });
-      const userOtpInfo = await this.userOtpSevice.findOneUserOtpInfo(user);
-
-      const storedSecret = await this.redisService.get(`OTP|${user.id}`);
-
-      if (userOtpInfo) {
-        await this.userOtpRepositoty.update(
-          { user_id: user.id },
-          { secret: storedSecret, updated_at: new Date() },
-        );
-        await this.redisService.del(`OTP|${user.id}`);
-      } else {
-        const newUserOtpSecret = {
-          user_id: user.id,
-          secret: storedSecret,
-          updated_at: new Date(),
-        };
-        await this.userOtpRepositoty.save(newUserOtpSecret);
-        await this.redisService.del(`OTP|${user.id}`);
-      }
-    } catch (error) {
-      throw error;
-    }
-  }
-
   async loginOtp(user: User, otp: string): Promise<boolean> {
     try {
-      const storedSecret = await this.getOtpSecret(user);
+      const storedSecret = await this.userOtpService.getOtpSecret(user);
 
       const decodeSecret = CryptoJS.AES.decrypt(
         storedSecret.secret,

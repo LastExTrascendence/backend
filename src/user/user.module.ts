@@ -29,6 +29,7 @@ import { GameService } from "src/game/game.service";
 import { GamePlayerService } from "src/game/game.player.service";
 import { UserOtpService } from "./user.otp.service";
 import { UserOtpSecret } from "./entity/user.otp.entity";
+import { AuthService } from "src/auth/auth.service";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
