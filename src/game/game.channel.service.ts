@@ -28,10 +28,13 @@ export class GameChannelService {
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
+    @Inject(forwardRef(() => UserService))
     private userService: UserService,
+    @Inject(forwardRef(() => Redis))
     private redisClient: Redis,
+    @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) {}
+  ) { }
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -98,15 +101,6 @@ export class GameChannelService {
         gameChannelListDto.password &&
         gameChannelListDto.gameChannelPolicy === GameChannelPolicy.PRIVATE
       ) {
-        const hashedPassword = await bcrypt.hash(
-          gameChannelListDto.password,
-          10,
-        );
-        await this.redisClient.hset(
-          `CH|${gameChannelListDto.title}`,
-          "password",
-          hashedPassword,
-        );
         await this.redisClient.hset(
           `GM|${gameChannelListDto.title}`,
           "password",

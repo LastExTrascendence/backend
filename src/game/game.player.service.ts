@@ -13,6 +13,8 @@ import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
 import { format } from "date-fns";
 import { GameResult } from "./enum/game.enum";
+import { GameChannelService } from "./game.channel.service";
+import Redis from "ioredis";
 
 @Injectable()
 export class GamePlayerService {
@@ -23,7 +25,10 @@ export class GamePlayerService {
     private gamePlayerRepository: Repository<GamePlayer>,
     @Inject(forwardRef(() => UserService))
     private userServie: UserService,
-  ) {}
+    @Inject(forwardRef(() => GameChannelService))
+    private gameChannelService: GameChannelService,
+    private redisService: Redis,
+  ) { }
 
   async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
@@ -40,28 +45,54 @@ export class GamePlayerService {
   }
 
   async saveGamePlayer(
-    game_id: number,
-    user_id: number,
-    score: number,
+    gameId: number,
+    homeScore: number,
+    awayScore: number,
   ): Promise<void | HttpException> {
     try {
-      let userRole = null;
-      if (score == 5) {
-        userRole = GameResult.WINNER;
-      } else if (score < 5 && score >= 0) {
-        userRole = GameResult.LOSER;
+      console.log(`saveGamePlayer ${gameId} ${homeScore} ${awayScore}`);
+
+      const gameInfo = await this.gameChannelService.findOneGameChannelById(gameId);
+
+      const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
+
+      console.log(redisInfo);
+
+      const homeUserInfo = await this.userServie.findUserById(parseInt(redisInfo.creator));
+      const awayUserInfo = await this.userServie.findUserById(parseInt(redisInfo.user));
+
+      if (homeScore === 5) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: homeScore,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: awayScore,
+        });
+      } else if (awayScore === 5) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: homeScore,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: awayScore,
+        });
       } else {
         throw new HttpException(
           "게임 플레이어 저장에 실패하였습니다.",
           HttpStatus.BAD_REQUEST,
         );
       }
-      const gamePlayer = await this.gamePlayerRepository.save({
-        game_id: game_id,
-        user_id: user_id,
-        role: userRole,
-        score: score,
-      });
     } catch (error) {
       throw new HttpException(
         "게임 플레이어 저장에 실패하였습니다.",

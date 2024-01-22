@@ -1,9 +1,11 @@
 import {
   HttpException,
   HttpStatus,
+  Inject,
   Logger,
   OnModuleInit,
   UseGuards,
+  forwardRef,
 } from "@nestjs/common";
 import {
   ConnectedSocket,
@@ -13,7 +15,7 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { SaveOptions, RemoveOptions, Repository } from "typeorm";
+import { SaveOptions, RemoveOptions, Repository, IsNull } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
 import { Redis } from "ioredis";
@@ -32,6 +34,7 @@ import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { GamePlayerService } from "./game.player.service";
 import { GameService } from "./game.service";
 import { Mutex } from "async-mutex";
+import { GameChannelService } from "./game.channel.service";
 
 export const gameConnectedClients: Map<number, Socket> = new Map();
 
@@ -45,15 +48,17 @@ export class GameGateWay {
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
-    @InjectRepository(Game)
-    private gameRepository: Repository<Game>,
-    @InjectRepository(GamePlayer)
-    private gamePlayerRepository: Repository<GamePlayer>,
+    @Inject(forwardRef(() => Redis))
     private redisClient: Redis,
+    @Inject(forwardRef(() => UserService))
     private userService: UserService,
+    @Inject(forwardRef(() => GamePlayerService))
     private gamePlayerService: GamePlayerService,
+    @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) {}
+    @Inject(forwardRef(() => GameChannelService))
+    private gameChannelService: GameChannelService,
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -99,7 +104,7 @@ export class GameGateWay {
       const gameChannelInfo = await this.gameChannelRepository.findOne({
         where: {
           title: title,
-          deleted_at: null,
+          deleted_at: IsNull(),
           game_status: GameStatus.READY,
         },
       });
@@ -206,6 +211,8 @@ export class GameGateWay {
 
       //current_user 수 확인
       await this.updateCurUser(title, gameChannelInfo.id);
+
+      await this.sendRoomInfo(title, gameChannelInfo.id, socket);
     } catch (error) {
       throw new HttpException(
         {
@@ -263,7 +270,7 @@ export class GameGateWay {
     }
   }
 
-  //userId : number
+  //MyId : number
   //   //gameId : number
   //title : string
   @SubscribeMessage("pressStart")
@@ -282,6 +289,7 @@ export class GameGateWay {
       );
       await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
+      console.log("startInfo", startInfo);
       this.server.to(data.gameId.toString()).emit("gameStart");
     }
   }
@@ -300,14 +308,14 @@ export class GameGateWay {
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
       console.log("readyOff");
-      this.server.to(socket.id).emit("readyOff");
+      this.server.to(data.gameId.toString()).emit("readyOff");
     } else if (
       data.myId === parseInt(readyInfo.user) &&
       readyInfo.userReady == "false"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
       console.log("readyOn");
-      this.server.to(socket.id).emit("readyOn");
+      this.server.to(data.gameId.toString()).emit("readyOn");
     }
   }
 
@@ -622,6 +630,8 @@ export class GameGateWay {
           awayScore,
           socket,
         );
+        homeScore = calculatedCoordinates.homeScore;
+        awayScore = calculatedCoordinates.awayScore;
 
         homePaddleState.y = calculatedCoordinates.homePaddle.y;
         awayPaddleState.y = calculatedCoordinates.awayPaddle.y;
@@ -629,63 +639,73 @@ export class GameGateWay {
         awayPaddleState.dy = calculatedCoordinates.awayPaddle.dy;
         numberOfBounces = calculatedCoordinates.numberOfBounces;
         numberOfRounds = calculatedCoordinates.numberOfRounds;
-        homeScore = calculatedCoordinates.homeScore;
-        awayScore = calculatedCoordinates.awayScore;
 
-        //if (homeScore === 5 || awayScore === 5) {
-        //  const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-        //  const result = {
-        //    winUserNick: "",
-        //    loseUserNick: "",
-        //    playTime: this.checkPlayTIme(startTime),
-        //    homeScore: homeScore,
-        //    awayScore: awayScore,
-        //  };
-        //  const creatorInfo = await this.userService.findUserById(
-        //    parseInt(redisInfo.creator),
-        //  );
-        //  const userInfo = await this.userService.findUserById(
-        //    parseInt(redisInfo.user),
-        //  );
-        //  if (homeScore === 5) {
-        //    result.winUserNick = creatorInfo.nickname;
-        //    result.loseUserNick = userInfo.nickname;
-        //  } else {
-        //    result.winUserNick = userInfo.nickname;
-        //    result.loseUserNick = creatorInfo.nickname;
-        //  }
-        //  this.server.to(data.gameId.toString()).emit("gameEnd", result);
-        //  mutex.release();
-        //  clearInterval(intervalId);
-        //  return;
-        //} else if (timeOut(startTime)) {
-        //  const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-        //  const result = {
-        //    winUserNick: "",
-        //    loseUserNick: "",
-        //    playTime: this.checkPlayTIme(startTime),
-        //    homeScore: homeScore,
-        //    awayScore: awayScore,
-        //  };
+        if (homeScore === 5 || awayScore === 5) {
+          await this.gameService.saveTest(
+            data.gameId,
+            numberOfRounds,
+            numberOfBounces,
+            formattedPlayTime(startTime),
+          );
+          const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+          const result = {
+            winUserNick: "",
+            loseUserNick: "",
+            playTime: this.checkPlayTime(startTime),
+            homeScore: homeScore,
+            awayScore: awayScore,
+          };
+          const creatorInfo = await this.userService.findUserById(
+            parseInt(redisInfo.creator),
+          );
+          const userInfo = await this.userService.findUserById(
+            parseInt(redisInfo.user),
+          );
+          if (homeScore === 5) {
+            result.winUserNick = creatorInfo.nickname;
+            result.loseUserNick = userInfo.nickname;
+          } else {
+            result.winUserNick = userInfo.nickname;
+            result.loseUserNick = creatorInfo.nickname;
+          }
+          this.server.to(data.gameId.toString()).emit("gameEnd", result);
+          mutex.release();
+          clearInterval(intervalId);
+          return;
+        } else if (timeOut(startTime)) {
+          await this.gameService.saveTest(
+            data.gameId,
+            numberOfRounds,
+            numberOfBounces,
+            formattedPlayTime(startTime),
+          );
+          const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+          const result = {
+            winUserNick: "",
+            loseUserNick: "",
+            playTime: this.checkPlayTime(startTime),
+            homeScore: homeScore,
+            awayScore: awayScore,
+          };
 
-        //  const creatorInfo = await this.userService.findUserById(
-        //    parseInt(redisInfo.creator),
-        //  );
-        //  const userInfo = await this.userService.findUserById(
-        //    parseInt(redisInfo.user),
-        //  );
-        //  if (homeScore >= awayScore) {
-        //    result.winUserNick = creatorInfo.nickname;
-        //    result.loseUserNick = userInfo.nickname;
-        //  } else {
-        //    result.winUserNick = userInfo.nickname;
-        //    result.loseUserNick = creatorInfo.nickname;
-        //  }
-        //  this.server.to(data.gameId.toString()).emit("gameEnd", result);
-        //  mutex.release();
-        //  clearInterval(intervalId);
-        //  return;
-        //}
+          const creatorInfo = await this.userService.findUserById(
+            parseInt(redisInfo.creator),
+          );
+          const userInfo = await this.userService.findUserById(
+            parseInt(redisInfo.user),
+          );
+          if (homeScore >= awayScore) {
+            result.winUserNick = creatorInfo.nickname;
+            result.loseUserNick = userInfo.nickname;
+          } else {
+            result.winUserNick = userInfo.nickname;
+            result.loseUserNick = creatorInfo.nickname;
+          }
+          this.server.to(data.gameId.toString()).emit("gameEnd", result);
+          mutex.release();
+          clearInterval(intervalId);
+          return;
+        }
 
         const returnData = {
           x: calculatedCoordinates.ball.x,
@@ -706,21 +726,33 @@ export class GameGateWay {
       }, 1000 / 60);
 
       socket.on("disconnect", () => {
-        const playTime = this.checkPlayTIme(startTime);
+        const playTime = this.checkPlayTime(startTime);
         clearInterval(intervalId);
       });
 
-      socket.on("keyDown", (data) => {
-        if (data.team === GameTeam.HOME)
-          homePaddleState.dy = this.keyPress(data, socket);
-        else if (data.team === GameTeam.AWAY)
-          awayPaddleState.dy = this.keyPress(data, socket);
+      socket.on("KeyDownHOME", (data) => {
+        console.log("KeyDownHOME", data);
+        if (data.key === "ArrowUp") {
+          homePaddleState.dy = -10;
+        } else if (data.key === "ArrowDown") {
+          homePaddleState.dy = 10;
+        }
       });
-      socket.on("keyUp", (data) => {
-        if (data.team === GameTeam.HOME)
-          homePaddleState.dy = this.keyrelease(data, socket);
-        else if (data.team === GameTeam.AWAY)
-          awayPaddleState.dy = this.keyrelease(data, socket);
+      socket.on("keyDownAWAY", (data) => {
+        console.log("keyDownAWAY", data);
+        if (data.key === "ArrowUp") {
+          awayPaddleState.dy = -10;
+        } else if (data.key === "ArrowDown") {
+          awayPaddleState.dy = 10;
+        }
+      });
+      socket.on("keyUpHOME", (data) => {
+        console.log("keyUpHOME", data);
+        homePaddleState.dy = 0;
+      });
+      socket.on("keyUpAWAY", (data) => {
+        console.log("keyUpAWAY", data);
+        awayPaddleState.dy = 0;
       });
     } catch (error) {
       console.error(error);
@@ -838,6 +870,12 @@ export class GameGateWay {
     if (homePaddleState.y + paddleHeight > height) {
       homePaddleState.y = height - paddleHeight;
     }
+    if (awayPaddleState.y < 0) {
+      awayPaddleState.y = 0;
+    }
+    if (awayPaddleState.y + paddleHeight > height) {
+      awayPaddleState.y = height - paddleHeight;
+    }
     // Update ball position based on current direction
     ballState.x += ballState.dx;
     ballState.y += ballState.dy;
@@ -880,25 +918,27 @@ export class GameGateWay {
       this.server
         .to(data.gameId.toString())
         .emit("score", [homeScore, awayScore]);
-      //if (homeScore === 5) {
-      //  // 홈팀 승자로 넣기
-      //  await this.gamePlayerService.saveGamePlayer(
-      //    data.gameId,
-      //    data.homeId,
-      //    homeScore,
-      //  );
-      //  await this.gamePlayerService.saveGamePlayer(
-      //    data.gameId,
-      //    data.awayId,
-      //    awayScore,
-      //  );
-      //  //await this.gameService.saveRecord(
-      //  //  data.gameId,
-      //  //  numberOfRounds,
-      //  //  numberOfBounces,
-      //  //);
-      //  return;
-      //}
+      if (awayScore === 5) {
+        // 홈팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          homeScore,
+          awayScore,
+        );
+        return {
+          ball: { x: ballState.x, y: ballState.y },
+          homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
+          awayPaddle: {
+            x: width - paddleWidth,
+            y: awayPaddlePos,
+            dy: awayPaddleState.dy,
+          },
+          numberOfBounces,
+          numberOfRounds,
+          homeScore,
+          awayScore,
+        };
+      }
     } else if (ballState.x + ballSize / 2 > width - paddleWidth / 2) {
       ballState.x = width / 2;
       homeScore++;
@@ -908,25 +948,27 @@ export class GameGateWay {
       this.server
         .to(data.gameId.toString())
         .emit("score", [homeScore, awayScore]);
-      //if (awayScore === 5) {
-      //  //away팀 승자로 넣기
-      //  await this.gamePlayerService.saveGamePlayer(
-      //    data.gameId,
-      //    data.homeId,
-      //    homeScore,
-      //  );
-      //  await this.gamePlayerService.saveGamePlayer(
-      //    data.gameId,
-      //    data.awayId,
-      //    awayScore,
-      //  );
-      //  //await this.gameService.saveRecord(
-      //  //  data.gameId,
-      //  //  numberOfRounds,
-      //  //  numberOfBounces,
-      //  //);
-      //  return;
-      //}
+      if (homeScore === 5) {
+        //away팀 승자로 넣기
+        await this.gamePlayerService.saveGamePlayer(
+          data.gameId,
+          homeScore,
+          awayScore,
+        );
+        return {
+          ball: { x: ballState.x, y: ballState.y },
+          homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
+          awayPaddle: {
+            x: width - paddleWidth,
+            y: awayPaddlePos,
+            dy: awayPaddleState.dy,
+          },
+          numberOfBounces,
+          numberOfRounds,
+          homeScore,
+          awayScore,
+        };
+      }
     }
 
     return {
@@ -944,10 +986,13 @@ export class GameGateWay {
     };
   }
 
-  async checkPlayTIme(playTime: Date) {
+  async checkPlayTime(playTime: Date) {
     const endTime = new Date();
     const diffTime = endTime.getTime() - playTime.getTime();
+    console.log("diffTime", diffTime);
+    //6486
     const playTimeFormat = showPlayTime(diffTime);
+    console.log("playTimeFormat", playTimeFormat);
     return playTimeFormat;
   }
 
@@ -973,7 +1018,7 @@ export class GameGateWay {
     }
   }
 
-  keyrelease(data: any, socket: Socket): number {
+  keyRelease(data: any, socket: Socket): number {
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
     let homePaddleStateDy = 0;
@@ -986,6 +1031,20 @@ export class GameGateWay {
       return awayPaddleStateDy;
     }
   }
+
+  async sendRoomInfo(title: string, channelId: number, socket: Socket) {
+    this.logger.debug(`sendRoomInfo`);
+    const channelInfo = await this.gameChannelRepository.findOne({
+      where: { title: title },
+    });
+
+    const roomInfo = {
+      mode: channelInfo.game_mode,
+      type: channelInfo.game_type,
+    };
+
+    this.server.to(channelId.toString()).emit("gameInfo", roomInfo);
+  }
 }
 // 좌표 계산 로직을 수행하는 함수
 
@@ -994,9 +1053,14 @@ function showTime(currentDate: Date) {
   return formattedTime;
 }
 
+function formattedPlayTime(playTime: Date) {
+  const formattedPlayTime = format(playTime, "mm:ss a");
+  return formattedPlayTime;
+}
+
 function showPlayTime(diffTime: number) {
   const playTime = Math.floor(diffTime / 1000);
-  const formattedPlayTime = format(playTime, "mm:ss");
+  const formattedPlayTime = format(playTime, "mm:ss a");
   return formattedPlayTime;
 }
 

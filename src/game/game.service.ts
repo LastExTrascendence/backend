@@ -23,7 +23,7 @@ export class GameService {
     private gameChannelRepository: Repository<Game>,
     @InjectRepository(Game)
     private gameRepository: Repository<Game>,
-  ) {}
+  ) { }
 
   async saveGame(channelId: number) {
     try {
@@ -35,7 +35,9 @@ export class GameService {
       if (game) {
         const gameInfo = {
           channel_id: channelId,
+          game_type: game.game_type,
           game_mode: game.game_mode,
+          game_status: GameStatus.INGAME,
           minimum_speed: null,
           average_speed: null,
           maximum_speed: null,
@@ -45,7 +47,7 @@ export class GameService {
           created_at: new Date(),
           ended_at: null,
         };
-        await this.gameChannelRepository.save(game);
+        await this.gameRepository.save(gameInfo);
       }
     } catch (error) {
       this.logger.error(error);
@@ -53,14 +55,11 @@ export class GameService {
     }
   }
 
-  async saveRecord(
+  async saveTest(
     gameId: number,
-    minimumSpeed: number,
-    averageSpeed: number,
-    maximumSpeed: number,
     numberOfRounds: number,
     numberOfBounces: number,
-    playTime: number,
+    playTime: string,
   ) {
     try {
       const game = await this.gameRepository.findOne({
@@ -74,9 +73,6 @@ export class GameService {
             id: gameId,
           },
           {
-            minimum_speed: minimumSpeed,
-            average_speed: averageSpeed,
-            maximum_speed: maximumSpeed,
             number_of_rounds: numberOfRounds,
             number_of_bounces: numberOfBounces,
             play_time: playTime,
@@ -89,6 +85,43 @@ export class GameService {
       throw error;
     }
   }
+
+  //async saveRecord(
+  //  gameId: number,
+  //  minimumSpeed: number,
+  //  averageSpeed: number,
+  //  maximumSpeed: number,
+  //  numberOfRounds: number,
+  //  numberOfBounces: number,
+  //  playTime: number,
+  //) {
+  //  try {
+  //    const game = await this.gameRepository.findOne({
+  //      where: {
+  //        id: gameId,
+  //      },
+  //    });
+  //    if (game) {
+  //      this.gameRepository.update(
+  //        {
+  //          id: gameId,
+  //        },
+  //        {
+  //          minimum_speed: minimumSpeed,
+  //          average_speed: averageSpeed,
+  //          maximum_speed: maximumSpeed,
+  //          number_of_rounds: numberOfRounds,
+  //          number_of_bounces: numberOfBounces,
+  //          play_time: playTime,
+  //          ended_at: new Date(),
+  //        },
+  //      );
+  //    }
+  //  } catch (error) {
+  //    this.logger.error(error);
+  //    throw error;
+  //  }
+  //}
 
   async deleteAllGame() {
     try {
