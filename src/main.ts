@@ -12,13 +12,15 @@ async function bootstrap() {
   initializeTransactionalContext();
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
   app.enableCors({
-    origin: `http://${config.get("FE").get("domain")}`,
+    origin: `http://${config.get("FE").get("domain")}:${config
+      .get("FE")
+      .get("port")}`,
     credentials: true,
     preflightContinue: false,
   });
   app.use(cookieParser());
   app.use(json({ limit: "2mb" }));
   app.use(urlencoded({ limit: "2mb", extended: true }));
-  app.listen(config.get("BE").get("port"));
+  await app.listen(config.get("BE").get("port"));
 }
 bootstrap();
