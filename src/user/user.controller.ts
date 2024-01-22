@@ -57,7 +57,7 @@ export class UserController {
   createUser(
     @Headers() headers: any,
     @Body(ValidationPipe) userRegisterDataDto: userRegisterDataDto,
-  ): Promise<void> | HttpException {
+  ): void {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
@@ -73,7 +73,7 @@ export class UserController {
     try {
       this.userService.createUser(userSessionDto);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -91,7 +91,7 @@ export class UserController {
       );
       await this.friendService.addFriend(user.id, friend.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -105,7 +105,7 @@ export class UserController {
     try {
       return await this.friendService.findAllFriend(user.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -125,7 +125,7 @@ export class UserController {
 
       return { areFriends }; // You can modify the response as needed
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -145,7 +145,7 @@ export class UserController {
       );
       return this.friendService.removeFriend(user.id, friend.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
+      throw new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
   }
 
@@ -162,7 +162,7 @@ export class UserController {
         userBlockDto.blocked_user_id,
       );
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -175,7 +175,7 @@ export class UserController {
       const user_id = req.user_id;
       return this.blockService.findBlockAll(user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -189,7 +189,7 @@ export class UserController {
     try {
       return this.blockService.findBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -201,7 +201,7 @@ export class UserController {
     try {
       return this.blockService.removeBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -222,7 +222,7 @@ export class UserController {
       };
       return userInfo;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -256,7 +256,7 @@ export class UserController {
       };
       return Userprofile;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -274,7 +274,7 @@ export class UserController {
     try {
       this.userService.updateUserProfile(user.nickname, updateUserInfoDto);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -312,7 +312,7 @@ export class UserController {
   //     };
   //     return Userprofile;
   //   } catch (e) {
-  //     return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //     throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
   //   }
   // }
 
@@ -400,7 +400,7 @@ export class UserController {
       const User = await this.userService.searchUserByNickname(nickname);
       return User;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 

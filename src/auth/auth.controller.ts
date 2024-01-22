@@ -68,7 +68,7 @@ export class AuthController {
         return res.redirect(`${url}`);
       }
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -82,7 +82,7 @@ export class AuthController {
     try {
       const userInfo = await this.userService.findUserById(user.id);
       if (!userInfo) {
-        return new HttpException(
+        throw new HttpException(
           "해당 유저가 존재하지 않습니다.",
           HttpStatus.NOT_FOUND,
         );
