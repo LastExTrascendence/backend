@@ -7,5 +7,4 @@ WORKDIR /app
 
 EXPOSE 3000
 
-
-ENTRYPOINT [ "/bin/sh", "-c", "npm install && npm i -g @nestjs/cli && npm run start:dev" ]
+ENTRYPOINT [ "/bin/sh", "-c", "npm install && npm i -g @nestjs/cli && npm i bcrypt && npm i -D @types/bcrypt && npm run start:dev" ]

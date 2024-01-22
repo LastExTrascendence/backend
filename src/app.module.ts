@@ -9,6 +9,8 @@ import { ChannelModule } from "./channel/channel.module";
 import { SessionMiddleware } from "./middleware/session-middleware";
 import { GameModule } from "./game/game.module";
 import { ConfigModule } from "@nestjs/config";
+import { AppController } from "./app.controller";
+import { AppService } from "./app.service";
 
 @Module({
   imports: [
@@ -31,8 +33,8 @@ import { ConfigModule } from "@nestjs/config";
     ChannelModule,
     GameModule,
   ],
-  controllers: [],
-  providers: [SessionMiddleware],
+  controllers: [AppController],
+  providers: [AppService, SessionMiddleware],
 })
 export class AppModule implements NestModule {
   constructor(public sessionMiddleware: SessionMiddleware) {}

@@ -31,7 +31,7 @@ export class GameChannelService {
     private userService: UserService,
     private redisClient: Redis,
     private gameService: GameService,
-  ) {}
+  ) { }
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -350,11 +350,29 @@ export class GameChannelService {
 
   async findQuickMatches() {
     const gameInfo = await this.gameChannelRepository.find({
-      where: { title: Like(`%Quick Match#%`), deleted_at: IsNull() },
+      where: { title: Like(`%Quick Match#%`) },
     });
 
     if (gameInfo) {
       return gameInfo.length;
+    } else {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: "존재하지 않는 게임입니다.",
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
+  async findOneGameChannelByTitle(gameTitle: string) {
+    const gameInfo = await this.gameChannelRepository.findOne({
+      where: { title: gameTitle, deleted_at: IsNull(), game_status: GameStatus.READY },
+    });
+
+    if (gameInfo) {
+      return gameInfo;
     } else {
       throw new HttpException(
         {

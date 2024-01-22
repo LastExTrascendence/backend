@@ -151,10 +151,8 @@ export class AuthController {
           HttpStatus.BAD_REQUEST,
         );
       }
-      console.log(otp);
 
       const isValid = await this.authService.loginOtp(userInfo, otp.otp);
-      console.log(isValid);
       if (isValid) {
         const payload = {
           id: userInfo.id,
