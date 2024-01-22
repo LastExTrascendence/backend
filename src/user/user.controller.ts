@@ -31,10 +31,15 @@ import { UserBlock } from "./entity/user.block.entity";
 import { JwtService } from "@nestjs/jwt";
 import { Headers } from "@nestjs/common";
 import { GamePlayerService } from "src/game/game.player.service";
-import { updateUserInfoDto, userProfileDto } from "./dto/user.profile.dto";
+import {
+  myProfileResponseDto,
+  updateUserInfoDto,
+  userProfileDto,
+} from "./dto/user.profile.dto";
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
+import { TwoFAGuard } from "src/auth/twoFA/twoFA.guard";
 
 @Controller("user")
 export class UserController {
@@ -52,7 +57,7 @@ export class UserController {
   createUser(
     @Headers() headers: any,
     @Body(ValidationPipe) userRegisterDataDto: userRegisterDataDto,
-  ): Promise<void> | HttpException {
+  ): void {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
@@ -68,13 +73,13 @@ export class UserController {
     try {
       this.userService.createUser(userSessionDto);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 특정 한 유저 친구 추가
   @Post("/friend/add")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async addFriend(
     @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
     @User() user: userSessionDto,
@@ -86,13 +91,13 @@ export class UserController {
       );
       await this.friendService.addFriend(user.id, friend.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 모든 친구 정보 확인
   @Get("/friend")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async findAllFriend(@User() user: userSessionDto) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findAllFriend.name}`,
@@ -100,13 +105,13 @@ export class UserController {
     try {
       return await this.friendService.findAllFriend(user.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //사용자가 특정 한 유저 친구 정보 확인
   @Get("/friend/find/one")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findFriendById(@Req() req: any) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findFriendById.name}`,
@@ -120,13 +125,13 @@ export class UserController {
 
       return { areFriends }; // You can modify the response as needed
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 특정 한 유저 친구 삭제
   @Post("/friend/remove")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async deleteFriend(
     @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
     @User() user: userSessionDto,
@@ -140,13 +145,13 @@ export class UserController {
       );
       return this.friendService.removeFriend(user.id, friend.id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_GATEWAY);
+      throw new HttpException(error.message, HttpStatus.BAD_GATEWAY);
     }
   }
 
   //특정 유저의 특정 한 유저 차단
   @Post("/block/add")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   addBlock(
     @Body(ValidationPipe) userBlockDto: userBlockDto,
   ): Promise<UserBlock> | HttpException {
@@ -157,26 +162,26 @@ export class UserController {
         userBlockDto.blocked_user_id,
       );
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 모든 차단한 유저 정보 확인
   @Get("/block/find/all")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findblock(@Req() req: any) {
     this.logger.debug(`Called ${UserController.name} ${this.findblock.name}`);
     try {
       const user_id = req.user_id;
       return this.blockService.findBlockAll(user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 특정 한 친구 정보 확인
   @Get("/block/find/one")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findBlockById(@Req() req: any) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findBlockById.name}`,
@@ -184,25 +189,25 @@ export class UserController {
     try {
       return this.blockService.findBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //특정 유저의 특정 한 유저 차단 해제
   @Delete("/block/remove")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   removeBlock(@Req() req: any) {
     this.logger.debug(`Called ${UserController.name} ${this.removeBlock.name}`);
     try {
       return this.blockService.removeBlock(req.user_id, req.blocked_user_id);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //사용자 본인 정보 확인
   @Get("/me")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getMyInfo(
     @User() user: userSessionDto,
   ): Promise<userInfoDto | HttpException> {
@@ -217,13 +222,13 @@ export class UserController {
       };
       return userInfo;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //사용자 본인 정보 (프로필 페이지) 확인
   @Get("/me/profile")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getMyProfileInfo(
     @Req() req: any,
   ): Promise<userProfileDto | HttpException> {
@@ -236,12 +241,13 @@ export class UserController {
         req.user.id,
       );
 
-      const Userprofile: userProfileDto = {
+      const Userprofile: myProfileResponseDto = {
         id: UserInfo.id,
         intra_name: UserInfo.intra_name,
         nickname: UserInfo.nickname,
         avatar: UserInfo.avatar,
         email: UserInfo.email,
+        two_fa: UserInfo.two_fa,
         is_friend: false,
         at_friend: null,
         games: UserGameInfo.length,
@@ -250,14 +256,15 @@ export class UserController {
       };
       return Userprofile;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   //사용자의 닉네임, 프로필 사진, 2FA 설정 변경
-  @Put("/me/update")
-  @UseGuards(JWTAuthGuard)
+  @Post("/me/update")
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async updateMyInfo(
+    @Headers() headers: any,
     @User() user: userSessionDto,
     @Body(ValidationPipe) updateUserInfoDto: updateUserInfoDto,
   ): Promise<void | HttpException> {
@@ -267,7 +274,7 @@ export class UserController {
     try {
       this.userService.updateUserProfile(user.nickname, updateUserInfoDto);
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
@@ -305,13 +312,13 @@ export class UserController {
   //     };
   //     return Userprofile;
   //   } catch (e) {
-  //     return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+  //     throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
   //   }
   // }
 
   //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/info/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getInfoByNickname(
     @Param("nickname") nickname: string,
     @User() user: userSessionDto,
@@ -348,7 +355,7 @@ export class UserController {
 
   //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/profile/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getProfileByNickname(
     @Param("nickname") nickname: string,
     @User() user: userSessionDto,
@@ -385,7 +392,7 @@ export class UserController {
 
   //사용자의 특정유저 검색
   @Get("/search/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async searchUserByNickname(
     @Param("nickname") nickname: string,
   ): Promise<userDto[] | HttpException> {
@@ -393,7 +400,7 @@ export class UserController {
       const User = await this.userService.searchUserByNickname(nickname);
       return User;
     } catch (e) {
-      return new HttpException(e.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
     }
   }
 

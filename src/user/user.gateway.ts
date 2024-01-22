@@ -96,9 +96,9 @@ export class UserGateway
     await this.sendMyStatus(userId);
 
     if (userConnectedClients.size === 1) {
-      await this.channelsService.resetChatChannel();
-      await this.gameChannelService.deleteAllGameChannel();
-      await this.gameService.deleteAllGame();
+      this.channelsService.resetChatChannel();
+      this.gameChannelService.deleteAllGameChannel();
+      this.gameService.deleteAllGame();
     }
     //this.sendFriendStatus();
     //이미 들어온 유저 까투
