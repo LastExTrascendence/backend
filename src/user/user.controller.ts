@@ -39,6 +39,7 @@ import {
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { JWTUserCreationGuard } from "src/auth/jwt/jwtUserCreation.guard";
 import { User } from "src/decorator/user.decorator";
+import { TwoFAGuard } from "src/auth/twoFA/twoFA.guard";
 
 @Controller("user")
 export class UserController {
@@ -78,7 +79,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 친구 추가
   @Post("/friend/add")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async addFriend(
     @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
     @User() user: userSessionDto,
@@ -96,7 +97,7 @@ export class UserController {
 
   //특정 유저의 모든 친구 정보 확인
   @Get("/friend")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async findAllFriend(@User() user: userSessionDto) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findAllFriend.name}`,
@@ -110,7 +111,7 @@ export class UserController {
 
   //사용자가 특정 한 유저 친구 정보 확인
   @Get("/friend/find/one")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findFriendById(@Req() req: any) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findFriendById.name}`,
@@ -130,7 +131,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 친구 삭제
   @Post("/friend/remove")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async deleteFriend(
     @Body(ValidationPipe) userAddFriendRequestDto: userAddFriendRequestDto,
     @User() user: userSessionDto,
@@ -150,7 +151,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 차단
   @Post("/block/add")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   addBlock(
     @Body(ValidationPipe) userBlockDto: userBlockDto,
   ): Promise<UserBlock> | HttpException {
@@ -167,7 +168,7 @@ export class UserController {
 
   //특정 유저의 모든 차단한 유저 정보 확인
   @Get("/block/find/all")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findblock(@Req() req: any) {
     this.logger.debug(`Called ${UserController.name} ${this.findblock.name}`);
     try {
@@ -180,7 +181,7 @@ export class UserController {
 
   //특정 유저의 특정 한 친구 정보 확인
   @Get("/block/find/one")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   findBlockById(@Req() req: any) {
     this.logger.debug(
       `Called ${UserController.name} ${this.findBlockById.name}`,
@@ -194,7 +195,7 @@ export class UserController {
 
   //특정 유저의 특정 한 유저 차단 해제
   @Delete("/block/remove")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   removeBlock(@Req() req: any) {
     this.logger.debug(`Called ${UserController.name} ${this.removeBlock.name}`);
     try {
@@ -206,7 +207,7 @@ export class UserController {
 
   //사용자 본인 정보 확인
   @Get("/me")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getMyInfo(
     @User() user: userSessionDto,
   ): Promise<userInfoDto | HttpException> {
@@ -227,7 +228,7 @@ export class UserController {
 
   //사용자 본인 정보 (프로필 페이지) 확인
   @Get("/me/profile")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getMyProfileInfo(
     @Req() req: any,
   ): Promise<userProfileDto | HttpException> {
@@ -261,7 +262,7 @@ export class UserController {
 
   //사용자의 닉네임, 프로필 사진, 2FA 설정 변경
   @Post("/me/update")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async updateMyInfo(
     @Headers() headers: any,
     @User() user: userSessionDto,
@@ -317,7 +318,7 @@ export class UserController {
 
   //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/info/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getInfoByNickname(
     @Param("nickname") nickname: string,
     @User() user: userSessionDto,
@@ -354,7 +355,7 @@ export class UserController {
 
   //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/profile/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async getProfileByNickname(
     @Param("nickname") nickname: string,
     @User() user: userSessionDto,
@@ -391,7 +392,7 @@ export class UserController {
 
   //사용자의 특정유저 검색
   @Get("/search/:nickname")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async searchUserByNickname(
     @Param("nickname") nickname: string,
   ): Promise<userDto[] | HttpException> {

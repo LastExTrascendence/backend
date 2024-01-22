@@ -22,6 +22,7 @@ import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 import { JWTAuthGuard } from "./jwt/jwtAuth.guard";
 import Redis from "ioredis";
+import { TwoFAGuard } from "./twoFA/twoFA.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -72,7 +73,7 @@ export class AuthController {
   }
 
   @Post("/otp/generate")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async generateOtp(
     @Res({ passthrough: true }) res: Response,
     @User() user: userSessionDto,
@@ -95,7 +96,7 @@ export class AuthController {
   }
 
   @Post("/otp/verify")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async verifyOtp(
     @Body() otp: any,
     @Res({ passthrough: true }) res: any,

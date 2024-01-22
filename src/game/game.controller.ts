@@ -19,9 +19,10 @@ import {
 import { JWTAuthGuard } from "src/auth/jwt/jwtAuth.guard";
 import { GamePlayerService } from "./game.player.service";
 import { GameChannelService } from "./game.channel.service";
+import { TwoFAGuard } from "src/auth/twoFA/twoFA.guard";
 
 @Controller("game")
-@UseGuards(JWTAuthGuard)
+@UseGuards(JWTAuthGuard, TwoFAGuard)
 export class GameController {
   private logger = new Logger(GameController.name);
   constructor(
