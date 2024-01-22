@@ -13,7 +13,7 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Channels } from "./entity/Channels.entity";
+import { Channels } from "./entity/channels.entity";
 import { ChannelsService } from "./channel.service";
 import { Redis } from "ioredis";
 import { IsNull, Repository } from "typeorm";
@@ -44,7 +44,7 @@ export class ChannelGateWay {
     private redisClient: Redis,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
