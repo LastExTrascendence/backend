@@ -31,7 +31,7 @@ export class GameChannelService {
     private userService: UserService,
     private redisClient: Redis,
     private gameService: GameService,
-  ) { }
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -219,8 +219,8 @@ export class GameChannelService {
   async getGames(req: any): Promise<gameChannelListDto[] | HttpException> {
     try {
       if (gameConnectedClients.size === 0) {
-        this.deleteAllGameChannel();
-        this.gameService.deleteAllGame();
+        await this.deleteAllGameChannel();
+        await this.gameService.deleteAllGame();
       }
 
       const channelsInfo = await this.gameChannelRepository.find({
@@ -303,7 +303,7 @@ export class GameChannelService {
         });
       });
       await this.gameChannelRepository.update(
-        { deleted_at: IsNull() },
+        { deleted_at: IsNull(), game_status: GameStatus.READY },
         {
           cur_user: 0,
           deleted_at: new Date(),
@@ -368,7 +368,11 @@ export class GameChannelService {
 
   async findOneGameChannelByTitle(gameTitle: string) {
     const gameInfo = await this.gameChannelRepository.findOne({
-      where: { title: gameTitle, deleted_at: IsNull(), game_status: GameStatus.READY },
+      where: {
+        title: gameTitle,
+        deleted_at: IsNull(),
+        game_status: GameStatus.READY,
+      },
     });
 
     if (gameInfo) {

@@ -197,24 +197,6 @@ export class UserGateway
       name = sender.id + "," + receiver.id;
     }
 
-    console.log(
-      "before",
-      "dm 소켓 방 확인",
-      socket.rooms,
-      "dm name 확인",
-      name.toString(),
-    );
-
-    await socket.join(name);
-
-    console.log(
-      "after",
-      "dm 소켓 방 확인",
-      socket.rooms,
-      "dm name 확인",
-      name.toString(),
-    );
-
     //3. Dm 메시지 저장
 
     const RedisPayload = {
@@ -257,7 +239,9 @@ export class UserGateway
       receiver: string;
     },
   ): Promise<void> {
-    this.logger.verbose(`getRedis: ${payload.sender}, ${payload.receiver}`);
+    this.logger.verbose(
+      `getRedis: ${payload.beforeUserNick}, ${payload.sender}, ${payload.receiver}`,
+    );
 
     const beforeUser = await this.userService.findUserByNickname(
       payload.beforeUserNick,
@@ -610,7 +594,7 @@ export class UserGateway
       //  );
       //}
       const inviteUserSocket = userConnectedClients.get(inviteUser.id);
-      console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
+      //console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
       this.server.to(inviteUserSocket.id).emit("invitedUser", {
         hostNickname: (await this.userService.findUserById(userId)).nickname,
         url: url,

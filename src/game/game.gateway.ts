@@ -35,21 +35,6 @@ import { Mutex } from "async-mutex";
 
 export const gameConnectedClients: Map<number, Socket> = new Map();
 
-const homePaddleState = {
-  y: Math.floor(GameComponent.height / 2 - GameComponent.paddleHeight / 2),
-  dy: 0, // Initial speed in the y direction
-};
-const awayPaddleState = {
-  y: Math.floor(GameComponent.height / 2 - GameComponent.paddleHeight / 2),
-  dy: 0, // Initial speed in the y direction
-};
-
-let currentCnt = 0;
-let numberOfRounds = 0;
-let numberOfBounces = 0;
-let homeScore = 0;
-let awayScore = 0;
-
 @WebSocketGateway(85, {
   namespace: "game",
   cors: true,
@@ -68,7 +53,7 @@ export class GameGateWay {
     private userService: UserService,
     private gamePlayerService: GamePlayerService,
     private gameService: GameService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -112,7 +97,11 @@ export class GameGateWay {
       const { userId, title } = data;
 
       const gameChannelInfo = await this.gameChannelRepository.findOne({
-        where: { title: title },
+        where: {
+          title: title,
+          deleted_at: null,
+          game_status: GameStatus.READY,
+        },
       });
 
       if (!userId || !title) {
@@ -137,8 +126,6 @@ export class GameGateWay {
 
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
 
-      console.log("redisInfo", redisInfo);
-
       //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
 
       if (gameConnectedClients.has(userId)) {
@@ -154,13 +141,17 @@ export class GameGateWay {
       //2. 비밀번호 입력자가 아닌 경우
       //3. 방의 인원이 2명을 초과한 경우
 
+      const banUserList = redisInfo[`ban|${userId}`];
+
       if (gameChannelInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
         const isPasswordCorrect = await this.redisClient.hgetall(
           `GM|${gameChannelInfo.title}`,
         );
 
+        const accessUser = "ACCESS" + userId;
+
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const passwordValidate = `isPasswordCorrect.ACCESS${userId}`;
+        const passwordValidate = isPasswordCorrect[accessUser];
 
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
@@ -171,6 +162,12 @@ export class GameGateWay {
           return;
         }
       } else if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
+        const targetClient = gameConnectedClients.get(userId);
+        targetClient.disconnect(true);
+        socket.leave(gameChannelInfo.id.toString());
+        gameConnectedClients.delete(data.userId);
+        return;
+      } else if (banUserList) {
         const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
@@ -230,19 +227,37 @@ export class GameGateWay {
     @ConnectedSocket() socket: Socket,
   ) {
     try {
+      this.logger.verbose(`msgToServer`, data);
       const senderInfo = await this.userService.findUserById(data.sender);
 
       const gameInfo = await this.gameChannelRepository.findOne({
         where: { title: data.title },
       });
 
-      await socket.join(gameInfo.id.toString());
+      const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
-      this.server.to(gameInfo.id.toString()).emit("msgToClient", {
-        time: showTime(data.time),
-        sender: senderInfo.nickname,
-        content: data.content,
-      });
+      if (redisInfo.mute !== "null" && redisInfo.muteUser === data.sender) {
+        if (isMoreThan30SecondsAgo(redisInfo.mute)) {
+          await this.redisClient.hset(`GM|${data.title}`, "mute", "null");
+          this.server.to(gameInfo.id.toString()).emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: data.content,
+          });
+        } else {
+          this.server.to(gameInfo.id.toString()).emit("msgToClient", {
+            time: showTime(data.time),
+            sender: senderInfo.nickname,
+            content: "뮤트 상태입니다.",
+          });
+        }
+      } else {
+        this.server.to(gameInfo.id.toString()).emit("msgToClient", {
+          time: showTime(data.time),
+          sender: senderInfo.nickname,
+          content: data.content,
+        });
+      }
     } catch (error) {
       console.log(error);
     }
@@ -296,13 +311,60 @@ export class GameGateWay {
     }
   }
 
+  @SubscribeMessage("muteUser")
+  async muteSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      this.logger.debug(
+        `muteUser`,
+        `${data.title}, ${data.userId}, ${data.muteNick}`,
+      );
+      const { userId, title, muteNick } = data;
+
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
+
+      const muteUser = await this.userService.findUserByNickname(muteNick);
+
+      const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
+
+      if (
+        redisInfo.creatorOnline === "false" ||
+        redisInfo.userOnline === "false"
+      ) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      } else if (userId != channelInfo.creator_id) {
+        throw new Error("방장이 아닙니다.");
+      }
+
+      await this.redisClient.hset(
+        `GM|${title}`,
+        "mute",
+        new Date().toISOString(),
+      );
+
+      await this.redisClient.hset(
+        `GM|${title}`,
+        `muteUser`,
+        muteUser.id.toString(),
+      );
+
+      console.log("redisInfo", await this.redisClient.hgetall(`GM|${title}`));
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
   @SubscribeMessage("kickUser")
   async kickSomeone(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
     try {
-      this.logger.debug(`kickUser`);
+      this.logger.debug(`kickUser`, data);
       const { userId, title, kickNick } = data;
 
       const channelInfo = await this.gameChannelRepository.findOne({
@@ -328,8 +390,10 @@ export class GameGateWay {
       await this.redisClient.hset(`GM|${title}`, "user", null);
       await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
 
+      console.log("redisInfo", await this.redisClient.hgetall(`GM|${title}`));
+
       this.updateCurUser(channelInfo.title, channelInfo.id);
-      this.sendUserList(userId, channelInfo.id, socket);
+      this.sendUserList(title, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
     }
@@ -381,6 +445,52 @@ export class GameGateWay {
     //}
   }
 
+  @SubscribeMessage("banUser")
+  async banSomeone(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    try {
+      this.logger.debug(`banUser`, data);
+      const { userId, title, banNick } = data;
+
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { title: title },
+      });
+
+      const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
+
+      const banUser = await this.userService.findUserByNickname(banNick);
+
+      if (
+        redisInfo.creatorOnline === "false" ||
+        redisInfo.userOnline === "false"
+      ) {
+        throw new Error("유저를 찾을 수 없습니다.");
+      } else if (userId != channelInfo.creator_id) {
+        throw new Error("방장이 아닙니다.");
+      }
+
+      const targetClient = gameConnectedClients.get(banUser.id);
+      targetClient.disconnect(true);
+      gameConnectedClients.delete(banUser.id);
+      await this.redisClient.hset(`GM|${title}`, "user", null);
+      await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+      await this.redisClient.hset(
+        `GM|${title}`,
+        `ban|${banUser.id}`,
+        banUser.id,
+      );
+
+      console.log("redisInfo", await this.redisClient.hgetall(`GM|${title}`));
+
+      this.updateCurUser(channelInfo.title, channelInfo.id);
+      this.sendUserList(title, channelInfo.id, socket);
+    } catch (error) {
+      console.log(error);
+    }
+  }
+
   //return
   //width: number;
   //height: number;
@@ -404,40 +514,44 @@ export class GameGateWay {
     this.server.to(gameInfo.id).emit("play", gameComponentInfo);
   }
 
-  @SubscribeMessage("keyDown")
-  async keyDown(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    // 전역에서 arrow up 이나 down이 key Down 되었을 때 flag를 세워줘야함
+  //@SubscribeMessage("keyDown")
+  //async keyDown(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+  //  // 전역에서 arrow up 이나 down이 key Down 되었을 때 flag를 세워줘야함
 
-    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    if (data.team === GameTeam.HOME) {
-      if (data.key === "ArrowUp") {
-        homePaddleState.dy = -10;
-      } else if (data.key === "ArrowDown") {
-        homePaddleState.dy = 10;
-      }
-      // homePaddleState.y += homePaddleState.dy;
-    } else if (data.team === GameTeam.AWAY) {
-      if (data.key === "ArrowUp") {
-        awayPaddleState.dy = -10;
-      } else if (data.key === "ArrowDown") {
-        awayPaddleState.dy = 10;
-      }
-      // awayPaddleState.y += awayPaddleState.dy;
-    }
-    //this.logger.debug(`KeyDown`);
-  }
+  //  // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
+  //  if (data.team === GameTeam.HOME) {
+  //    if (data.key === "ArrowUp") {
+  //      homePaddleState.dy = -10;
+  //    } else if (data.key === "ArrowDown") {
+  //      homePaddleState.dy = 10;
+  //    }
+  //    return {
+  //      homePaddle: homePaddleState.dy,
+  //      awayPaddle: awayPaddleState.dy,
+  //    };
+  //    // homePaddleState.y += homePaddleState.dy;
+  //  } else if (data.team === GameTeam.AWAY) {
+  //    if (data.key === "ArrowUp") {
+  //      awayPaddleState.dy = -10;
+  //    } else if (data.key === "ArrowDown") {
+  //      awayPaddleState.dy = 10;
+  //    }
+  //    // awayPaddleState.y += awayPaddleState.dy;
+  //  }
+  //  //this.logger.debug(`KeyDown`);
+  //}
 
-  @SubscribeMessage("keyUp")
-  async keyUp(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    //this.logger.debug(`KeyUp`);
-    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
-    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    if (data.team === GameTeam.HOME) {
-      homePaddleState.dy = 0;
-    } else if (data.team === GameTeam.AWAY) {
-      awayPaddleState.dy = 0;
-    }
-  }
+  //@SubscribeMessage("keyUp")
+  //async keyUp(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+  //  //this.logger.debug(`KeyUp`);
+  //  // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
+  //  // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
+  //  if (data.team === GameTeam.HOME) {
+  //    homePaddleState.dy = 0;
+  //  } else if (data.team === GameTeam.AWAY) {
+  //    awayPaddleState.dy = 0;
+  //  }
+  //}
 
   @SubscribeMessage("loopPosition")
   async loopPosition(
@@ -453,9 +567,30 @@ export class GameGateWay {
         //y: GameComponent.height - GameComponent.ballSize,
         x: GameComponent.width / 2,
         y: GameComponent.height / 2,
-        dx: 6, // Initial speed in the x direction
-        dy: 6, // Initial speed in the y direction
+        dx: -6, // Initial speed in the x direction
+        dy: -6, // Initial speed in the y direction
       };
+
+      const homePaddleState = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+      };
+      const awayPaddleState = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+      };
+
+      let currentCnt = 0;
+      let numberOfRounds = 0;
+      let numberOfBounces = 0;
+      let homeScore = 0;
+      let awayScore = 0;
+
+      const startTime = new Date();
 
       //  minimumSpeed: number,
       //averageSpeed: number,
@@ -472,6 +607,8 @@ export class GameGateWay {
         const calculatedCoordinates = await this.calculateCoordinates(
           data,
           ballState,
+          homePaddleState,
+          awayPaddleState,
           homePaddleState.y,
           awayPaddleState.y,
           GameComponent.width,
@@ -479,11 +616,73 @@ export class GameGateWay {
           GameComponent.ballSize,
           GameComponent.paddleHeight,
           GameComponent.paddleWidth,
+          numberOfBounces,
+          numberOfRounds,
+          homeScore,
+          awayScore,
           socket,
         );
 
+        homePaddleState.y = calculatedCoordinates.homePaddle.y;
+        awayPaddleState.y = calculatedCoordinates.awayPaddle.y;
+        homePaddleState.dy = calculatedCoordinates.homePaddle.dy;
+        awayPaddleState.dy = calculatedCoordinates.awayPaddle.dy;
+        numberOfBounces = calculatedCoordinates.numberOfBounces;
+        numberOfRounds = calculatedCoordinates.numberOfRounds;
+        homeScore = calculatedCoordinates.homeScore;
+        awayScore = calculatedCoordinates.awayScore;
+
         //if (homeScore === 5 || awayScore === 5) {
-        //  mutex.release(); s
+        //  const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+        //  const result = {
+        //    winUserNick: "",
+        //    loseUserNick: "",
+        //    playTime: this.checkPlayTIme(startTime),
+        //    homeScore: homeScore,
+        //    awayScore: awayScore,
+        //  };
+        //  const creatorInfo = await this.userService.findUserById(
+        //    parseInt(redisInfo.creator),
+        //  );
+        //  const userInfo = await this.userService.findUserById(
+        //    parseInt(redisInfo.user),
+        //  );
+        //  if (homeScore === 5) {
+        //    result.winUserNick = creatorInfo.nickname;
+        //    result.loseUserNick = userInfo.nickname;
+        //  } else {
+        //    result.winUserNick = userInfo.nickname;
+        //    result.loseUserNick = creatorInfo.nickname;
+        //  }
+        //  this.server.to(data.gameId.toString()).emit("gameEnd", result);
+        //  mutex.release();
+        //  clearInterval(intervalId);
+        //  return;
+        //} else if (timeOut(startTime)) {
+        //  const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+        //  const result = {
+        //    winUserNick: "",
+        //    loseUserNick: "",
+        //    playTime: this.checkPlayTIme(startTime),
+        //    homeScore: homeScore,
+        //    awayScore: awayScore,
+        //  };
+
+        //  const creatorInfo = await this.userService.findUserById(
+        //    parseInt(redisInfo.creator),
+        //  );
+        //  const userInfo = await this.userService.findUserById(
+        //    parseInt(redisInfo.user),
+        //  );
+        //  if (homeScore >= awayScore) {
+        //    result.winUserNick = creatorInfo.nickname;
+        //    result.loseUserNick = userInfo.nickname;
+        //  } else {
+        //    result.winUserNick = userInfo.nickname;
+        //    result.loseUserNick = creatorInfo.nickname;
+        //  }
+        //  this.server.to(data.gameId.toString()).emit("gameEnd", result);
+        //  mutex.release();
         //  clearInterval(intervalId);
         //  return;
         //}
@@ -495,8 +694,6 @@ export class GameGateWay {
           r: calculatedCoordinates.awayPaddle.y,
         };
 
-        //console.log(mutex);
-
         //this.logger.debug(
         //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
         //);
@@ -504,12 +701,26 @@ export class GameGateWay {
         ++cnt;
         //console.log(cnt);
         //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
-        this.transferData(returnData, cnt, data, socket);
+        this.transferData(returnData, cnt, data, socket, currentCnt);
         mutex.release();
       }, 1000 / 60);
 
       socket.on("disconnect", () => {
+        const playTime = this.checkPlayTIme(startTime);
         clearInterval(intervalId);
+      });
+
+      socket.on("keyDown", (data) => {
+        if (data.team === GameTeam.HOME)
+          homePaddleState.dy = this.keyPress(data, socket);
+        else if (data.team === GameTeam.AWAY)
+          awayPaddleState.dy = this.keyPress(data, socket);
+      });
+      socket.on("keyUp", (data) => {
+        if (data.team === GameTeam.HOME)
+          homePaddleState.dy = this.keyrelease(data, socket);
+        else if (data.team === GameTeam.AWAY)
+          awayPaddleState.dy = this.keyrelease(data, socket);
       });
     } catch (error) {
       console.error(error);
@@ -521,6 +732,7 @@ export class GameGateWay {
     cnt: number,
     gameData: any,
     socket: Socket,
+    currentCnt: number,
   ) {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
@@ -546,7 +758,7 @@ export class GameGateWay {
       TotalUserInfo.push(CreatorInfo);
     }
 
-    if (redisInfo.userOnline === "true") {
+    if (redisInfo.userOnline === "true" && redisInfo.user) {
       {
         const userInfo = await this.userService.findUserById(
           parseInt(redisInfo.user),
@@ -560,6 +772,7 @@ export class GameGateWay {
         TotalUserInfo.push(UserInfo);
       }
     }
+
     this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
@@ -582,6 +795,8 @@ export class GameGateWay {
   async calculateCoordinates(
     data: any,
     ballState: { x: number; y: number; dx: number; dy: number },
+    homePaddleState: { y: number; dy: number },
+    awayPaddleState: { y: number; dy: number },
     homePaddlePos: number,
     awayPaddlePos: number,
     width: number,
@@ -589,11 +804,19 @@ export class GameGateWay {
     ballSize: number,
     paddleHeight: number,
     paddleWidth: number,
+    numberOfBounces: number,
+    numberOfRounds: number,
+    homeScore: number,
+    awayScore: number,
     socket: Socket,
   ): Promise<{
     ball: { x: number; y: number };
-    homePaddle: { x: number; y: number };
-    awayPaddle: { x: number; y: number };
+    homePaddle: { x: number; y: number; dy: number };
+    awayPaddle: { x: number; y: number; dy: number };
+    numberOfBounces: number;
+    numberOfRounds: number;
+    homeScore: number;
+    awayScore: number;
   }> {
     if (homePaddlePos < 0) {
       homePaddlePos = 0;
@@ -609,6 +832,12 @@ export class GameGateWay {
 
     homePaddleState.y += homePaddleState.dy;
     awayPaddleState.y += awayPaddleState.dy;
+    if (homePaddleState.y < 0) {
+      homePaddleState.y = 0;
+    }
+    if (homePaddleState.y + paddleHeight > height) {
+      homePaddleState.y = height - paddleHeight;
+    }
     // Update ball position based on current direction
     ballState.x += ballState.dx;
     ballState.y += ballState.dy;
@@ -640,15 +869,17 @@ export class GameGateWay {
     // Ensure the paddles stay within the vertical bounds
 
     // Check if the ball passes the paddles (you may need to adjust this logic)
-    if (ballState.x - ballSize / 2 < 0) {
+    if (ballState.x - ballSize / 2 < paddleWidth / 2) {
       //const timeOut = setTimeout(async () => {
       ballState.x = width / 2;
       ballState.y = height / 2;
-      ballState.dx = -ballState.dx;
+      ballState.dy = -ballState.dy;
 
       numberOfRounds++;
       awayScore++;
-      this.server.to(data.gameId.toString()).emit("score", [homeScore, awayScore]);
+      this.server
+        .to(data.gameId.toString())
+        .emit("score", [homeScore, awayScore]);
       //if (homeScore === 5) {
       //  // 홈팀 승자로 넣기
       //  await this.gamePlayerService.saveGamePlayer(
@@ -668,13 +899,15 @@ export class GameGateWay {
       //  //);
       //  return;
       //}
-    } else if (ballState.x + ballSize / 2 > width) {
+    } else if (ballState.x + ballSize / 2 > width - paddleWidth / 2) {
       ballState.x = width / 2;
       homeScore++;
       ballState.y = height / 2;
-      ballState.dx = -ballState.dx;
+      ballState.dy = -ballState.dy;
       numberOfRounds++;
-      this.server.to(data.gameId.toString()).emit("score", [homeScore, awayScore]);
+      this.server
+        .to(data.gameId.toString())
+        .emit("score", [homeScore, awayScore]);
       //if (awayScore === 5) {
       //  //away팀 승자로 넣기
       //  await this.gamePlayerService.saveGamePlayer(
@@ -698,9 +931,60 @@ export class GameGateWay {
 
     return {
       ball: { x: ballState.x, y: ballState.y },
-      homePaddle: { x: 5, y: homePaddlePos },
-      awayPaddle: { x: width - paddleWidth - 5, y: awayPaddlePos },
+      homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
+      awayPaddle: {
+        x: width - paddleWidth,
+        y: awayPaddlePos,
+        dy: awayPaddleState.dy,
+      },
+      numberOfBounces,
+      numberOfRounds,
+      homeScore,
+      awayScore,
     };
+  }
+
+  async checkPlayTIme(playTime: Date) {
+    const endTime = new Date();
+    const diffTime = endTime.getTime() - playTime.getTime();
+    const playTimeFormat = showPlayTime(diffTime);
+    return playTimeFormat;
+  }
+
+  keyPress(data: any, socket: Socket): number {
+    let homePaddleStateDy = 0;
+    let awayPaddleStateDy = 0;
+    if (data.team === GameTeam.HOME) {
+      if (data.key === "ArrowUp") {
+        homePaddleStateDy = -10;
+      } else if (data.key === "ArrowDown") {
+        homePaddleStateDy = 10;
+      }
+      return homePaddleStateDy;
+      // homePaddleState.y += homePaddleState.dy;
+    } else if (data.team === GameTeam.AWAY) {
+      if (data.key === "ArrowUp") {
+        awayPaddleStateDy = -10;
+      } else if (data.key === "ArrowDown") {
+        awayPaddleStateDy = 10;
+      }
+      return awayPaddleStateDy;
+      // awayPaddleState.y += awayPaddleState.dy;
+    }
+  }
+
+  keyrelease(data: any, socket: Socket): number {
+    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
+    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
+    let homePaddleStateDy = 0;
+    let awayPaddleStateDy = 0;
+    if (data.team === GameTeam.HOME) {
+      homePaddleStateDy = 0;
+      return homePaddleStateDy;
+    } else if (data.team === GameTeam.AWAY) {
+      awayPaddleStateDy = 0;
+      return awayPaddleStateDy;
+    }
   }
 }
 // 좌표 계산 로직을 수행하는 함수
@@ -708,6 +992,34 @@ export class GameGateWay {
 function showTime(currentDate: Date) {
   const formattedTime = format(currentDate, "h:mm a");
   return formattedTime;
+}
+
+function showPlayTime(diffTime: number) {
+  const playTime = Math.floor(diffTime / 1000);
+  const formattedPlayTime = format(playTime, "mm:ss");
+  return formattedPlayTime;
+}
+
+function isMoreThan30SecondsAgo(targetTime: string): boolean {
+  const currentTime = new Date();
+
+  //string to date
+  const beforeTime = new Date(targetTime);
+  const timeDifferenceInSeconds =
+    (currentTime.getTime() - beforeTime.getTime()) / 1000;
+
+  return timeDifferenceInSeconds > 30;
+}
+
+function timeOut(startTime: Date): boolean {
+  //5분이 지나면 게임이 종료되고, 게임 기록이 저장된다.
+  //startTime과 현재 시각을 비교해서 5분이 지났는지 확인한다.
+  // 5분이 지났으면 true를 반환하고, 아니라면 false를 반환한다
+
+  const currentTime = new Date();
+  const diffTime = currentTime.getTime() - startTime.getTime();
+  const diffTimeInSeconds = diffTime / 1000;
+  return diffTimeInSeconds > 300;
 }
 
 // Set a timeout for 3 minutes

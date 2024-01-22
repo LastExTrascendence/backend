@@ -139,6 +139,7 @@ export class ChannelsService {
     }
   }
 
+  //todo : private 시 채널 입장 시 비밀번호 입력
   async enterChannel(
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
@@ -203,7 +204,7 @@ export class ChannelsService {
   async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
       if (channelConnectedClients.size === 0) {
-        this.resetChatChannel();
+        await this.resetChatChannel();
         //const channelUserInfo = await this.channelUserRepository.find();
         //for (let i = 0; i < channelUserInfo.length; i++) {
         //  this.channelUserRepository.update(
