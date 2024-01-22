@@ -166,14 +166,14 @@ export class AuthController {
           two_fa_complete: isValid,
         };
 
-        const newToken = this.jwtService.sign(payload);
+        const token = this.jwtService.sign(payload);
+        const expires = new Date(this.jwtService.decode(token)["exp"] * 1000);
         const cookieOptions: CookieOptions = {
+          expires,
           httpOnly: false,
-          domain: `http://${config.get("FE").get("domain")}:${config
-            .get("FE")
-            .get("port")}`,
+          domain: config.get("FE").get("domain"),
         };
-        res.cookie("access_token", newToken, cookieOptions);
+        res.cookie("access_token", token, cookieOptions);
       } else {
         throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",
