@@ -88,7 +88,7 @@ export class AuthController {
       }
 
       const otp = await this.authService.generateOtp(userInfo);
-      return res.send(otp);
+      return otp;
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
@@ -134,7 +134,7 @@ export class AuthController {
   @UseGuards(JWTAuthGuard)
   async otpLogin(
     @Body() otp: any,
-    @Res({ passthrough: true }) res: any,
+    @Res({ passthrough: true }) res: Response,
     @User() user: userSessionDto,
   ) {
     try {
@@ -168,13 +168,11 @@ export class AuthController {
         const newToken = this.jwtService.sign(payload);
         const cookieOptions: CookieOptions = {
           httpOnly: false,
-          domain: config.get("FE").get("domain"),
+          domain: `http://${config.get("FE").get("domain")}:${config
+            .get("FE")
+            .get("port")}`,
         };
         res.cookie("access_token", newToken, cookieOptions);
-        const url = `http://${config.get("FE").get("domain")}:${config
-          .get("FE")
-          .get("port")}`;
-        return res.redirect(`${url}`);
       } else {
         throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",
