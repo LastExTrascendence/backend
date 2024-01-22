@@ -56,6 +56,18 @@ export class ChannelsService {
           },
           HttpStatus.BAD_REQUEST,
         );
+      } else if (
+        chatChannelListDto.maxUser < 0 ||
+        chatChannelListDto.maxUser > 50
+      ) {
+        // 최대 인원 수 논의 필요
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "최대 인원은 0명 이상 50명 이하여야 합니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       const createInfo = await this.userService.findUserById(
@@ -127,6 +139,7 @@ export class ChannelsService {
     }
   }
 
+  //todo : private 시 채널 입장 시 비밀번호 입력
   async enterChannel(
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
@@ -191,7 +204,7 @@ export class ChannelsService {
   async getChannels(): Promise<chatChannelListDto[] | HttpException> {
     try {
       if (channelConnectedClients.size === 0) {
-        this.resetChatChannel();
+        await this.resetChatChannel();
         //const channelUserInfo = await this.channelUserRepository.find();
         //for (let i = 0; i < channelUserInfo.length; i++) {
         //  this.channelUserRepository.update(

@@ -44,7 +44,7 @@ export class ChannelGateWay {
     private redisClient: Redis,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -81,6 +81,11 @@ export class ChannelGateWay {
       const channelInfo = await this.channelRepository.findOne({
         where: { title: title },
       });
+
+      if (!channelInfo) {
+        socket.disconnect(true);
+        throw new Error("채널을 찾을 수 없습니다.");
+      }
 
       const currentUserInfo = await this.channelUserRepository.findOne({
         where: { user_id: userId, channel_id: channelInfo.id },
