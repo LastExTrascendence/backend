@@ -427,6 +427,8 @@ export class UserGateway
 
     await this.redisClient.rpush("QM", userId);
 
+    console.log("QM", await this.redisClient.lrange("QM", 0, -1));
+
     await socket.join(`QM|${userId}`);
     userConnectedClients.set(userId, socket);
 
@@ -482,7 +484,22 @@ export class UserGateway
       }
     }, 1000);
     socket.on("exitQueue", async () => {
+      //const userList = await this.redisClient.lrange("QM", 0, -1);
+      ////userList에 같은 userId가 있는지 확인
+      //const filteredList = userList.filter(
+      //  (user) => parseInt(user) === userId,
+      //  );
+
+      //  console.log(filteredList);
+
+      //  if (filteredList.length === 0) {
+      //    //throw new HttpException("No user found", 404);
+      //  } else {
+      //    await this.redisClient.lrem("QM", 0, userId);
+      //    await socket.leave(`QM|${userId}`);
+      //  }
       await this.redisClient.lrem("QM", 0, userId);
+      console.log("QM", await this.redisClient.lrange("QM", 0, -1));
       clearInterval(makeMatch);
       return;
     });
