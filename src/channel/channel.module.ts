@@ -9,14 +9,22 @@ import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
 import { ChannelController } from "./channel.controller";
 import { AuthModule } from "src/auth/auth.module";
+import { UserOtpSecret } from "src/user/entity/user.otp.entity";
+import { UserOtpService } from "src/user/user.otp.service";
 
 @Module({
   imports: [
     AuthModule,
-    TypeOrmModule.forFeature([User, Channels, ChannelUser]),
+    TypeOrmModule.forFeature([User, UserOtpSecret, Channels, ChannelUser]),
   ],
   controllers: [ChannelController],
-  providers: [UserService, ChannelGateWay, ChannelsService, Redis],
+  providers: [
+    UserOtpService,
+    UserService,
+    ChannelGateWay,
+    ChannelsService,
+    Redis,
+  ],
   exports: [ChannelsService, Redis, ChannelGateWay],
 })
 export class ChannelModule {}

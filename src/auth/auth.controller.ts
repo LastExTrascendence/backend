@@ -11,7 +11,7 @@ import {
   Body,
   ValidationPipe,
 } from "@nestjs/common";
-import { Response } from "express";
+import { CookieOptions, Response } from "express";
 import { AuthService } from "./auth.service";
 import { UserService } from "src/user/user.service";
 import { JwtService } from "@nestjs/jwt";
@@ -21,6 +21,8 @@ import { User } from "src/decorator/user.decorator";
 import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 import { JWTAuthGuard } from "./jwt/jwtAuth.guard";
+import Redis from "ioredis";
+import { TwoFAGuard } from "./twoFA/twoFA.guard";
 
 @Controller("auth")
 export class AuthController {
@@ -29,6 +31,7 @@ export class AuthController {
     private authService: AuthService,
     private readonly userService: UserService,
     private jwtService: JwtService,
+    private redisService: Redis,
   ) {}
 
   @Get("/login")
@@ -65,12 +68,12 @@ export class AuthController {
         return res.redirect(`${url}`);
       }
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   @Post("/otp/generate")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async generateOtp(
     @Res({ passthrough: true }) res: Response,
     @User() user: userSessionDto,
@@ -79,50 +82,80 @@ export class AuthController {
     try {
       const userInfo = await this.userService.findUserById(user.id);
       if (!userInfo) {
-        return new HttpException(
+        throw new HttpException(
           "해당 유저가 존재하지 않습니다.",
           HttpStatus.NOT_FOUND,
         );
-      } else if (userInfo.two_fa === false) {
-        return new HttpException(
-          "2FA 기능이 활성화 되어있지 않습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
       }
+
       const otp = await this.authService.generateOtp(userInfo);
-      return res.send(otp);
+      return otp;
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 
   @Post("/otp/verify")
-  @UseGuards(JWTAuthGuard)
+  @UseGuards(JWTAuthGuard, TwoFAGuard)
   async verifyOtp(
     @Body() otp: any,
     @Res({ passthrough: true }) res: any,
     @User() user: userSessionDto,
-  ) {
+  ): Promise<void | HttpException> {
     this.logger.debug(`Called ${AuthController.name} ${this.verifyOtp.name}`);
     try {
       // Assuming you have a 'User' entity
       const userInfo = await this.userService.findUserById(user.id);
 
       if (!userInfo) {
-        return new HttpException(
+        throw new HttpException(
           "해당 유저가 존재하지 않습니다.",
           HttpStatus.NOT_FOUND,
-        );
-      } else if (userInfo.two_fa === false) {
-        return new HttpException(
-          "2FA 기능이 활성화 되어있지 않습니다.",
-          HttpStatus.BAD_REQUEST,
         );
       }
 
       const isValid = await this.authService.verifyOtp(userInfo, otp.otp);
       if (isValid) {
-        const payload: userSessionDto = {
+        if (userInfo.two_fa === true) {
+          throw new HttpException("너 잘못했잖아", HttpStatus.BAD_REQUEST);
+        }
+        //await this.authService.setOtpSecret(userInfo);
+      } else {
+        throw new HttpException(
+          "OTP 코드가 일치하지 않습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
+    }
+  }
+
+  @Post("/otp/login")
+  @UseGuards(JWTAuthGuard)
+  async otpLogin(
+    @Body() otp: any,
+    @Res({ passthrough: true }) res: Response,
+    @User() user: userSessionDto,
+  ) {
+    try {
+      this.logger.debug(`Called ${AuthController.name} ${this.otpLogin.name}`);
+      const userInfo = await this.userService.findUserById(user.id);
+      if (!userInfo) {
+        throw new HttpException(
+          "해당 유저가 존재하지 않습니다.",
+          HttpStatus.NOT_FOUND,
+        );
+      } else if (userInfo.two_fa === false || user.two_fa_complete === true) {
+        new HttpException(
+          "OTP 로그인을 할 수 없습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+
+      const isValid = await this.authService.loginOtp(userInfo, otp.otp);
+      if (isValid) {
+        const payload = {
           id: userInfo.id,
           nickname: userInfo.nickname,
           avatar: userInfo.avatar,
@@ -132,20 +165,23 @@ export class AuthController {
           intra_name: userInfo.intra_name,
           two_fa_complete: isValid,
         };
-        const newToken = this.jwtService.sign(payload);
-        res.cookie("access_token", newToken);
-        const url = `http://${config.get("FE").get("domain")}:${config
-          .get("FE")
-          .get("port")}`;
-        return res.redirect(url);
+
+        const token = this.jwtService.sign(payload);
+        const expires = new Date(this.jwtService.decode(token)["exp"] * 1000);
+        const cookieOptions: CookieOptions = {
+          expires,
+          httpOnly: false,
+          domain: config.get("FE").get("domain"),
+        };
+        res.cookie("access_token", token, cookieOptions);
       } else {
-        return new HttpException(
+        throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",
           HttpStatus.BAD_REQUEST,
         );
       }
     } catch (error) {
-      return new HttpException(error.message, HttpStatus.BAD_REQUEST);
+      throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
   }
 }

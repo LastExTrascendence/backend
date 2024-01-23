@@ -11,6 +11,8 @@ import { UserModule } from "src/user/user.module";
 import { JwtStrategy } from "./jwt/jwt.strategy";
 import { FortyTwoStrategy } from "./fortytwo/fortytwo.strategy";
 import { Redis } from "ioredis";
+import { UserOtpSecret } from "src/user/entity/user.otp.entity";
+import { UserOtpService } from "src/user/user.otp.service";
 
 const jwtConfig = config.get("jwt");
 
@@ -24,38 +26,17 @@ const jwtConfig = config.get("jwt");
       },
     }),
     forwardRef(() => UserModule),
-    TypeOrmModule.forFeature([User]),
+    TypeOrmModule.forFeature([User, UserOtpSecret]),
   ],
   controllers: [AuthController],
-  providers: [UserService, JwtStrategy, AuthService, FortyTwoStrategy, Redis],
+  providers: [
+    UserOtpService,
+    UserService,
+    JwtStrategy,
+    AuthService,
+    FortyTwoStrategy,
+    Redis,
+  ],
   exports: [AuthService, JwtModule],
 })
 export class AuthModule {}
-
-//@Module({
-//  imports: [
-//    JwtModule.register({
-//      secret: jwtConstants.secret,
-//      signOptions: { expiresIn: '7d' },
-//    }),
-//    forwardRef(() => UsersModule),
-//  ],
-//  controllers: [AuthController],
-//  providers: [
-//    FtStrategy,
-//    SessionSerializer,
-//    {
-//      provide: 'AUTH_SERVICE',
-//      useClass: AuthService,
-//    },
-//    JwtStrategy,
-//  ],
-//  exports: [
-//    {
-//      provide: 'AUTH_SERVICE',
-//      useClass: AuthService,
-//    },
-//    JwtModule,
-//  ],
-//})
-//export class AuthModule {}

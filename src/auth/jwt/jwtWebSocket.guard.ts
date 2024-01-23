@@ -12,7 +12,8 @@ export class JWTWebSocketGuard implements CanActivate {
     if (!bearerToken) return false;
     try {
       const validToken = this.jwtService.verify(bearerToken);
-      return Boolean(validToken);
+      const decodedToken = this.jwtService.decode(bearerToken);
+      return Boolean(validToken) && decodedToken.two_fa_complete;
     } catch (error) {
       throw new Error(error);
     }

@@ -6,12 +6,11 @@ import {
   forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, Repository } from "typeorm";
+import { Repository } from "typeorm";
 import { GamePlayer } from "./entity/game.player.entity";
 import { UserService } from "src/user/user.service";
 import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
-import { format } from "date-fns";
 import { GameResult } from "./enum/game.enum";
 import { GameChannelService } from "./game.channel.service";
 import Redis from "ioredis";

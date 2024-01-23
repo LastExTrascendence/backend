@@ -16,6 +16,6 @@ export class TwoFAGuard implements CanActivate {
     const request = context.switchToHttp().getRequest();
     const jwt = request.cookies["access_token"];
     const payload = this.jwtService.decode(jwt);
-    return payload.two_fa_complete || !payload.user.two_fa;
+    return payload.two_fa_complete || !payload.two_fa;
   }
 }

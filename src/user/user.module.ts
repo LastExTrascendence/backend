@@ -27,6 +27,9 @@ import { GameChannelService } from "src/game/game.channel.service";
 import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
 import { GamePlayerService } from "src/game/game.player.service";
+import { UserOtpService } from "./user.otp.service";
+import { UserOtpSecret } from "./entity/user.otp.entity";
+import { AuthService } from "src/auth/auth.service";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -37,6 +40,7 @@ const jwtConfig = config.get("jwt");
     TypeOrmModule.forFeature([
       User,
       UserFriend,
+      UserOtpSecret,
       UserBlock,
       GameChannel,
       GamePlayer,
@@ -48,6 +52,7 @@ const jwtConfig = config.get("jwt");
   controllers: [UserController],
   providers: [
     UserService,
+    UserOtpService,
     PassportModule,
     FriendService,
     BlockService,
@@ -62,6 +67,6 @@ const jwtConfig = config.get("jwt");
     GameService,
     ChannelsService,
   ],
-  exports: [UserService, UserGateway],
+  exports: [UserService, UserGateway, UserOtpService],
 })
 export class UserModule { }

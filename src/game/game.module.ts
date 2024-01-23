@@ -14,6 +14,7 @@ import { GameGateWay } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
 import { UserModule } from "src/user/user.module";
 
+
 @Module({
   imports: [
     forwardRef(() => AuthModule),
@@ -22,6 +23,7 @@ import { UserModule } from "src/user/user.module";
   ],
   controllers: [GameController],
   providers: [
+    UserOtpService,
     GameChannelService,
     GameService,
     GamePlayerService,
