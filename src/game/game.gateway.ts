@@ -13,7 +13,7 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { SaveOptions, RemoveOptions, Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
 import { Redis } from "ioredis";
@@ -95,6 +95,15 @@ export class GameGateWay {
     try {
       this.logger.verbose(`Game enter ${data.userId}, ${data.title}`);
       const { userId, title } = data;
+
+      if (userId === 0)
+        throw new HttpException(
+          {
+            status: HttpStatus.NOT_FOUND,
+            error: "로그인이 필요합니다.",
+          },
+          HttpStatus.NOT_FOUND,
+        );
 
       const gameChannelInfo = await this.gameChannelRepository.findOne({
         where: {
@@ -180,6 +189,8 @@ export class GameGateWay {
         where: { title: title },
       });
 
+      console.log("redisInfo", await this.redisClient.hgetall(`GM|${title}`));
+
       if (creatorId.creator_id === userId) {
         await this.redisClient.hset(`GM|${title}`, "creatorOnline", "true");
       } else {
@@ -236,7 +247,10 @@ export class GameGateWay {
 
       const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
-      if (redisInfo.mute !== "null" && redisInfo.muteUser === data.sender) {
+      if (
+        redisInfo.mute != "null" &&
+        parseInt(redisInfo.muteUser) === data.sender
+      ) {
         if (isMoreThan30SecondsAgo(redisInfo.mute)) {
           await this.redisClient.hset(`GM|${data.title}`, "mute", "null");
           this.server.to(gameInfo.id.toString()).emit("msgToClient", {
@@ -399,16 +413,19 @@ export class GameGateWay {
     }
   }
 
-  //title :string
+  //gameId : number
   //userId : number
   @SubscribeMessage("leaveGame")
   async leaveGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    this.logger.debug(`leaveGame`);
+    console.log(data);
     const channelInfo = await this.gameChannelRepository.findOne({
-      where: { title: data.title },
+      where: { id: data.gameId, deleted_at: IsNull() },
     });
 
     if (channelInfo.game_status === GameStatus.READY) {
-      const info = await this.redisClient.hgetall(`GM|${data.title}`);
+      const info = await this.redisClient.hgetall(`GM|${channelInfo.title}`);
+      console.log("info", info);
       //게임 준비 상태에서 연결이 끊긴 경우
       const creatorId = parseInt(info.creator);
       const userId = parseInt(info.user);
@@ -421,19 +438,23 @@ export class GameGateWay {
           gameConnectedClients.delete(userId);
         }
         await this.gameChannelRepository.update(
-          { title: data.title },
-          { deleted_at: new Date() },
+          { title: channelInfo.title },
+          { cur_user: 0, deleted_at: new Date(), game_status: GameStatus.DONE },
         );
-        await this.redisClient.del(`GM|${data.title}`);
+        await this.redisClient.del(`GM|${channelInfo.title}`);
       } else if (userId === data.userId) {
         //유저가 나간 경우
-        await this.redisClient.hset(`GM|${data.title}`, "user", null);
-        await this.redisClient.hset(`GM|${data.title}`, "userOnline", "false");
+        await this.redisClient.hset(`GM|${channelInfo.title}`, "user", null);
+        await this.redisClient.hset(
+          `GM|${channelInfo.title}`,
+          "userOnline",
+          "false",
+        );
         const targetClient = gameConnectedClients.get(userId);
         targetClient.disconnect(true);
         gameConnectedClients.delete(userId);
-        this.updateCurUser(data.title, channelInfo.id);
-        this.sendUserList(data.title, channelInfo.id, socket);
+        this.updateCurUser(channelInfo.title, channelInfo.id);
+        this.sendUserList(channelInfo.title, channelInfo.id, socket);
       }
     }
     // 게임중에 연결이 끊긴 경우
@@ -443,6 +464,24 @@ export class GameGateWay {
     //  if (await this.redisClient.keys(`GM|${data.title}`))
     //    await this.redisClient.del(`GM|${data.title}`);
     //}
+  }
+
+  @SubscribeMessage("regame")
+  async regame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    try {
+      this.logger.debug(`regame`);
+      const gameInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+      await this.gameChannelRepository.update(
+        { title: data.title },
+        { game_status: GameStatus.READY },
+      );
+
+      gameInfo.userReady = "false";
+      gameInfo.creatorReady = "false";
+    } catch (error) {
+      console.error(error);
+    }
   }
 
   @SubscribeMessage("banUser")
@@ -711,16 +750,22 @@ export class GameGateWay {
       });
 
       socket.on("keyDown", (data) => {
-        if (data.team === GameTeam.HOME)
+        if (data.team === GameTeam.HOME) {
+          console.log("HOMEKEYDOWN", data.key);
           homePaddleState.dy = this.keyPress(data, socket);
-        else if (data.team === GameTeam.AWAY)
+        } else if (data.team === GameTeam.AWAY) {
+          console.log("AWAYKEYDOWN", data.key);
           awayPaddleState.dy = this.keyPress(data, socket);
+        }
       });
       socket.on("keyUp", (data) => {
-        if (data.team === GameTeam.HOME)
-          homePaddleState.dy = this.keyrelease(data, socket);
-        else if (data.team === GameTeam.AWAY)
-          awayPaddleState.dy = this.keyrelease(data, socket);
+        if (data.team === GameTeam.HOME) {
+          console.log("HOMEKEYUP", data.key);
+          homePaddleState.dy = this.keyRelease(data, socket);
+        } else if (data.team === GameTeam.AWAY) {
+          console.log("AWAYKEYUP", data.key);
+          awayPaddleState.dy = this.keyRelease(data, socket);
+        }
       });
     } catch (error) {
       console.error(error);
@@ -781,10 +826,10 @@ export class GameGateWay {
     const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
     let cur_user = 0;
     if (redisInfo.creatorOnline === "true") {
-      cur_user++;
+      cur_user += 1;
     }
     if (redisInfo.userOnline === "true") {
-      cur_user++;
+      cur_user += 1;
     }
     await this.gameChannelRepository.update(
       { id: channelId },
@@ -848,28 +893,7 @@ export class GameGateWay {
       ballState.dy = -ballState.dy;
     }
 
-    // Reflect the ball when hitting the paddles
-    if (
-      (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
-        ballState.y + ballSize / 2 >= homePaddlePos &&
-        ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
-      (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
-        ballState.y + ballSize / 2 >= awayPaddlePos &&
-        ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
-    ) {
-      numberOfBounces++;
-      ballState.dx = -ballState.dx;
-    }
-    homePaddlePos += homePaddleState.dy;
-    awayPaddlePos += awayPaddleState.dy;
-    // Update paddle positions based on current direction
-    //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-    //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-
-    // Ensure the paddles stay within the vertical bounds
-
-    // Check if the ball passes the paddles (you may need to adjust this logic)
-    if (ballState.x - ballSize / 2 < paddleWidth / 2) {
+    if (ballState.x <= paddleWidth + 5) {
       //const timeOut = setTimeout(async () => {
       ballState.x = width / 2;
       ballState.y = height / 2;
@@ -899,11 +923,11 @@ export class GameGateWay {
       //  //);
       //  return;
       //}
-    } else if (ballState.x + ballSize / 2 > width - paddleWidth / 2) {
+    } else if (ballState.x >= width - paddleWidth - 5) {
       ballState.x = width / 2;
-      homeScore++;
       ballState.y = height / 2;
-      ballState.dy = -ballState.dy;
+      ballState.dx = -ballState.dx;
+      homeScore++;
       numberOfRounds++;
       this.server
         .to(data.gameId.toString())
@@ -928,12 +952,41 @@ export class GameGateWay {
       //  return;
       //}
     }
+    if (
+      (ballState.x - ballSize / 2 > paddleWidth + 5 && // hitting left paddle
+        ballState.y + ballSize / 2 >= homePaddlePos &&
+        ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
+      (ballState.x + ballSize / 2 > width - paddleWidth - 5 && // hitting right paddle
+        ballState.y + ballSize / 2 >= awayPaddlePos &&
+        ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
+    ) {
+      // Reflect the ball when hitting the paddles
+      //if (
+      //  (ballState.x - ballSize / 2 <= paddleWidth + 5 && // hitting left paddle
+      //    ballState.y + ballSize / 2 >= homePaddlePos &&
+      //    ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
+      //  (ballState.x + ballSize / 2 >= width - paddleWidth - 5 && // hitting right paddle
+      //    ballState.y + ballSize / 2 >= awayPaddlePos &&
+      //    ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
+      //) {
+      numberOfBounces++;
+      ballState.dx = -ballState.dx;
+    }
+    homePaddlePos += homePaddleState.dy;
+    awayPaddlePos += awayPaddleState.dy;
+    // Update paddle positions based on current direction
+    //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+    //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
+
+    // Ensure the paddles stay within the vertical bounds
+
+    // Check if the ball passes the paddles (you may need to adjust this logic)
 
     return {
       ball: { x: ballState.x, y: ballState.y },
-      homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
+      homePaddle: { x: 5, y: homePaddlePos, dy: homePaddleState.dy },
       awayPaddle: {
-        x: width - paddleWidth,
+        x: width - paddleWidth - 5,
         y: awayPaddlePos,
         dy: awayPaddleState.dy,
       },
@@ -955,6 +1008,7 @@ export class GameGateWay {
     let homePaddleStateDy = 0;
     let awayPaddleStateDy = 0;
     if (data.team === GameTeam.HOME) {
+      console.log("home", data.key);
       if (data.key === "ArrowUp") {
         homePaddleStateDy = -10;
       } else if (data.key === "ArrowDown") {
@@ -963,6 +1017,7 @@ export class GameGateWay {
       return homePaddleStateDy;
       // homePaddleState.y += homePaddleState.dy;
     } else if (data.team === GameTeam.AWAY) {
+      console.log("away", data.key);
       if (data.key === "ArrowUp") {
         awayPaddleStateDy = -10;
       } else if (data.key === "ArrowDown") {
@@ -973,7 +1028,7 @@ export class GameGateWay {
     }
   }
 
-  keyrelease(data: any, socket: Socket): number {
+  keyRelease(data: any, socket: Socket): number {
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
     let homePaddleStateDy = 0;
@@ -996,8 +1051,18 @@ function showTime(currentDate: Date) {
 
 function showPlayTime(diffTime: number) {
   const playTime = Math.floor(diffTime / 1000);
-  const formattedPlayTime = format(playTime, "mm:ss");
-  return formattedPlayTime;
+  const minute = playTime / 60;
+  const second = playTime % 60;
+
+  if (minute < 10) {
+    if (second < 10) {
+      const formattedPlayTime =
+        "0" + minute.toFixed() + ":0" + second.toFixed();
+      return formattedPlayTime;
+    }
+    const formattedPlayTime = "0" + minute.toFixed() + ":" + second.toFixed();
+    return formattedPlayTime;
+  }
 }
 
 function isMoreThan30SecondsAgo(targetTime: string): boolean {
