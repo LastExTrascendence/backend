@@ -69,4 +69,4 @@ const jwtConfig = config.get("jwt");
   ],
   exports: [UserService, UserGateway, UserOtpService],
 })
-export class UserModule {}
+export class UserModule { }

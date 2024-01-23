@@ -13,20 +13,13 @@ import { GameChannel } from "./entity/game.channel.entity";
 import { GameGateWay } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
 import { UserModule } from "src/user/user.module";
-import { ChannelsService } from "src/channel/channel.service";
-import { UserOtpSecret } from "src/user/entity/user.otp.entity";
-import { UserOtpService } from "src/user/user.otp.service";
+
 
 @Module({
   imports: [
     forwardRef(() => AuthModule),
-    TypeOrmModule.forFeature([
-      User,
-      UserOtpSecret,
-      Game,
-      GameChannel,
-      GamePlayer,
-    ]),
+    forwardRef(() => UserModule),
+    TypeOrmModule.forFeature([User, Game, GameChannel, GamePlayer]),
   ],
   controllers: [GameController],
   providers: [
@@ -39,6 +32,7 @@ import { UserOtpService } from "src/user/user.otp.service";
     GameGateWay,
   ],
   exports: [
+    UserService,
     GameChannelService,
     GameService,
     GamePlayerService,
@@ -46,4 +40,4 @@ import { UserOtpService } from "src/user/user.otp.service";
     GameGateWay,
   ],
 })
-export class GameModule {}
+export class GameModule { }

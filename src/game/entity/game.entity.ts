@@ -66,7 +66,7 @@ export class Game extends BaseEntity {
   number_of_bounces: number;
 
   @Column({ nullable: true })
-  play_time: number;
+  play_time: string;
 
   @Column()
   created_at: Date;
