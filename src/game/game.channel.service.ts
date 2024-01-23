@@ -37,7 +37,7 @@ export class GameChannelService {
     gameChannelListDto: gameChannelListDto,
   ): Promise<gameChannelListDto | HttpException> {
     try {
-      this.logger.debug("gameChannelListDto");
+      this.logger.debug(gameChannelListDto);
       const gameInfo = await this.redisClient.lrange(
         `GM|${gameChannelListDto.title}`,
         0,
@@ -224,7 +224,7 @@ export class GameChannelService {
       }
 
       const channelsInfo = await this.gameChannelRepository.find({
-        where: { game_status: GameStatus.READY, deleted_at: IsNull() },
+        where: { deleted_at: IsNull() },
       });
       if (channelsInfo.length === 0) {
         throw new HttpException(
@@ -303,10 +303,9 @@ export class GameChannelService {
         });
       });
       await this.gameChannelRepository.update(
-        { deleted_at: IsNull() },
+        { deleted_at: IsNull(), game_status: GameStatus.READY },
         {
           cur_user: 0,
-          game_status: GameStatus.DONE,
           deleted_at: new Date(),
         },
       );

@@ -71,8 +71,6 @@ export class ChannelGateWay {
     try {
       const { userId, title } = data;
 
-      if (userId === 0) throw new Error("로그인이 필요한 서비스입니다.");
-
       if (channelConnectedClients.has(userId)) {
         //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
         const targetClient = channelConnectedClients.get(userId);
