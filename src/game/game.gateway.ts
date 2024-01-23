@@ -58,7 +58,7 @@ export class GameGateWay {
     private gameService: GameService,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -579,6 +579,18 @@ export class GameGateWay {
         dy: -6, // Initial speed in the y direction
       };
 
+      const gameInfo = await this.gameChannelRepository.findOne({
+        where: { id: data.gameId },
+      });
+
+      const redisInfo = await this.redisClient.hgetall(
+        `GM|${data.gameInfo.id}`,
+      );
+
+      const creatorId = parseInt(redisInfo.creator);
+
+      const creatorSocketId = gameConnectedClients.get(creatorId).id;
+
       const homePaddleState = {
         y: Math.floor(
           GameComponent.height / 2 - GameComponent.paddleHeight / 2,
@@ -721,7 +733,14 @@ export class GameGateWay {
         ++cnt;
         //console.log(cnt);
         //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
-        this.transferData(returnData, cnt, data, socket, currentCnt);
+        this.transferData(
+          returnData,
+          cnt,
+          data,
+          socket,
+          currentCnt,
+          creatorSocketId,
+        );
         mutex.release();
       }, 1000 / 60);
 
@@ -746,8 +765,8 @@ export class GameGateWay {
           awayPaddleState.dy = 10;
         }
       });
-      socket.on("keyUpHOME", (data) => {
-        console.log("keyUpHOME", data);
+      socket.on("KeyUpHOME", (data) => {
+        console.log("KeyUpHOME", data);
         homePaddleState.dy = 0;
       });
       socket.on("keyUpAWAY", (data) => {
@@ -765,10 +784,11 @@ export class GameGateWay {
     gameData: any,
     socket: Socket,
     currentCnt: number,
+    creatorSocketId: string,
   ) {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
-    this.server.to(gameData.gameId.toString()).emit("loopGameData", returnData);
+    this.server.to(creatorSocketId).emit("loopGameData", returnData);
   }
 
   async sendUserList(title: string, channelId: number, socket: Socket) {
