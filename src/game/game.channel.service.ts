@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) { }
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -221,13 +221,14 @@ export class GameChannelService {
         where: { deleted_at: IsNull() },
       });
       if (channelsInfo.length === 0) {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "존재하는 채널이 없습니다.",
-          },
-          HttpStatus.BAD_REQUEST,
-        );
+        return [];
+        // throw new HttpException(
+        //   {
+        //     status: HttpStatus.BAD_REQUEST,
+        //     error: "존재하는 채널이 없습니다.",
+        //   },
+        //   HttpStatus.BAD_REQUEST,
+        // );
       }
 
       const totalChannels = [];
