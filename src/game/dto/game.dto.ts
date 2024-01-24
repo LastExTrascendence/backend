@@ -18,6 +18,8 @@ import {
   GameUserRole,
   GameResult,
 } from "../enum/game.enum";
+import { Server } from "socket.io";
+import { GameService } from "../game.service";
 
 /**
  * @description 게임유저의 기본 정보를 담은 DTO
@@ -200,4 +202,64 @@ export class gameStatsDto {
 
   @IsNumber()
   fastestGame: string;
+}
+
+export class homeInfoDto {
+  dy: number;
+
+  y: number;
+
+  score: number;
+}
+
+export class awayInfoDto {
+  dy: number;
+
+  y: number;
+
+  score: number;
+}
+
+export class gameInfoDto {
+  ballX: number;
+
+  ballY: number;
+
+  ballDx: number;
+
+  ballDy: number;
+
+  ballSize: number;
+
+  width: number;
+
+  height: number;
+
+  paddleWidth: number;
+
+  paddleHeight: number;
+
+  numberOfRounds: number;
+
+  numberOfBounces: number;
+
+  awayInfo: awayInfoDto;
+
+  homeInfo: homeInfoDto;
+
+  cnt: number;
+
+  currentCnt: number;
+}
+
+export class gameDictionaryDto {
+  gameInfo: gameInfoDto;
+
+  gameLoop: Function;
+
+  homeUserSocketId: string;
+
+  awayUserSocketId: string;
+
+  server: Server;
 }

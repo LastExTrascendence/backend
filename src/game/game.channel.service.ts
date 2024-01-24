@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) { }
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -243,7 +243,7 @@ export class GameChannelService {
             ).nickname,
             avatar: channelsInfo[i].creator_avatar,
           },
-          cur_user: 0,
+          cur_user: channelsInfo[i].cur_user,
           max_user: 2,
           gameType: channelsInfo[i].game_type,
           gameMode: channelsInfo[i].game_mode,

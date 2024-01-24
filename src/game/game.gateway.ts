@@ -27,7 +27,7 @@ import {
   GameComponent,
 } from "./enum/game.enum";
 import { GamePlayer } from "./entity/game.player.entity";
-import { format } from "date-fns";
+import { format, set, sub } from "date-fns";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
@@ -35,8 +35,16 @@ import { GamePlayerService } from "./game.player.service";
 import { GameService } from "./game.service";
 import { Mutex } from "async-mutex";
 import { GameChannelService } from "./game.channel.service";
+import {
+  awayInfoDto,
+  gameDictionaryDto,
+  gameInfoDto,
+  homeInfoDto,
+} from "./dto/game.dto";
 
 export const gameConnectedClients: Map<number, Socket> = new Map();
+
+export const gameDictionary: Map<number, gameDictionaryDto> = new Map();
 
 @WebSocketGateway(85, {
   namespace: "game",
@@ -243,7 +251,10 @@ export class GameGateWay {
 
       const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
-      if (redisInfo.mute !== "null" && redisInfo.muteUser === data.sender) {
+      if (
+        redisInfo.mute !== "null" &&
+        parseInt(redisInfo.muteUser) === data.sender
+      ) {
         if (isMoreThan30SecondsAgo(redisInfo.mute)) {
           await this.redisClient.hset(`GM|${data.title}`, "mute", "null");
           this.server.to(gameInfo.id.toString()).emit("msgToClient", {
@@ -290,6 +301,72 @@ export class GameGateWay {
       await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
       console.log("startInfo", startInfo);
+      const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { title: redisInfo.title },
+      });
+
+      const homeInfo: homeInfoDto = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+        score: 0,
+      };
+
+      const awayInfo: awayInfoDto = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+        score: 0,
+      };
+
+      const gameInfo: gameInfoDto = {
+        ballX: GameComponent.width / 2,
+        ballY: GameComponent.height / 2,
+        ballDx: -6,
+        ballDy: -6,
+        ballSize: GameComponent.ballSize,
+        width: GameComponent.width,
+        height: GameComponent.height,
+        paddleWidth: GameComponent.paddleWidth,
+        paddleHeight: GameComponent.paddleHeight,
+        numberOfRounds: 0,
+        numberOfBounces: 0,
+        awayInfo: awayInfo,
+        homeInfo: homeInfo,
+        cnt: 0,
+        currentCnt: 0,
+      };
+
+      const creatorSocketId = gameConnectedClients.get(
+        parseInt(redisInfo.creator),
+      ).id;
+
+      const userSocketId = gameConnectedClients.get(
+        parseInt(redisInfo.user),
+      ).id;
+
+      const gameTotalInfo: gameDictionaryDto = {
+        gameInfo: gameInfo,
+        gameLoop: async (
+          gameInfo: gameInfoDto,
+          Number: number,
+          server: Server,
+        ) => {
+          return await this.gameService.loopPosition(gameInfo, Number, server);
+        },
+        homeUserSocketId: creatorSocketId,
+        awayUserSocketId: userSocketId,
+        server: this.server,
+      };
+
+      gameDictionary.set(channelInfo.id, gameTotalInfo);
+      //console.log("gameComponentInfo", gameDictionary.get(channelInfo.id));
+
+      //console.log("check Ids", data.gameId, channelInfo.id);
       this.server.to(data.gameId.toString()).emit("gameStart");
     }
   }
@@ -506,10 +583,17 @@ export class GameGateWay {
   //paddleWidth: number;
   //paddleHeight: number;
   //ballSize: number;
+
+  //title
+  //gameId
   @SubscribeMessage("play")
   async gameInfo(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.logger.debug(`play`);
-    const gameInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+    const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+    const channelInfo = await this.gameChannelRepository.findOne({
+      where: { title: redisInfo.title },
+    });
 
     const gameComponentInfo = {
       width: GameComponent.width,
@@ -519,276 +603,218 @@ export class GameGateWay {
       paddleHeight: GameComponent.paddleHeight,
       ballSize: GameComponent.ballSize,
     };
-    this.server.to(gameInfo.id).emit("play", gameComponentInfo);
+
+    this.server.to(channelInfo.id.toString()).emit("play", gameComponentInfo);
   }
 
-  //@SubscribeMessage("keyDown")
-  //async keyDown(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-  //  // 전역에서 arrow up 이나 down이 key Down 되었을 때 flag를 세워줘야함
-
-  //  // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-  //  if (data.team === GameTeam.HOME) {
-  //    if (data.key === "ArrowUp") {
-  //      homePaddleState.dy = -10;
-  //    } else if (data.key === "ArrowDown") {
-  //      homePaddleState.dy = 10;
-  //    }
-  //    return {
-  //      homePaddle: homePaddleState.dy,
-  //      awayPaddle: awayPaddleState.dy,
-  //    };
-  //    // homePaddleState.y += homePaddleState.dy;
-  //  } else if (data.team === GameTeam.AWAY) {
-  //    if (data.key === "ArrowUp") {
-  //      awayPaddleState.dy = -10;
-  //    } else if (data.key === "ArrowDown") {
-  //      awayPaddleState.dy = 10;
-  //    }
-  //    // awayPaddleState.y += awayPaddleState.dy;
-  //  }
-  //  //this.logger.debug(`KeyDown`);
-  //}
-
-  //@SubscribeMessage("keyUp")
-  //async keyUp(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-  //  //this.logger.debug(`KeyUp`);
-  //  // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
-  //  // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-  //  if (data.team === GameTeam.HOME) {
-  //    homePaddleState.dy = 0;
-  //  } else if (data.team === GameTeam.AWAY) {
-  //    awayPaddleState.dy = 0;
-  //  }
-  //}
-
-  @SubscribeMessage("loopPosition")
-  async loopPosition(
+  //gameId
+  //team
+  //key
+  @SubscribeMessage("KeyDownCREATOR")
+  async keyDownCREATOR(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
-    try {
-      this.logger.debug(`loopPosition`);
-      const ballState = {
-        // x: Math.floor(GameComponent.width - GameComponent.ballSize),
-        // y: Math.floor(GameComponent.height - GameComponent.ballSize),
-        //x: GameComponent.width - GameComponent.ballSize,
-        //y: GameComponent.height - GameComponent.ballSize,
-        x: GameComponent.width / 2,
-        y: GameComponent.height / 2,
-        dx: -6, // Initial speed in the x direction
-        dy: -6, // Initial speed in the y direction
-      };
+    this.logger.debug(`KeyDownCREATOR ${data.gameId} ${data.key}`);
+    const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
 
-      const gameInfo = await this.gameChannelRepository.findOne({
-        where: { id: data.gameId },
-      });
-
-      const redisInfo = await this.redisClient.hgetall(
-        `GM|${data.gameInfo.id}`,
-      );
-
-      const creatorId = parseInt(redisInfo.creator);
-
-      const creatorSocketId = gameConnectedClients.get(creatorId).id;
-
-      const homePaddleState = {
-        y: Math.floor(
-          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
-        ),
-        dy: 0, // Initial speed in the y direction
-      };
-      const awayPaddleState = {
-        y: Math.floor(
-          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
-        ),
-        dy: 0, // Initial speed in the y direction
-      };
-
-      let currentCnt = 0;
-      let numberOfRounds = 0;
-      let numberOfBounces = 0;
-      let homeScore = 0;
-      let awayScore = 0;
-
-      const startTime = new Date();
-
-      //  minimumSpeed: number,
-      //averageSpeed: number,
-      //maximumSpeed: number,
-
-      // Add event listeners for paddle movement
-
-      //socket.socketsJoin(data.gameId.toString());
-      const mutex = new Mutex();
-      let cnt = 0;
-      const intervalId = setInterval(async () => {
-        mutex.acquire();
-
-        const calculatedCoordinates = await this.calculateCoordinates(
-          data,
-          ballState,
-          homePaddleState,
-          awayPaddleState,
-          homePaddleState.y,
-          awayPaddleState.y,
-          GameComponent.width,
-          GameComponent.height,
-          GameComponent.ballSize,
-          GameComponent.paddleHeight,
-          GameComponent.paddleWidth,
-          numberOfBounces,
-          numberOfRounds,
-          homeScore,
-          awayScore,
-          socket,
-        );
-        homeScore = calculatedCoordinates.homeScore;
-        awayScore = calculatedCoordinates.awayScore;
-
-        homePaddleState.y = calculatedCoordinates.homePaddle.y;
-        awayPaddleState.y = calculatedCoordinates.awayPaddle.y;
-        homePaddleState.dy = calculatedCoordinates.homePaddle.dy;
-        awayPaddleState.dy = calculatedCoordinates.awayPaddle.dy;
-        numberOfBounces = calculatedCoordinates.numberOfBounces;
-        numberOfRounds = calculatedCoordinates.numberOfRounds;
-
-        if (homeScore === 5 || awayScore === 5) {
-          await this.gameService.saveTest(
-            data.gameId,
-            numberOfRounds,
-            numberOfBounces,
-            formattedPlayTime(startTime),
-          );
-          const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-          const result = {
-            winUserNick: "",
-            loseUserNick: "",
-            playTime: this.checkPlayTime(startTime),
-            homeScore: homeScore,
-            awayScore: awayScore,
-          };
-          const creatorInfo = await this.userService.findUserById(
-            parseInt(redisInfo.creator),
-          );
-          const userInfo = await this.userService.findUserById(
-            parseInt(redisInfo.user),
-          );
-          if (homeScore === 5) {
-            result.winUserNick = creatorInfo.nickname;
-            result.loseUserNick = userInfo.nickname;
-          } else {
-            result.winUserNick = userInfo.nickname;
-            result.loseUserNick = creatorInfo.nickname;
-          }
-          this.server.to(data.gameId.toString()).emit("gameEnd", result);
-          mutex.release();
-          clearInterval(intervalId);
-          return;
-        } else if (timeOut(startTime)) {
-          await this.gameService.saveTest(
-            data.gameId,
-            numberOfRounds,
-            numberOfBounces,
-            formattedPlayTime(startTime),
-          );
-          const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-          const result = {
-            winUserNick: "",
-            loseUserNick: "",
-            playTime: this.checkPlayTime(startTime),
-            homeScore: homeScore,
-            awayScore: awayScore,
-          };
-
-          const creatorInfo = await this.userService.findUserById(
-            parseInt(redisInfo.creator),
-          );
-          const userInfo = await this.userService.findUserById(
-            parseInt(redisInfo.user),
-          );
-          if (homeScore >= awayScore) {
-            result.winUserNick = creatorInfo.nickname;
-            result.loseUserNick = userInfo.nickname;
-          } else {
-            result.winUserNick = userInfo.nickname;
-            result.loseUserNick = creatorInfo.nickname;
-          }
-          this.server.to(data.gameId.toString()).emit("gameEnd", result);
-          mutex.release();
-          clearInterval(intervalId);
-          return;
-        }
-
-        const returnData = {
-          x: calculatedCoordinates.ball.x,
-          y: calculatedCoordinates.ball.y,
-          l: calculatedCoordinates.homePaddle.y,
-          r: calculatedCoordinates.awayPaddle.y,
-        };
-
-        //this.logger.debug(
-        //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
-        //);
-
-        ++cnt;
-        //console.log(cnt);
-        //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
-        this.transferData(
-          returnData,
-          cnt,
-          data,
-          socket,
-          currentCnt,
-          creatorSocketId,
-        );
-        mutex.release();
-      }, 1000 / 60);
-
-      socket.on("disconnect", () => {
-        const playTime = this.checkPlayTime(startTime);
-        clearInterval(intervalId);
-      });
-
-      socket.on("KeyDownHOME", (data) => {
-        console.log("KeyDownHOME", data);
-        if (data.key === "ArrowUp") {
-          homePaddleState.dy = -10;
-        } else if (data.key === "ArrowDown") {
-          homePaddleState.dy = 10;
-        }
-      });
-      socket.on("keyDownAWAY", (data) => {
-        console.log("keyDownAWAY", data);
-        if (data.key === "ArrowUp") {
-          awayPaddleState.dy = -10;
-        } else if (data.key === "ArrowDown") {
-          awayPaddleState.dy = 10;
-        }
-      });
-      socket.on("KeyUpHOME", (data) => {
-        console.log("KeyUpHOME", data);
-        homePaddleState.dy = 0;
-      });
-      socket.on("keyUpAWAY", (data) => {
-        console.log("keyUpAWAY", data);
-        awayPaddleState.dy = 0;
-      });
-    } catch (error) {
-      console.error(error);
+    if (data.key === "ArrowUp") {
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.dy = -10;
+    } else if (data.key === "ArrowDown") {
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.dy = 10;
     }
+    gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.y +=
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.dy;
   }
 
-  async transferData(
-    returnData: any,
-    cnt: number,
-    gameData: any,
-    socket: Socket,
-    currentCnt: number,
-    creatorSocketId: string,
+  @SubscribeMessage("KeyDownUSER")
+  async keyDownUSER(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
   ) {
-    if (cnt <= currentCnt) return;
-    currentCnt = cnt;
-    this.server.to(creatorSocketId).emit("loopGameData", returnData);
+    this.logger.debug(`KeyDownUSER ${data.gameId} ${data.key}`);
+    const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
+
+    if (data.key === "ArrowUp") {
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy = -10;
+    } else if (data.key === "ArrowDown") {
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy = 10;
+    }
+
+    gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.y +=
+      gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy;
+    // awayInfo.y += awayInfo.dy;
+  }
+  //this.logger.debug(`KeyDown`);
+
+  //gameId
+  //team
+  //key
+  @SubscribeMessage("keyUpCREATOR")
+  async keyUpCREATOR(
+    @MessageBody() data: any,
+    @ConnectedSocket() socket: Socket,
+  ) {
+    this.logger.debug(`KeyUpCREATOR ${data.gameId} ${data.key}`);
+    //this.logger.debug(`KeyUp`);
+    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
+    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
+    //const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
+
+    gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.dy = 0;
+  }
+
+  @SubscribeMessage("keyUpUSER")
+  async keyUpUSER(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    //this.logger.debug(`KeyUp`);
+    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
+    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
+    this.logger.debug(`KeyUpUSER ${data.gameId} ${data.key}`);
+    const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
+
+    gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy = 0;
+  }
+
+  @SubscribeMessage("loopPosition")
+  async loopLogic(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    console.log(`loopPosition, ${data.gameId} ${data.title}`);
+    const { gameId } = data;
+
+    //const gameTotalInfo = gameDictionary.get(parseInt(gameId));
+
+    //console.log("gameTotalInfo", gameTotalInfo);
+
+    const startTime = new Date();
+
+    const mutex = new Mutex();
+
+    const intervalId = setInterval(async () => {
+      mutex.acquire();
+      //await gameTotalInfo.gameLoop.bind(gameTotalInfo)(gameTotalInfo, gameId);
+      const loopInfo = await gameDictionary
+        .get(parseInt(gameId))
+        .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
+        gameDictionary.get(parseInt(gameId)).gameInfo,
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).server,
+      );
+
+      //console.log("loopInfo", loopInfo);
+
+      gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
+
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5 ||
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
+      ) {
+        await this.gameService.saveTest(
+          data.gameId,
+          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+          showPlayTime(startTime),
+        );
+        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+        const result = {
+          winUserNick: "",
+          loseUserNick: "",
+          playTime: showPlayTime(startTime),
+          homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo
+            .score,
+          awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo
+            .score,
+        };
+        const creatorInfo = await this.userService.findUserById(
+          parseInt(redisInfo.creator),
+        );
+        const userInfo = await this.userService.findUserById(
+          parseInt(redisInfo.user),
+        );
+        if (
+          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5
+        ) {
+          result.winUserNick = creatorInfo.nickname;
+          result.loseUserNick = userInfo.nickname;
+        } else {
+          result.winUserNick = userInfo.nickname;
+          result.loseUserNick = creatorInfo.nickname;
+        }
+        this.server.to(data.gameId.toString()).emit("gameEnd", result);
+        mutex.release();
+        clearInterval(intervalId);
+        return;
+      } else if (timeOut(startTime)) {
+        await this.gameService.saveTest(
+          data.gameId,
+          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+          showPlayTime(startTime),
+        );
+        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+        const result = {
+          winUserNick: "",
+          loseUserNick: "",
+          playTime: showPlayTime(startTime),
+          homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo
+            .score,
+          awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo
+            .score,
+        };
+
+        const creatorInfo = await this.userService.findUserById(
+          parseInt(redisInfo.creator),
+        );
+        const userInfo = await this.userService.findUserById(
+          parseInt(redisInfo.user),
+        );
+        if (
+          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+          gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+        ) {
+          result.winUserNick = creatorInfo.nickname;
+          result.loseUserNick = userInfo.nickname;
+        } else {
+          result.winUserNick = userInfo.nickname;
+          result.loseUserNick = creatorInfo.nickname;
+        }
+        this.server.to(data.gameId.toString()).emit("gameEnd", result);
+      }
+      //const returnData = {
+      //  x: calculatedCoordinates.ball.x,
+      //  y: calculatedCoordinates.ball.y,
+      //  l: calculatedCoordinates.homePaddle.y,
+      //  r: calculatedCoordinates.awayPaddle.y,
+      //};
+
+      //this.logger.debug(
+      //  `loopPosition ${data.gameId}, ${returnData.x}, ${returnData.y}, ${returnData.l}, ${returnData.r}`,
+      //);
+
+      //console.log(cnt);
+
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.cnt >
+        gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt
+      ) {
+        gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt =
+          gameDictionary.get(parseInt(gameId)).gameInfo.cnt;
+        const returnData = {
+          x: gameDictionary.get(parseInt(gameId)).gameInfo.ballX,
+          y: gameDictionary.get(parseInt(gameId)).gameInfo.ballY,
+          l: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.y,
+          r: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.y,
+        };
+        this.server.to(gameId).emit("loopGameData", returnData);
+      }
+      //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+      mutex.release();
+    }, 1000 / 60);
+    socket.on("disconnect", () => {
+      const playTime = showPlayTime(startTime);
+      clearInterval(intervalId);
+    });
+    socket.on("gameEnd", () => {
+      clearInterval(intervalId);
+    });
   }
 
   async sendUserList(title: string, channelId: number, socket: Socket) {
@@ -844,211 +870,39 @@ export class GameGateWay {
     );
   }
 
-  async calculateCoordinates(
-    data: any,
-    ballState: { x: number; y: number; dx: number; dy: number },
-    homePaddleState: { y: number; dy: number },
-    awayPaddleState: { y: number; dy: number },
-    homePaddlePos: number,
-    awayPaddlePos: number,
-    width: number,
-    height: number,
-    ballSize: number,
-    paddleHeight: number,
-    paddleWidth: number,
-    numberOfBounces: number,
-    numberOfRounds: number,
-    homeScore: number,
-    awayScore: number,
-    socket: Socket,
-  ): Promise<{
-    ball: { x: number; y: number };
-    homePaddle: { x: number; y: number; dy: number };
-    awayPaddle: { x: number; y: number; dy: number };
-    numberOfBounces: number;
-    numberOfRounds: number;
-    homeScore: number;
-    awayScore: number;
-  }> {
-    if (homePaddlePos < 0) {
-      homePaddlePos = 0;
-    } else if (homePaddlePos + paddleHeight > height) {
-      homePaddlePos = height - paddleHeight;
-    }
-
-    if (awayPaddlePos < 0) {
-      awayPaddlePos = 0;
-    } else if (awayPaddlePos + paddleHeight > height) {
-      awayPaddlePos = height - paddleHeight;
-    }
-
-    homePaddleState.y += homePaddleState.dy;
-    awayPaddleState.y += awayPaddleState.dy;
-    if (homePaddleState.y < 0) {
-      homePaddleState.y = 0;
-    }
-    if (homePaddleState.y + paddleHeight > height) {
-      homePaddleState.y = height - paddleHeight;
-    }
-    if (awayPaddleState.y < 0) {
-      awayPaddleState.y = 0;
-    }
-    if (awayPaddleState.y + paddleHeight > height) {
-      awayPaddleState.y = height - paddleHeight;
-    }
-    // Update ball position based on current direction
-    ballState.x += ballState.dx;
-    ballState.y += ballState.dy;
-
-    // Reflect ball when hitting top or bottom
-    if (ballState.y - ballSize / 2 < 0 || ballState.y + ballSize / 2 > height) {
-      numberOfBounces++;
-      ballState.dy = -ballState.dy;
-    }
-
-    // Reflect the ball when hitting the paddles
-    if (
-      (ballState.x - ballSize / 2 < paddleWidth && // hitting left paddle
-        ballState.y + ballSize / 2 >= homePaddlePos &&
-        ballState.y - ballSize / 2 <= homePaddlePos + paddleHeight) ||
-      (ballState.x + ballSize / 2 > width - paddleWidth && // hitting right paddle
-        ballState.y + ballSize / 2 >= awayPaddlePos &&
-        ballState.y - ballSize / 2 <= awayPaddlePos + paddleHeight)
-    ) {
-      numberOfBounces++;
-      ballState.dx = -ballState.dx;
-    }
-    homePaddlePos += homePaddleState.dy;
-    awayPaddlePos += awayPaddleState.dy;
-    // Update paddle positions based on current direction
-    //homePaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-    //awayPaddlePos += GameComponent.paddleSpeed; // Assuming you have a variable for the paddle speed
-
-    // Ensure the paddles stay within the vertical bounds
-
-    // Check if the ball passes the paddles (you may need to adjust this logic)
-    if (ballState.x - ballSize / 2 < paddleWidth / 2) {
-      //const timeOut = setTimeout(async () => {
-      ballState.x = width / 2;
-      ballState.y = height / 2;
-      ballState.dy = -ballState.dy;
-
-      numberOfRounds++;
-      awayScore++;
-      this.server
-        .to(data.gameId.toString())
-        .emit("score", [homeScore, awayScore]);
-      if (awayScore === 5) {
-        // 홈팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          homeScore,
-          awayScore,
-        );
-        return {
-          ball: { x: ballState.x, y: ballState.y },
-          homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
-          awayPaddle: {
-            x: width - paddleWidth,
-            y: awayPaddlePos,
-            dy: awayPaddleState.dy,
-          },
-          numberOfBounces,
-          numberOfRounds,
-          homeScore,
-          awayScore,
-        };
-      }
-    } else if (ballState.x + ballSize / 2 > width - paddleWidth / 2) {
-      ballState.x = width / 2;
-      homeScore++;
-      ballState.y = height / 2;
-      ballState.dy = -ballState.dy;
-      numberOfRounds++;
-      this.server
-        .to(data.gameId.toString())
-        .emit("score", [homeScore, awayScore]);
-      if (homeScore === 5) {
-        //away팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          data.gameId,
-          homeScore,
-          awayScore,
-        );
-        return {
-          ball: { x: ballState.x, y: ballState.y },
-          homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
-          awayPaddle: {
-            x: width - paddleWidth,
-            y: awayPaddlePos,
-            dy: awayPaddleState.dy,
-          },
-          numberOfBounces,
-          numberOfRounds,
-          homeScore,
-          awayScore,
-        };
-      }
-    }
-
-    return {
-      ball: { x: ballState.x, y: ballState.y },
-      homePaddle: { x: 0, y: homePaddlePos, dy: homePaddleState.dy },
-      awayPaddle: {
-        x: width - paddleWidth,
-        y: awayPaddlePos,
-        dy: awayPaddleState.dy,
-      },
-      numberOfBounces,
-      numberOfRounds,
-      homeScore,
-      awayScore,
-    };
-  }
-
-  async checkPlayTime(playTime: Date) {
-    const endTime = new Date();
-    const diffTime = endTime.getTime() - playTime.getTime();
-    console.log("diffTime", diffTime);
-    //6486
-    const playTimeFormat = showPlayTime(diffTime);
-    console.log("playTimeFormat", playTimeFormat);
-    return playTimeFormat;
-  }
-
   keyPress(data: any, socket: Socket): number {
-    let homePaddleStateDy = 0;
-    let awayPaddleStateDy = 0;
+    let homeInfoDy = 0;
+    let awayInfoDy = 0;
     if (data.team === GameTeam.HOME) {
       if (data.key === "ArrowUp") {
-        homePaddleStateDy = -10;
+        homeInfoDy = -10;
       } else if (data.key === "ArrowDown") {
-        homePaddleStateDy = 10;
+        homeInfoDy = 10;
       }
-      return homePaddleStateDy;
-      // homePaddleState.y += homePaddleState.dy;
+      return homeInfoDy;
+      // homeInfo.y += homeInfo.dy;
     } else if (data.team === GameTeam.AWAY) {
       if (data.key === "ArrowUp") {
-        awayPaddleStateDy = -10;
+        awayInfoDy = -10;
       } else if (data.key === "ArrowDown") {
-        awayPaddleStateDy = 10;
+        awayInfoDy = 10;
       }
-      return awayPaddleStateDy;
-      // awayPaddleState.y += awayPaddleState.dy;
+      return awayInfoDy;
+      // awayInfo.y += awayInfo.dy;
     }
   }
 
   keyRelease(data: any, socket: Socket): number {
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    let homePaddleStateDy = 0;
-    let awayPaddleStateDy = 0;
+    let homeInfoDy = 0;
+    let awayInfoDy = 0;
     if (data.team === GameTeam.HOME) {
-      homePaddleStateDy = 0;
-      return homePaddleStateDy;
+      homeInfoDy = 0;
+      return homeInfoDy;
     } else if (data.team === GameTeam.AWAY) {
-      awayPaddleStateDy = 0;
-      return awayPaddleStateDy;
+      awayInfoDy = 0;
+      return awayInfoDy;
     }
   }
 
@@ -1078,10 +932,20 @@ function formattedPlayTime(playTime: Date) {
   return formattedPlayTime;
 }
 
-function showPlayTime(diffTime: number) {
-  const playTime = Math.floor(diffTime / 1000);
-  const formattedPlayTime = format(playTime, "mm:ss a");
-  return formattedPlayTime;
+function showPlayTime(startTime: Date) {
+  const afterTime = new Date();
+
+  const cal = (afterTime.getTime() - startTime.getTime()) / 1000;
+
+  const minute = cal / 60;
+  const second = cal % 60;
+
+  let formattedDate = null;
+
+  if (second < 10) formattedDate = minute.toFixed() + ":0" + second.toFixed();
+  else formattedDate = minute.toFixed() + ":" + second.toFixed();
+
+  return formattedDate;
 }
 
 function isMoreThan30SecondsAgo(targetTime: string): boolean {
@@ -1110,3 +974,28 @@ function timeOut(startTime: Date): boolean {
 
 //  // Save the timeout ID for the user
 //  this.disconnectTimeouts.set(data.userId, timeoutId);
+
+//socket.on("KeyDownHOME", (data) => {
+//  console.log("KeyDownHOME", data);
+//  if (data.key === "ArrowUp") {
+//    homePaddleState.dy = -10;
+//  } else if (data.key === "ArrowDown") {
+//    homePaddleState.dy = 10;
+//  }
+//});
+//socket.on("keyDownAWAY", (data) => {
+//  console.log("keyDownAWAY", data);
+//  if (data.key === "ArrowUp") {
+//    awayPaddleState.dy = -10;
+//  } else if (data.key === "ArrowDown") {
+//    awayPaddleState.dy = 10;
+//  }
+//});
+//socket.on("KeyUpHOME", (data) => {
+//  console.log("KeyUpHOME", data);
+//  homePaddleState.dy = 0;
+//});
+//socket.on("keyUpAWAY", (data) => {
+//  console.log("keyUpAWAY", data);
+//  awayPaddleState.dy = 0;
+//});
