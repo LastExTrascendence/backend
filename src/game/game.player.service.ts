@@ -136,6 +136,58 @@ export class GamePlayerService {
     }
   }
 
+  async dropOutGamePlayer(
+    gameId: number,
+    userId: number,
+  ): Promise<void | HttpException> {
+    try {
+      const gameInfo = await this.gameChannelService.findOneGameChannelById(gameId);
+
+      const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
+
+      const homeUserInfo = await this.userServie.findUserById(parseInt(redisInfo.creator));
+      const awayUserInfo = await this.userServie.findUserById(parseInt(redisInfo.user));
+
+      if (homeUserInfo.id === userId) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: 0,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: 5,
+        });
+      } else if (awayUserInfo.id === userId) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: 5,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: 0,
+        });
+      } else {
+        throw new HttpException(
+          "게임 플레이어 저장에 실패하였습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      throw new HttpException(
+        "게임 플레이어 저장에 실패하였습니다.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   //Status
   async getGamePlayerStats(
     _nickname: string,

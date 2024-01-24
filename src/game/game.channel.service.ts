@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) {}
+  ) { }
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -297,9 +297,10 @@ export class GameChannelService {
         });
       });
       await this.gameChannelRepository.update(
-        { deleted_at: IsNull(), game_status: GameStatus.READY },
+        { deleted_at: IsNull() },
         {
           cur_user: 0,
+          game_status: GameStatus.DONE,
           deleted_at: new Date(),
         },
       );

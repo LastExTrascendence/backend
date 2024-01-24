@@ -52,7 +52,7 @@ export class GameService {
     private gameRepository: Repository<Game>,
     @Inject(forwardRef(() => GamePlayerService))
     private gamePlayerService: GamePlayerService,
-  ) {}
+  ) { }
 
   async saveGame(channelId: number) {
     try {
@@ -109,6 +109,23 @@ export class GameService {
           },
         );
       }
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  async dropOutGame(channelId: number) {
+    try {
+      this.gameRepository.update(
+        {
+          channel_id: channelId
+        },
+        {
+          game_status: GameStatus.DONE,
+          ended_at: new Date(),
+        },
+      );
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -195,23 +212,6 @@ export class GameService {
     numberOfBounces: number,
     numberOfRounds: number,
     server: Server,
-
-    //data: any,
-    //ballState: { x: number; y: number; dx: number; dy: number },
-    //homeInfo: { y: number; dy: number },
-    //awayInfo: { y: number; dy: number },
-    //homeInfo.y: number,
-    //awayInfo.y: number,
-    //width: number,
-    //height: number,
-    //ballSize: number,
-    //paddleHeight: number,
-    //paddleWidth: number,
-    //numberOfBounces: number,
-    //numberOfRounds: number,
-    //homeScore: number,
-    //awayScore: number,
-    //socket: Socket,
   ): Promise<{
     ball: { x: number; y: number; dx: number; dy: number };
     homePaddle: { x: number; y: number; dy: number };
@@ -245,10 +245,10 @@ export class GameService {
 
     // Reflect the ball when hitting the paddles
     if (
-      (ballX - ballSize / 2 < paddleWidth && // hitting left paddle
+      (ballX - ballSize / 2 < paddleWidth + 5 && // hitting left paddle
         ballY + ballSize / 2 >= homeInfo.y &&
         ballY - ballSize / 2 <= homeInfo.y + paddleHeight) ||
-      (ballX + ballSize / 2 > width - paddleWidth && // hitting right paddle
+      (ballX + ballSize / 2 > width - paddleWidth - 5 && // hitting right paddle
         ballY + ballSize / 2 >= awayInfo.y &&
         ballY - ballSize / 2 <= awayInfo.y + paddleHeight)
     ) {
@@ -264,7 +264,7 @@ export class GameService {
     // Ensure the paddles stay within the vertical bounds
 
     // Check if the ball passes the paddles (you may need to adjust this logic)
-    if (ballX - ballSize / 2 < paddleWidth / 2) {
+    if (ballX < paddleWidth + 5) {
       //const timeOut = setTimeout(async () => {
       ballX = width / 2;
       ballY = height / 2;
@@ -296,7 +296,7 @@ export class GameService {
           awayScore: awayInfo.score,
         };
       }
-    } else if (ballX + ballSize / 2 > width - paddleWidth / 2) {
+    } else if (ballX > width - paddleWidth - 5) {
       ballX = width / 2;
       homeInfo.score++;
       ballY = height / 2;
