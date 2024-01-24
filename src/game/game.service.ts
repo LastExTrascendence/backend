@@ -52,7 +52,7 @@ export class GameService {
     private gameRepository: Repository<Game>,
     @Inject(forwardRef(() => GamePlayerService))
     private gamePlayerService: GamePlayerService,
-  ) { }
+  ) {}
 
   async saveGame(channelId: number) {
     try {
@@ -119,7 +119,7 @@ export class GameService {
     try {
       this.gameRepository.update(
         {
-          channel_id: channelId
+          channel_id: channelId,
         },
         {
           game_status: GameStatus.DONE,
@@ -136,7 +136,7 @@ export class GameService {
     gameInfo: gameInfoDto,
     gameId: number,
     server: Server,
-  ): Promise<gameInfoDto> {
+  ): Promise<gameInfoDto | void> {
     try {
       this.logger.debug(`loopPosition`);
 
@@ -165,6 +165,17 @@ export class GameService {
         gameInfo.numberOfRounds,
         server,
       );
+      if (
+        (
+          await this.gameChannelRepository.findOne({
+            where: {
+              id: gameId,
+            },
+          })
+        ).game_status != GameStatus.INGAME
+      ) {
+        return;
+      }
       gameInfo.ballX = calculatedCoordinates.ball.x;
       gameInfo.ballY = calculatedCoordinates.ball.y;
       gameInfo.ballDx = calculatedCoordinates.ball.dx;
@@ -353,6 +364,30 @@ export class GameService {
     if (cnt <= currentCnt) return;
     currentCnt = cnt;
     server.to(creatorSocketId).emit("loopGameData", returnData);
+  }
+
+  async findOneByChannelId(channelId: number): Promise<Game> {
+    try {
+      const game = await this.gameRepository.findOne({
+        where: {
+          channel_id: channelId,
+        },
+      });
+      if (game) {
+        return game;
+      } else {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "존재하지 않는 게임입니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 
   //async saveRecord(

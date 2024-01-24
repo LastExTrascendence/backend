@@ -18,7 +18,7 @@ import {
   GameUserRole,
   GameResult,
 } from "../enum/game.enum";
-import { Server } from "socket.io";
+import { Server, Socket } from "socket.io";
 import { GameService } from "../game.service";
 
 /**
@@ -262,4 +262,12 @@ export class gameDictionaryDto {
   awayUserSocketId: string;
 
   server: Server;
+}
+
+export class gameConnectDto {
+  socket: Socket;
+
+  gameId: number;
+
+  title: string;
 }
