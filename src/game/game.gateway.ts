@@ -104,7 +104,16 @@ export class GameGateWay {
 
     if (socketKey !== undefined) {
       const { title, gameId } = gameConnectedClients.get(socketKey);
-      this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
+      //this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
+      const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
+      if (redisInfo) {
+        if (parseInt(redisInfo.creator) === socketKey) {
+          await this.redisClient.hset(`GM|${title}`, "creatorOnline", "false");
+        } else if (parseInt(redisInfo.user) === socketKey) {
+          await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+          await this.redisClient.hset(`GM|${title}`, "user", null);
+        }
+      }
       await this.sendUserList(title, gameId, socket);
     }
   }
@@ -617,11 +626,11 @@ export class GameGateWay {
           "userOnline",
           "false",
         );
-        const targetClient = gameConnectedClients.get(userId);
+        const targetClient = gameConnectedClients.get(leaveId);
         targetClient.socket.disconnect(true);
-        gameConnectedClients.delete(userId);
-        this.updateCurUser(channelInfo.title, channelInfo.id);
-        this.sendUserList(channelInfo.title, channelInfo.id, socket);
+        gameConnectedClients.delete(leaveId);
+        await this.updateCurUser(channelInfo.title, channelInfo.id);
+        await this.sendUserList(channelInfo.title, channelInfo.id, socket);
       }
     } else if (channelInfo.game_status === GameStatus.INGAME) {
       //게임중에 연결이 끊긴 경우
