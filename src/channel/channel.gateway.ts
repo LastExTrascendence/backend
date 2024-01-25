@@ -71,16 +71,33 @@ export class ChannelGateWay {
     try {
       const { userId, title } = data;
 
+      let channelInfo = await this.channelRepository.findOne({
+        where: { title: title },
+      });
+
       if (channelConnectedClients.has(userId)) {
         //해당 유저가 다른 채널에 있다면 다른 채널의 소켓 통신을 끊어버림
         const targetClient = channelConnectedClients.get(userId);
         targetClient.disconnect(true);
         channelConnectedClients.delete(data.userId);
+        const exChannelUserInfo = await this.channelUserRepository.findOne({
+          where: { user_id: userId, deleted_at: IsNull() },
+        });
+        const exChannelInfo = await this.channelRepository.findOne({
+          where: { id: exChannelUserInfo.channel_id },
+        });
+        await this.channelUserRepository.update(
+          { user_id: userId, deleted_at: IsNull() },
+          { deleted_at: new Date() },
+        );
+        await this.updateCurUser(
+          exChannelInfo.title,
+          exChannelUserInfo.channel_id,
+        );
+        channelInfo = await this.channelRepository.findOne({
+          where: { title: title },
+        });
       }
-
-      const channelInfo = await this.channelRepository.findOne({
-        where: { title: title },
-      });
 
       if (!channelInfo) {
         socket.disconnect(true);
