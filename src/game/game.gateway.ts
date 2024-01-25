@@ -96,14 +96,14 @@ export class GameGateWay {
     const keysOfPerson = Object.keys(gameConnectedClients);
 
     // Find the key where the socket matches
-    const socketKey = keysOfPerson.find(
-      (key) => gameConnectedClients.get(parseInt(key)).socket === socket,
+    const socketKey = Array.from(gameConnectedClients.keys()).find(
+      (key) => gameConnectedClients.get(key).socket === socket,
     );
 
     console.log(socketKey);
 
     if (socketKey !== undefined) {
-      const { title, gameId } = gameConnectedClients.get(parseInt(socketKey));
+      const { title, gameId } = gameConnectedClients.get(socketKey);
       this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
       await this.sendUserList(title, gameId, socket);
     }
@@ -171,13 +171,13 @@ export class GameGateWay {
         );
 
         if (exRedisInfo) {
-          if (exRedisInfo.creator === userId) {
+          if (parseInt(exRedisInfo.creator) === parseInt(userId)) {
             await this.redisClient.hset(
               `GM|${exgameInfo.title}`,
               "creatorOnline",
               "false",
             );
-          } else if (exRedisInfo.user === userId) {
+          } else if (parseInt(exRedisInfo.user) === parseInt(userId)) {
             await this.redisClient.hset(
               `GM|${exgameInfo.title}`,
               "userOnline",
@@ -554,7 +554,12 @@ export class GameGateWay {
     this.logger.debug(`leaveGame`);
     console.log("leaveGame", data.gameId, data.userId);
 
-    if (!data.gameid || !data.userId) {
+    let creatorId = null;
+    let creatorInfo = null;
+    let userId = null;
+    let userInfo = null;
+
+    if (!data.gameId || !data.userId) {
       return;
     }
 
@@ -562,18 +567,34 @@ export class GameGateWay {
       where: { id: data.gameId },
     });
     const redisInfo = await this.redisClient.hgetall(`GM|${channelInfo.title}`);
+    console.log("redisInfo", redisInfo);
+
+    if (!channelInfo || !redisInfo) {
+      return;
+    }
+
+    if (redisInfo.creatorOnline === "true") {
+      creatorId = parseInt(redisInfo.creator);
+      creatorInfo = await this.userService.findUserById(creatorId);
+    }
+
+    if (redisInfo.userOnline === "true" && redisInfo.user) {
+      userId = parseInt(redisInfo.user);
+      userInfo = await this.userService.findUserById(userId);
+    }
+
     //게임 준비 상태에서 연결이 끊긴 경우
-    const creatorId = parseInt(redisInfo.creator);
-    const userId = parseInt(redisInfo.user);
-
-    const creatorInfo = await this.userService.findUserById(creatorId);
-    const userInfo = await this.userService.findUserById(userId);
-
     const gameId = parseInt(data.gameId);
     const leaveId = parseInt(data.userId);
 
+    if (
+      (leaveId === creatorId && redisInfo.creatorOnline === "false") ||
+      (leaveId === userId && redisInfo.userOnline === "false")
+    )
+      return;
+
     if (channelInfo.game_status === GameStatus.READY) {
-      if (creatorId === data.userId) {
+      if (creatorId === leaveId) {
         //방장이 나간경우
         if (userId) {
           const targetClient = gameConnectedClients.get(userId);
@@ -585,8 +606,10 @@ export class GameGateWay {
           { deleted_at: new Date(), game_status: GameStatus.DONE },
         );
         await this.redisClient.del(`GM|${channelInfo.title}`);
-        gameConnectedClients.delete(creatorId);
-      } else if (userId === data.userId) {
+        const targetClient = gameConnectedClients.get(leaveId);
+        targetClient.socket.disconnect(true);
+        gameConnectedClients.delete(leaveId);
+      } else if (userId === leaveId) {
         //유저가 나간 경우
         await this.redisClient.hset(`GM|${channelInfo.title}`, "user", null);
         await this.redisClient.hset(
@@ -817,9 +840,9 @@ export class GameGateWay {
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
-    const startTime = new Date();
-
     const mutex = new Mutex();
+
+    const startTime = await this.gameService.getStartTime(parseInt(gameId));
 
     const intervalId = setInterval(async () => {
       mutex.acquire();
@@ -1060,7 +1083,7 @@ export class GameGateWay {
   async sendRoomInfo(title: string, channelId: number, socket: Socket) {
     this.logger.debug(`sendRoomInfo`);
     const channelInfo = await this.gameChannelRepository.findOne({
-      where: { title: title, deleted_at: IsNull() },
+      where: { id: channelId, deleted_at: IsNull() },
     });
 
     const roomInfo = {

@@ -427,6 +427,24 @@ export class GameService {
   //  }
   //}
 
+  async getStartTime(gameId: number) {
+    const gameInfo = await this.gameChannelRepository.findOne({
+      where: { id: gameId },
+    });
+
+    if (gameInfo) {
+      return gameInfo.created_at;
+    } else {
+      throw new HttpException(
+        {
+          status: HttpStatus.BAD_REQUEST,
+          error: "존재하지 않는 게임입니다.",
+        },
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   async deleteAllGame() {
     try {
       await this.gameRepository.update(

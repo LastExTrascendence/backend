@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) { }
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -233,24 +233,31 @@ export class GameChannelService {
       const totalChannels = [];
 
       for (let i = 0; i < channelsInfo.length; i++) {
-        const channel = {
-          id: channelsInfo[i].id,
-          title: channelsInfo[i].title,
-          channelPolicy: channelsInfo[i].game_channel_policy,
-          creator: {
-            nickname: (
-              await this.userService.findUserById(channelsInfo[i].creator_id)
-            ).nickname,
-            avatar: channelsInfo[i].creator_avatar,
-          },
-          cur_user: channelsInfo[i].cur_user,
-          max_user: 2,
-          gameType: channelsInfo[i].game_type,
-          gameMode: channelsInfo[i].game_mode,
-          gameStatus: channelsInfo[i].game_status,
-        };
+        if (channelsInfo[i].cur_user === 0) {
+          await this.gameChannelRepository.update(
+            { id: channelsInfo[i].id },
+            { deleted_at: new Date() },
+          );
+        } else {
+          const channel = {
+            id: channelsInfo[i].id,
+            title: channelsInfo[i].title,
+            channelPolicy: channelsInfo[i].game_channel_policy,
+            creator: {
+              nickname: (
+                await this.userService.findUserById(channelsInfo[i].creator_id)
+              ).nickname,
+              avatar: channelsInfo[i].creator_avatar,
+            },
+            cur_user: channelsInfo[i].cur_user,
+            max_user: 2,
+            gameType: channelsInfo[i].game_type,
+            gameMode: channelsInfo[i].game_mode,
+            gameStatus: channelsInfo[i].game_status,
+          };
 
-        totalChannels.push(channel);
+          totalChannels.push(channel);
+        }
       }
       // console.log(totalChannels);
       return totalChannels;
