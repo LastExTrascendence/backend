@@ -27,7 +27,7 @@ export class GamePlayerService {
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
     private redisService: Redis,
-  ) { }
+  ) {}
 
   async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
@@ -51,14 +51,19 @@ export class GamePlayerService {
     try {
       console.log(`saveGamePlayer ${gameId} ${homeScore} ${awayScore}`);
 
-      const gameInfo = await this.gameChannelService.findOneGameChannelById(gameId);
+      const gameInfo =
+        await this.gameChannelService.findOneGameChannelById(gameId);
 
       const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
 
       console.log(redisInfo);
 
-      const homeUserInfo = await this.userServie.findUserById(parseInt(redisInfo.creator));
-      const awayUserInfo = await this.userServie.findUserById(parseInt(redisInfo.user));
+      const homeUserInfo = await this.userServie.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const awayUserInfo = await this.userServie.findUserById(
+        parseInt(redisInfo.user),
+      );
 
       if (homeScore === 5) {
         await this.gamePlayerRepository.save({
@@ -101,10 +106,10 @@ export class GamePlayerService {
   }
 
   async getGamePlayerRecord(
-    _nickname: string,
+    nickname: string,
   ): Promise<gameRecordDto[] | HttpException> {
     try {
-      const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+      const gamePlayer = await this.userServie.findUserByNickname(nickname);
       const gamePlayerInfo = await this.gamePlayerRepository.find({
         where: { user_id: gamePlayer.id },
       });
@@ -136,13 +141,70 @@ export class GamePlayerService {
     }
   }
 
+  async dropOutGamePlayer(
+    gameId: number,
+    userId: number,
+  ): Promise<void | HttpException> {
+    try {
+      const gameInfo =
+        await this.gameChannelService.findOneGameChannelById(gameId);
+
+      const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
+
+      const homeUserInfo = await this.userServie.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const awayUserInfo = await this.userServie.findUserById(
+        parseInt(redisInfo.user),
+      );
+
+      if (homeUserInfo.id === userId) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: 0,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: 5,
+        });
+      } else if (awayUserInfo.id === userId) {
+        await this.gamePlayerRepository.save({
+          user_id: homeUserInfo.id,
+          game_id: gameId,
+          role: GameResult.WINNER,
+          score: 5,
+        });
+        await this.gamePlayerRepository.save({
+          user_id: awayUserInfo.id,
+          game_id: gameId,
+          role: GameResult.LOSER,
+          score: 0,
+        });
+      } else {
+        throw new HttpException(
+          "게임 플레이어 저장에 실패하였습니다.",
+          HttpStatus.BAD_REQUEST,
+        );
+      }
+    } catch (error) {
+      throw new HttpException(
+        "게임 플레이어 저장에 실패하였습니다.",
+        HttpStatus.BAD_REQUEST,
+      );
+    }
+  }
+
   //Status
   async getGamePlayerStats(
-    _nickname: string,
+    nickname: string,
   ): Promise<gameStatsDto | HttpException> {
     try {
       //User DB 들고오기
-      const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+      const gamePlayer = await this.userServie.findUserByNickname(nickname);
 
       //GamePlayer DB 전부 다 들고오기
       const gamePlayerInfo = await this.gamePlayerRepository.find({
@@ -159,7 +221,7 @@ export class GamePlayerService {
       }
 
       const gamePlayerRecord: gameStatsDto = {
-        nickname: _nickname,
+        nickname: nickname,
         //longestGame은 gameInfo.gameTime을 기준으로 내림차순 정렬하여 가장 첫번째 값을 가져온다.
         longestGame: totalGameInfo.sort((a, b) => b.gameTime - a.gameTime)[0],
         //shortestGame은 gameInfo.gameTime을 기준으로 오름차순 정렬하여 가장 첫번째 값을 가져온다.
