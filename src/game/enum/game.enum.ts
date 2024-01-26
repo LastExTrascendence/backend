@@ -12,6 +12,7 @@ export enum GameStatus {
 export enum GameType {
   NORMAL = "NORMAL",
   LADDER = "LADDER",
+  SINGLE = "SINGLE",
 }
 
 export enum GameMode {

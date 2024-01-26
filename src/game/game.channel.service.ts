@@ -83,12 +83,14 @@ export class GameChannelService {
       };
       if (gameChannelListDto.password) {
         newGame.game_channel_policy = GameChannelPolicy.PRIVATE;
+      } else if (gameChannelListDto.gameType === GameType.SINGLE) {
+        newGame.max_user = 1;
       }
 
       await this.gameChannelRepository.save(newGame);
 
       const newGameInfo = await this.gameChannelRepository.findOne({
-        where: { title: newGame.title },
+        where: { title: newGame.title, deleted_at: IsNull() },
       });
 
       await this.redisClient.hset(
@@ -142,6 +144,10 @@ export class GameChannelService {
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,
       };
+
+      if (gameChannelListDto.gameType === GameType.SINGLE) {
+        retGameInfo.maxUser = 1;
+      }
 
       return retGameInfo;
     } catch (error) {

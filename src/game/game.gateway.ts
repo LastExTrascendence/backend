@@ -107,14 +107,27 @@ export class GameGateWay {
       //this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
       if (redisInfo) {
-        if (parseInt(redisInfo.creator) === socketKey) {
-          await this.redisClient.hset(`GM|${title}`, "creatorOnline", "false");
-        } else if (parseInt(redisInfo.user) === socketKey) {
-          await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
-          await this.redisClient.hset(`GM|${title}`, "user", null);
+        const channelInfo = await this.gameChannelRepository.findOne({
+          where: { title: title, deleted_at: IsNull() },
+        });
+        if (channelInfo.game_status === GameStatus.READY) {
+          if (parseInt(redisInfo.creator) === socketKey) {
+            await this.redisClient.hset(
+              `GM|${title}`,
+              "creatorOnline",
+              "false",
+            );
+          } else if (parseInt(redisInfo.user) === socketKey) {
+            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+            await this.redisClient.hset(`GM|${title}`, "user", null);
+          }
+        } else if (channelInfo.game_status === GameStatus.INGAME) {
+          await this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
+          this.server.emit("gameEnd", gameId);
         }
+
+        await this.sendUserList(title, gameId, socket);
       }
-      await this.sendUserList(title, gameId, socket);
     }
   }
 
@@ -356,6 +369,7 @@ export class GameGateWay {
   @SubscribeMessage("pressStart")
   async StartGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.logger.debug(`pressStart`);
+    console.log(data);
     const startInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
     if (
@@ -364,7 +378,7 @@ export class GameGateWay {
       startInfo.creatorOnline === "true"
     ) {
       await this.gameChannelRepository.update(
-        { title: data.title, deleted_at: IsNull() },
+        { id: parseInt(data.gameId), deleted_at: IsNull() },
         { game_status: GameStatus.INGAME },
       );
       await this.gameService.saveGame(data.gameId);
@@ -377,7 +391,7 @@ export class GameGateWay {
       }
 
       const channelInfo = await this.gameChannelRepository.findOne({
-        where: { title: redisInfo.title, deleted_at: IsNull() },
+        where: { id: parseInt(data.gameId), deleted_at: IsNull() },
       });
 
       const homeInfo: homeInfoDto = {
@@ -604,6 +618,7 @@ export class GameGateWay {
 
     if (channelInfo.game_status === GameStatus.READY) {
       if (creatorId === leaveId) {
+        this.logger.debug("leaveGame CREATOR on READY");
         //방장이 나간경우
         if (userId) {
           const targetClient = gameConnectedClients.get(userId);
@@ -619,6 +634,7 @@ export class GameGateWay {
         targetClient.socket.disconnect(true);
         gameConnectedClients.delete(leaveId);
       } else if (userId === leaveId) {
+        this.logger.debug("leaveGame User on READY");
         //유저가 나간 경우
         await this.redisClient.hset(`GM|${channelInfo.title}`, "user", null);
         await this.redisClient.hset(
@@ -642,6 +658,7 @@ export class GameGateWay {
       this.server.emit("gameEnd", data.gameId);
       if (creatorId === leaveId) {
         //방장이 나간경우
+        this.logger.debug("leaveGame CREATOR on INGAME");
 
         const result = {
           winUserNick: userInfo.nickname,
@@ -659,6 +676,7 @@ export class GameGateWay {
         gameConnectedClients.delete(creatorId);
         await this.gameChannelService.doneGame(data.gameId);
       } else if (userId === leaveId) {
+        this.logger.debug("leaveGame User on INGAME");
         //유저가 나간 경우
 
         const result = {
@@ -868,7 +886,13 @@ export class GameGateWay {
 
       gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
 
-      if (gameChannelInfo.game_status != GameStatus.INGAME) {
+      if (
+        (
+          await this.gameChannelRepository.findOne({
+            where: { id: data.gameId, deleted_at: IsNull() },
+          })
+        ).game_status != GameStatus.INGAME
+      ) {
         mutex.release();
         clearInterval(intervalId);
         return;
@@ -878,76 +902,22 @@ export class GameGateWay {
         gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
       ) {
         clearInterval(intervalId);
-        await this.gameService.saveTest(
+        this.gameService.finishGame(
+          data.title,
           data.gameId,
-          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
-          showPlayTime(startTime),
+          startTime,
+          this.server,
         );
-        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-        const result = {
-          winUserNick: "",
-          loseUserNick: "",
-          playTime: showPlayTime(startTime),
-          homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo
-            .score,
-          awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo
-            .score,
-        };
-        const creatorInfo = await this.userService.findUserById(
-          parseInt(redisInfo.creator),
-        );
-        const userInfo = await this.userService.findUserById(
-          parseInt(redisInfo.user),
-        );
-        if (
-          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5
-        ) {
-          result.winUserNick = creatorInfo.nickname;
-          result.loseUserNick = userInfo.nickname;
-        } else {
-          result.winUserNick = userInfo.nickname;
-          result.loseUserNick = creatorInfo.nickname;
-        }
-        this.server.to(data.gameId.toString()).emit("gameEnd", result);
         mutex.release();
         return;
       } else if (timeOut(startTime)) {
         clearInterval(intervalId);
-        await this.gameService.saveTest(
+        this.gameService.disconnectGame(
+          data.title,
           data.gameId,
-          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-          gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
-          showPlayTime(startTime),
+          startTime,
+          this.server,
         );
-        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-        const result = {
-          winUserNick: "",
-          loseUserNick: "",
-          playTime: showPlayTime(startTime),
-          homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo
-            .score,
-          awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo
-            .score,
-        };
-
-        const creatorInfo = await this.userService.findUserById(
-          parseInt(redisInfo.creator),
-        );
-        const userInfo = await this.userService.findUserById(
-          parseInt(redisInfo.user),
-        );
-        if (
-          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
-          gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
-        ) {
-          result.winUserNick = creatorInfo.nickname;
-          result.loseUserNick = userInfo.nickname;
-        } else {
-          result.winUserNick = userInfo.nickname;
-          result.loseUserNick = creatorInfo.nickname;
-        }
-        this.server.to(data.gameId.toString()).emit("gameEnd", result);
         mutex.release();
         return;
       }
@@ -985,6 +955,12 @@ export class GameGateWay {
     socket.on("gameFinish", async (data) => {
       this.logger.debug(`gameFinish`);
       console.log("gameFinish", data);
+      this.gameService.disconnectGame(
+        data.title,
+        data.gameId,
+        startTime,
+        this.server,
+      );
       await this.gameChannelRepository.update(
         { id: parseInt(data.gameId) },
         { game_status: GameStatus.READY },
@@ -995,6 +971,7 @@ export class GameGateWay {
 
     socket.on("disconnect", async () => {
       this.logger.debug(`disconnect`);
+      this.leaveGame({ gameId: data.gameId, userId: data.userId }, socket);
       mutex.release();
       clearInterval(intervalId);
     });

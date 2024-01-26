@@ -30,6 +30,7 @@ import { gameConnectedClients } from "./game.gateway";
 import { Game } from "./entity/game.entity";
 import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
+import { gameDictionary } from "./game.gateway";
 
 @Injectable()
 export class GameService {
@@ -52,6 +53,9 @@ export class GameService {
     private gameRepository: Repository<Game>,
     @Inject(forwardRef(() => GamePlayerService))
     private gamePlayerService: GamePlayerService,
+    @Inject(forwardRef(() => UserService))
+    private userService: UserService,
+    private redisService: Redis,
   ) {}
 
   async saveGame(channelId: number) {
@@ -390,6 +394,82 @@ export class GameService {
     }
   }
 
+  async disconnectGame(
+    title: string,
+    gameId: string,
+    startTime: Date,
+    server: Server,
+  ) {
+    await this.saveTest(
+      parseInt(gameId),
+      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+      this.showPlayTime(startTime),
+    );
+    const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+    const result = {
+      winUserNick: "",
+      loseUserNick: "",
+      playTime: this.showPlayTime(startTime),
+      homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+      awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+    };
+
+    const creatorInfo = await this.userService.findUserById(
+      parseInt(redisInfo.creator),
+    );
+    const userInfo = await this.userService.findUserById(
+      parseInt(redisInfo.user),
+    );
+    if (
+      gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+      gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+    ) {
+      result.winUserNick = creatorInfo.nickname;
+      result.loseUserNick = userInfo.nickname;
+    } else {
+      result.winUserNick = userInfo.nickname;
+      result.loseUserNick = creatorInfo.nickname;
+    }
+    server.to(gameId.toString()).emit("gameEnd", result);
+  }
+
+  async finishGame(
+    title: string,
+    gameId: string,
+    startTime: Date,
+    server: Server,
+  ) {
+    await this.saveTest(
+      parseInt(gameId),
+      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+      this.showPlayTime(startTime),
+    );
+    const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+    const result = {
+      winUserNick: "",
+      loseUserNick: "",
+      playTime: this.showPlayTime(startTime),
+      homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+      awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+    };
+    const creatorInfo = await this.userService.findUserById(
+      parseInt(redisInfo.creator),
+    );
+    const userInfo = await this.userService.findUserById(
+      parseInt(redisInfo.user),
+    );
+    if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+      result.winUserNick = creatorInfo.nickname;
+      result.loseUserNick = userInfo.nickname;
+    } else {
+      result.winUserNick = userInfo.nickname;
+      result.loseUserNick = creatorInfo.nickname;
+    }
+    server.to(gameId.toString()).emit("gameEnd", result);
+  }
+
   //async saveRecord(
   //  gameId: number,
   //  minimumSpeed: number,
@@ -457,6 +537,22 @@ export class GameService {
       this.logger.error(error);
       throw error;
     }
+  }
+
+  showPlayTime(startTime: Date) {
+    const afterTime = new Date();
+
+    const cal = (afterTime.getTime() - startTime.getTime()) / 1000;
+
+    const minute = cal / 60;
+    const second = cal % 60;
+
+    let formattedDate = null;
+
+    if (second < 10) formattedDate = minute.toFixed() + ":0" + second.toFixed();
+    else formattedDate = minute.toFixed() + ":" + second.toFixed();
+
+    return formattedDate;
   }
 }
 
