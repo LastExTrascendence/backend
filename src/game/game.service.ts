@@ -31,6 +31,7 @@ import { Game } from "./entity/game.entity";
 import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
 import { gameDictionary } from "./game.gateway";
+import { GameChannelService } from "./game.channel.service";
 
 @Injectable()
 export class GameService {
@@ -56,6 +57,8 @@ export class GameService {
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
     private redisService: Redis,
+    @Inject(forwardRef(() => GameChannelService))
+    private gameChannelService: GameChannelService,
   ) {}
 
   async saveGame(channelId: number) {
@@ -400,38 +403,63 @@ export class GameService {
     startTime: Date,
     server: Server,
   ) {
-    await this.saveTest(
-      parseInt(gameId),
-      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
-      this.showPlayTime(startTime),
-    );
-    const redisInfo = await this.redisService.hgetall(`GM|${title}`);
-    const result = {
-      winUserNick: "",
-      loseUserNick: "",
-      playTime: this.showPlayTime(startTime),
-      homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-      awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
-    };
-
-    const creatorInfo = await this.userService.findUserById(
-      parseInt(redisInfo.creator),
-    );
-    const userInfo = await this.userService.findUserById(
-      parseInt(redisInfo.user),
-    );
     if (
-      gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
-      gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
+        .game_type != GameType.SINGLE
     ) {
-      result.winUserNick = creatorInfo.nickname;
-      result.loseUserNick = userInfo.nickname;
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+      ) {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      } else {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
     } else {
-      result.winUserNick = userInfo.nickname;
-      result.loseUserNick = creatorInfo.nickname;
+      await this.saveTest(
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+        this.showPlayTime(startTime),
+      );
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+
+      const creatorInfo = await this.userService.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const userInfo = await this.userService.findUserById(
+        parseInt(redisInfo.user),
+      );
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+      ) {
+        result.winUserNick = creatorInfo.nickname;
+        result.loseUserNick = userInfo.nickname;
+      } else {
+        result.winUserNick = userInfo.nickname;
+        result.loseUserNick = creatorInfo.nickname;
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
     }
-    server.to(gameId.toString()).emit("gameEnd", result);
   }
 
   async finishGame(
@@ -440,34 +468,58 @@ export class GameService {
     startTime: Date,
     server: Server,
   ) {
-    await this.saveTest(
-      parseInt(gameId),
-      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-      gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
-      this.showPlayTime(startTime),
-    );
-    const redisInfo = await this.redisService.hgetall(`GM|${title}`);
-    const result = {
-      winUserNick: "",
-      loseUserNick: "",
-      playTime: this.showPlayTime(startTime),
-      homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-      awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
-    };
-    const creatorInfo = await this.userService.findUserById(
-      parseInt(redisInfo.creator),
-    );
-    const userInfo = await this.userService.findUserById(
-      parseInt(redisInfo.user),
-    );
-    if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
-      result.winUserNick = creatorInfo.nickname;
-      result.loseUserNick = userInfo.nickname;
+    if (
+      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
+        .game_type != GameType.SINGLE
+    ) {
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+
+      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      } else {
+        result.winUserNick = "AWAY";
+        result.loseUserNick = "HOME";
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
     } else {
-      result.winUserNick = userInfo.nickname;
-      result.loseUserNick = creatorInfo.nickname;
+      await this.saveTest(
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+        this.showPlayTime(startTime),
+      );
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+      const creatorInfo = await this.userService.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const userInfo = await this.userService.findUserById(
+        parseInt(redisInfo.user),
+      );
+
+      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+        result.winUserNick = creatorInfo.nickname;
+        result.loseUserNick = userInfo.nickname;
+      } else {
+        result.winUserNick = userInfo.nickname;
+        result.loseUserNick = creatorInfo.nickname;
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
     }
-    server.to(gameId.toString()).emit("gameEnd", result);
   }
 
   //async saveRecord(

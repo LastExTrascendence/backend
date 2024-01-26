@@ -25,6 +25,7 @@ import {
   GameChannelPolicy,
   GameTeam,
   GameComponent,
+  GameType,
 } from "./enum/game.enum";
 import { GamePlayer } from "./entity/game.player.entity";
 import { format, set, sub } from "date-fns";
@@ -371,8 +372,82 @@ export class GameGateWay {
     this.logger.debug(`pressStart`);
     console.log(data);
     const startInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+    const gameChannelInfo =
+      await this.gameChannelService.findOneGameChannelById(
+        parseInt(data.gameId),
+      );
 
-    if (
+    if (gameChannelInfo.game_type === GameType.SINGLE) {
+      this.logger.debug(`gameStart`);
+      console.log("startInfo", startInfo);
+      const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+      if (gameDictionary.has(parseInt(data.gameId))) {
+        gameDictionary.delete(parseInt(data.gameId));
+      }
+
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { id: parseInt(data.gameId), deleted_at: IsNull() },
+      });
+
+      const homeInfo: homeInfoDto = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+        score: 0,
+      };
+
+      const awayInfo: awayInfoDto = {
+        y: Math.floor(
+          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
+        ),
+        dy: 0, // Initial speed in the y direction
+        score: 0,
+      };
+
+      const gameInfo: gameInfoDto = {
+        ballX: GameComponent.width / 2,
+        ballY: GameComponent.height / 2,
+        ballDx: -3,
+        ballDy: -3,
+        ballSize: GameComponent.ballSize,
+        width: GameComponent.width,
+        height: GameComponent.height,
+        paddleWidth: GameComponent.paddleWidth,
+        paddleHeight: GameComponent.paddleHeight,
+        numberOfRounds: 0,
+        numberOfBounces: 0,
+        awayInfo: awayInfo,
+        homeInfo: homeInfo,
+        cnt: 0,
+        currentCnt: 0,
+      };
+
+      const creatorSocketId = gameConnectedClients.get(
+        parseInt(redisInfo.creator),
+      ).socket.id;
+
+      const gameTotalInfo: gameDictionaryDto = {
+        gameInfo: gameInfo,
+        gameLoop: async (
+          gameInfo: gameInfoDto,
+          Number: number,
+          server: Server,
+        ) => {
+          return await this.gameService.loopPosition(gameInfo, Number, server);
+        },
+        homeUserSocketId: creatorSocketId,
+        awayUserSocketId: null,
+        server: this.server,
+      };
+
+      gameDictionary.set(channelInfo.id, gameTotalInfo);
+      //console.log("gameComponentInfo", gameDictionary.get(channelInfo.id));
+
+      //console.log("check Ids", data.gameId, channelInfo.id);
+      this.server.to(data.gameId.toString()).emit("gameStart");
+    } else if (
       data.myId === parseInt(startInfo.creator) &&
       //startInfo.userReady === "true" &&
       startInfo.creatorOnline === "true"
