@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) {}
+  ) { }
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -159,12 +159,12 @@ export class GameChannelService {
     gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-      const GameInfo = await this.redisClient.lrange(
-        `GM|${gameUserVerifyDto.title}`,
-        0,
-        -1,
-      );
-      if (GameInfo.length === 0) {
+
+      const gameInfo = await this.gameChannelRepository.findOne({
+        where: { id: gameUserVerifyDto.channelId },
+      });
+
+      if (!gameInfo) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -175,7 +175,7 @@ export class GameChannelService {
       }
 
       const redisInfo = await this.redisClient.hgetall(
-        `GM|${gameUserVerifyDto.title}`,
+        `GM|${gameInfo.title}`,
       );
 
       if (gameUserVerifyDto.password) {
@@ -192,12 +192,12 @@ export class GameChannelService {
             HttpStatus.BAD_REQUEST,
           );
         } else {
-          const userInfo = await this.userService.findUserByNickname(
-            gameUserVerifyDto.nickname,
+          const userInfo = await this.userService.findUserById(
+            gameUserVerifyDto.userId,
           );
 
           await this.redisClient.hset(
-            `GM|${gameUserVerifyDto.title}`,
+            `GM|${gameInfo.title}`,
             `ACCESS|${userInfo.id}`,
             userInfo.id,
           );

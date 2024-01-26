@@ -586,8 +586,9 @@ export class GameGateWay {
 
   //gameId : number
   //userId : number
-  @SubscribeMessage("leaveGame")
-  async leaveGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+  //@SubscribeMessage("leaveGame")
+  //async leaveGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+  async leaveGame(data: any, socket: Socket) {
     this.logger.debug(`leaveGame`);
     console.log("leaveGame", data.gameId, data.userId);
 
@@ -968,13 +969,6 @@ export class GameGateWay {
     }, 1000 / 60);
     socket.on("gameFinish", async (data) => {
       this.logger.debug(`gameFinish`);
-      //console.log("gameFinish", data);
-      //this.gameService.disconnectGame(
-      //  data.title,
-      //  data.gameId,
-      //  startTime,
-      //  this.server,
-      //);
       await this.gameChannelRepository.update(
         { id: parseInt(data.gameId) },
         { game_status: GameStatus.READY },
@@ -986,7 +980,31 @@ export class GameGateWay {
     //정상종료도 탐
     socket.on("disconnect", async () => {
       this.logger.debug(`disconnect games `);
-      //this.leaveGame({ gameId: data.gameId, userId: data.userId }, socket);
+      const channelInfo = await this.gameChannelRepository.findOne({
+        where: { id: parseInt(gameId) },
+      });
+      if (channelInfo.game_status === GameStatus.INGAME) {
+
+        const gameInfo = await this.gameService.findOneByChannelId(
+          channelInfo.id,
+        );
+        this.server.emit("gameEnd", data.gameId);
+        const result = {
+          winUserNick: "탈주자",
+          loseUserNick: "승리자",
+          playTime: showPlayTime(gameInfo.created_at),
+          homeScore: 0,
+          awayScore: 5,
+        };
+        this.server.to(data.gameId.toString()).emit("gameEnd", result);
+        await this.gameService.dropOutGame(data.gameId);
+        await this.gamePlayerService.dropOutGamePlayer(data.gameId, data.userId);
+        await this.gameChannelRepository.update(
+          { id: data.gameId },
+          { game_status: GameStatus.READY },
+        );
+      }
+      // 비정상종료
       mutex.release();
       clearInterval(intervalId);
     });
