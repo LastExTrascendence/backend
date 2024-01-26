@@ -34,7 +34,7 @@ export class GameChannelService {
     private redisClient: Redis,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-  ) { }
+  ) {}
 
   async createGame(
     gameChannelListDto: gameChannelListDto,
@@ -108,6 +108,11 @@ export class GameChannelService {
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
         );
+        await this.redisClient.hset(
+          `GM|${gameChannelListDto.title}`,
+          `ACCESS|${createInfo.id}`,
+          createInfo.id,
+        );
       }
 
       await this.redisClient.hset(
@@ -159,7 +164,6 @@ export class GameChannelService {
     gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-
       const gameInfo = await this.gameChannelRepository.findOne({
         where: { id: gameUserVerifyDto.channelId },
       });
@@ -174,9 +178,7 @@ export class GameChannelService {
         );
       }
 
-      const redisInfo = await this.redisClient.hgetall(
-        `GM|${gameInfo.title}`,
-      );
+      const redisInfo = await this.redisClient.hgetall(`GM|${gameInfo.title}`);
 
       if (gameUserVerifyDto.password) {
         const isMatch = await bcrypt.compare(
