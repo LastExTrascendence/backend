@@ -11,7 +11,7 @@ import { GamePlayer } from "./entity/game.player.entity";
 import { UserService } from "src/user/user.service";
 import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
-import { GameResult } from "./enum/game.enum";
+import { GameResult, GameType } from "./enum/game.enum";
 import { GameChannelService } from "./game.channel.service";
 import Redis from "ioredis";
 
@@ -27,7 +27,7 @@ export class GamePlayerService {
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
     private redisService: Redis,
-  ) {}
+  ) { }
 
   async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
@@ -53,6 +53,10 @@ export class GamePlayerService {
 
       const gameInfo =
         await this.gameChannelService.findOneGameChannelById(gameId);
+
+      if (gameInfo.game_type === GameType.SINGLE) {
+        return;
+      }
 
       const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
 

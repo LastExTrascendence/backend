@@ -59,7 +59,7 @@ export class GameService {
     private redisService: Redis,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
-  ) {}
+  ) { }
 
   async saveGame(channelId: number) {
     try {
@@ -405,7 +405,7 @@ export class GameService {
   ) {
     if (
       (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
-        .game_type != GameType.SINGLE
+        .game_type === GameType.SINGLE
     ) {
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
       const result = {
@@ -470,7 +470,7 @@ export class GameService {
   ) {
     if (
       (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
-        .game_type != GameType.SINGLE
+        .game_type === GameType.SINGLE
     ) {
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
       const result = {

@@ -27,6 +27,9 @@ export class User extends BaseEntity {
   avatar: string;
 
   @Column()
+  language: string;
+
+  @Column()
   two_fa: boolean;
 
   @Column()

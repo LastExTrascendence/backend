@@ -58,4 +58,10 @@ export class updateUserInfoDto {
 
   @IsBoolean()
   two_fa: boolean;
+
+  @IsString()
+  @MinLength(2)
+  @MaxLength(2)
+  @Matches(/^[a-zA-Z]+$/) // 영문만 허용 
+  language: string;
 }

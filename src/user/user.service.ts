@@ -13,7 +13,7 @@ export class UserService {
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private userOtpService: UserOtpService,
-  ) {}
+  ) { }
 
   async createUser(userSessionDto: userSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
@@ -21,6 +21,7 @@ export class UserService {
       intra_name: userSessionDto.intra_name,
       nickname: userSessionDto.nickname,
       avatar: userSessionDto.avatar,
+      language: "kr",
       status: UserStatus.OFFLINE,
       email: userSessionDto.email,
       two_fa: false,
@@ -77,13 +78,14 @@ export class UserService {
     oldNickname: string,
     updateUserInfoDto: updateUserInfoDto,
   ): Promise<User> {
-    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    const { nickname, avatar, two_fa, language } = updateUserInfoDto;
     const user = await this.userRepository.findOne({
       where: { nickname: oldNickname },
     });
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
+    user.language = language;
     await this.userRepository.save(user);
 
     //todo, user.two_fa_complete 이슈 물어보기

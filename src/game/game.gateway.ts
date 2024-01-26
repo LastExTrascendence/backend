@@ -68,7 +68,7 @@ export class GameGateWay {
     private gameService: GameService,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
-  ) {}
+  ) { }
 
   @WebSocketServer()
   server: Server;
@@ -109,7 +109,7 @@ export class GameGateWay {
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
       if (redisInfo) {
         const channelInfo = await this.gameChannelRepository.findOne({
-          where: { title: title, deleted_at: IsNull() },
+          where: { id: gameId, deleted_at: IsNull() },
         });
         if (channelInfo.game_status === GameStatus.READY) {
           if (parseInt(redisInfo.creator) === socketKey) {
@@ -377,80 +377,11 @@ export class GameGateWay {
         parseInt(data.gameId),
       );
 
-    if (gameChannelInfo.game_type === GameType.SINGLE) {
-      this.logger.debug(`gameStart`);
-      console.log("startInfo", startInfo);
-      const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-
-      if (gameDictionary.has(parseInt(data.gameId))) {
-        gameDictionary.delete(parseInt(data.gameId));
-      }
-
-      const channelInfo = await this.gameChannelRepository.findOne({
-        where: { id: parseInt(data.gameId), deleted_at: IsNull() },
-      });
-
-      const homeInfo: homeInfoDto = {
-        y: Math.floor(
-          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
-        ),
-        dy: 0, // Initial speed in the y direction
-        score: 0,
-      };
-
-      const awayInfo: awayInfoDto = {
-        y: Math.floor(
-          GameComponent.height / 2 - GameComponent.paddleHeight / 2,
-        ),
-        dy: 0, // Initial speed in the y direction
-        score: 0,
-      };
-
-      const gameInfo: gameInfoDto = {
-        ballX: GameComponent.width / 2,
-        ballY: GameComponent.height / 2,
-        ballDx: -3,
-        ballDy: -3,
-        ballSize: GameComponent.ballSize,
-        width: GameComponent.width,
-        height: GameComponent.height,
-        paddleWidth: GameComponent.paddleWidth,
-        paddleHeight: GameComponent.paddleHeight,
-        numberOfRounds: 0,
-        numberOfBounces: 0,
-        awayInfo: awayInfo,
-        homeInfo: homeInfo,
-        cnt: 0,
-        currentCnt: 0,
-      };
-
-      const creatorSocketId = gameConnectedClients.get(
-        parseInt(redisInfo.creator),
-      ).socket.id;
-
-      const gameTotalInfo: gameDictionaryDto = {
-        gameInfo: gameInfo,
-        gameLoop: async (
-          gameInfo: gameInfoDto,
-          Number: number,
-          server: Server,
-        ) => {
-          return await this.gameService.loopPosition(gameInfo, Number, server);
-        },
-        homeUserSocketId: creatorSocketId,
-        awayUserSocketId: null,
-        server: this.server,
-      };
-
-      gameDictionary.set(channelInfo.id, gameTotalInfo);
-      //console.log("gameComponentInfo", gameDictionary.get(channelInfo.id));
-
-      //console.log("check Ids", data.gameId, channelInfo.id);
-      this.server.to(data.gameId.toString()).emit("gameStart");
-    } else if (
+    if (
       data.myId === parseInt(startInfo.creator) &&
       //startInfo.userReady === "true" &&
       startInfo.creatorOnline === "true"
+      || gameChannelInfo.game_type === GameType.SINGLE
     ) {
       await this.gameChannelRepository.update(
         { id: parseInt(data.gameId), deleted_at: IsNull() },
@@ -507,8 +438,14 @@ export class GameGateWay {
         parseInt(redisInfo.creator),
       ).socket.id;
 
-      const userSocketId = gameConnectedClients.get(parseInt(redisInfo.user))
-        .socket.id;
+      let userSocketId = null;
+
+      if (channelInfo.game_type === GameType.SINGLE) {
+        userSocketId = null;
+      } else {
+        userSocketId = gameConnectedClients.get(parseInt(redisInfo.user))
+          .socket.id;
+      }
 
       const gameTotalInfo: gameDictionaryDto = {
         gameInfo: gameInfo,
@@ -523,6 +460,8 @@ export class GameGateWay {
         awayUserSocketId: userSocketId,
         server: this.server,
       };
+
+      console.log(gameTotalInfo);
 
       gameDictionary.set(channelInfo.id, gameTotalInfo);
       //console.log("gameComponentInfo", gameDictionary.get(channelInfo.id));
@@ -906,7 +845,7 @@ export class GameGateWay {
   //team
   //key
   @SubscribeMessage("keyUpHOME")
-  async keyUpCREATOR(
+  async keyUpHOME(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
   ) {
@@ -920,11 +859,11 @@ export class GameGateWay {
   }
 
   @SubscribeMessage("keyUpAWAY")
-  async keyUpUSER(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+  async keyUpAWAY(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     //this.logger.debug(`KeyUp`);
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
     // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    this.logger.debug(`KeyUpUSER ${data.gameId} ${data.key}`);
+    this.logger.debug(`keyUpAWAY ${data.gameId} ${data.key}`);
     const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
 
     gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy = 0;
@@ -952,10 +891,10 @@ export class GameGateWay {
       const loopInfo = await gameDictionary
         .get(parseInt(gameId))
         .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
-        gameDictionary.get(parseInt(gameId)).gameInfo,
-        parseInt(gameId),
-        gameDictionary.get(parseInt(gameId)).server,
-      );
+          gameDictionary.get(parseInt(gameId)).gameInfo,
+          parseInt(gameId),
+          gameDictionary.get(parseInt(gameId)).server,
+        );
 
       //console.log("loopInfo", loopInfo);
 
@@ -1029,13 +968,13 @@ export class GameGateWay {
     }, 1000 / 60);
     socket.on("gameFinish", async (data) => {
       this.logger.debug(`gameFinish`);
-      console.log("gameFinish", data);
-      this.gameService.disconnectGame(
-        data.title,
-        data.gameId,
-        startTime,
-        this.server,
-      );
+      //console.log("gameFinish", data);
+      //this.gameService.disconnectGame(
+      //  data.title,
+      //  data.gameId,
+      //  startTime,
+      //  this.server,
+      //);
       await this.gameChannelRepository.update(
         { id: parseInt(data.gameId) },
         { game_status: GameStatus.READY },
@@ -1044,9 +983,10 @@ export class GameGateWay {
       clearInterval(intervalId);
     });
 
+    //정상종료도 탐
     socket.on("disconnect", async () => {
-      this.logger.debug(`disconnect`);
-      this.leaveGame({ gameId: data.gameId, userId: data.userId }, socket);
+      this.logger.debug(`disconnect games `);
+      //this.leaveGame({ gameId: data.gameId, userId: data.userId }, socket);
       mutex.release();
       clearInterval(intervalId);
     });
@@ -1103,42 +1043,6 @@ export class GameGateWay {
       { id: channelId },
       { cur_user: cur_user },
     );
-  }
-
-  keyPress(data: any, socket: Socket): number {
-    let homeInfoDy = 0;
-    let awayInfoDy = 0;
-    if (data.team === GameTeam.HOME) {
-      if (data.key === "ArrowUp") {
-        homeInfoDy = -10;
-      } else if (data.key === "ArrowDown") {
-        homeInfoDy = 10;
-      }
-      return homeInfoDy;
-      // homeInfo.y += homeInfo.dy;
-    } else if (data.team === GameTeam.AWAY) {
-      if (data.key === "ArrowUp") {
-        awayInfoDy = -10;
-      } else if (data.key === "ArrowDown") {
-        awayInfoDy = 10;
-      }
-      return awayInfoDy;
-      // awayInfo.y += awayInfo.dy;
-    }
-  }
-
-  keyRelease(data: any, socket: Socket): number {
-    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
-    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    let homeInfoDy = 0;
-    let awayInfoDy = 0;
-    if (data.team === GameTeam.HOME) {
-      homeInfoDy = 0;
-      return homeInfoDy;
-    } else if (data.team === GameTeam.AWAY) {
-      awayInfoDy = 0;
-      return awayInfoDy;
-    }
   }
 
   async sendRoomInfo(title: string, channelId: number, socket: Socket) {
