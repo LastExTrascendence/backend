@@ -242,8 +242,6 @@ export class GameGateWay {
           `GM|${gameChannelInfo.title}`,
         );
 
-        const accessUser = "ACCESS" + userId;
-
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
         const passwordValidate = isPasswordCorrect
           ? Object.keys(isPasswordCorrect).filter((key) =>

@@ -59,7 +59,7 @@ export class GameService {
     private redisService: Redis,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
-  ) { }
+  ) {}
 
   async saveGame(channelId: number) {
     try {
@@ -560,8 +560,8 @@ export class GameService {
   //}
 
   async getStartTime(gameId: number) {
-    const gameInfo = await this.gameChannelRepository.findOne({
-      where: { id: gameId },
+    const gameInfo = await this.gameRepository.findOne({
+      where: { channel_id: gameId },
     });
 
     if (gameInfo) {

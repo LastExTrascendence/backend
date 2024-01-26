@@ -263,7 +263,9 @@ export class GameChannelService {
             gameMode: channelsInfo[i].game_mode,
             gameStatus: channelsInfo[i].game_status,
           };
-
+          if (channelsInfo[i].game_type === GameType.SINGLE) {
+            channel.max_user = 1;
+          }
           totalChannels.push(channel);
         }
       }
