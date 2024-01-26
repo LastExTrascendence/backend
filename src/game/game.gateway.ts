@@ -68,7 +68,7 @@ export class GameGateWay {
     private gameService: GameService,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
-  ) { }
+  ) {}
 
   @WebSocketServer()
   server: Server;
@@ -245,7 +245,13 @@ export class GameGateWay {
         const accessUser = "ACCESS" + userId;
 
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const passwordValidate = isPasswordCorrect[accessUser];
+        const passwordValidate = isPasswordCorrect
+          ? Object.keys(isPasswordCorrect).filter((key) =>
+              key.startsWith("ACCESS"),
+            )
+          : null;
+
+        //console.log("passwordValidate", passwordValidate);
 
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
@@ -378,10 +384,10 @@ export class GameGateWay {
       );
 
     if (
-      data.myId === parseInt(startInfo.creator) &&
-      //startInfo.userReady === "true" &&
-      startInfo.creatorOnline === "true"
-      || gameChannelInfo.game_type === GameType.SINGLE
+      (data.myId === parseInt(startInfo.creator) &&
+        //startInfo.userReady === "true" &&
+        startInfo.creatorOnline === "true") ||
+      gameChannelInfo.game_type === GameType.SINGLE
     ) {
       await this.gameChannelRepository.update(
         { id: parseInt(data.gameId), deleted_at: IsNull() },
@@ -443,8 +449,8 @@ export class GameGateWay {
       if (channelInfo.game_type === GameType.SINGLE) {
         userSocketId = null;
       } else {
-        userSocketId = gameConnectedClients.get(parseInt(redisInfo.user))
-          .socket.id;
+        userSocketId = gameConnectedClients.get(parseInt(redisInfo.user)).socket
+          .id;
       }
 
       const gameTotalInfo: gameDictionaryDto = {
@@ -846,10 +852,7 @@ export class GameGateWay {
   //team
   //key
   @SubscribeMessage("keyUpHOME")
-  async keyUpHOME(
-    @MessageBody() data: any,
-    @ConnectedSocket() socket: Socket,
-  ) {
+  async keyUpHOME(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.logger.debug(`keyUpHOME ${data.gameId} ${data.key}`);
     //this.logger.debug(`KeyUp`);
     // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
@@ -892,10 +895,10 @@ export class GameGateWay {
       const loopInfo = await gameDictionary
         .get(parseInt(gameId))
         .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
-          gameDictionary.get(parseInt(gameId)).gameInfo,
-          parseInt(gameId),
-          gameDictionary.get(parseInt(gameId)).server,
-        );
+        gameDictionary.get(parseInt(gameId)).gameInfo,
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).server,
+      );
 
       //console.log("loopInfo", loopInfo);
 
@@ -984,7 +987,6 @@ export class GameGateWay {
         where: { id: parseInt(gameId) },
       });
       if (channelInfo.game_status === GameStatus.INGAME) {
-
         const gameInfo = await this.gameService.findOneByChannelId(
           channelInfo.id,
         );
@@ -998,7 +1000,10 @@ export class GameGateWay {
         };
         this.server.to(data.gameId.toString()).emit("gameEnd", result);
         await this.gameService.dropOutGame(data.gameId);
-        await this.gamePlayerService.dropOutGamePlayer(data.gameId, data.userId);
+        await this.gamePlayerService.dropOutGamePlayer(
+          data.gameId,
+          data.userId,
+        );
         await this.gameChannelRepository.update(
           { id: data.gameId },
           { game_status: GameStatus.READY },

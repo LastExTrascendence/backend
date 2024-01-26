@@ -122,8 +122,13 @@ export class ChannelGateWay {
           `CH|${channelInfo.title}`,
         );
 
+        const passwordValidate = isPasswordCorrect
+          ? Object.keys(isPasswordCorrect).filter((key) =>
+              key.startsWith("ACCESS"),
+            )
+          : null;
+
         //isPasswordCorrect 중에 ACCESS로 시작하는 value값만 가져온다.
-        const passwordValidate = `isPasswordCorrect.ACCESS${userId}`;
 
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
