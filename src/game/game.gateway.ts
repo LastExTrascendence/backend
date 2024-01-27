@@ -26,6 +26,7 @@ import {
   GameTeam,
   GameComponent,
   GameType,
+  GameMode,
 } from "./enum/game.enum";
 import { GamePlayer } from "./entity/game.player.entity";
 import { format, set, sub } from "date-fns";
@@ -478,6 +479,11 @@ export class GameGateWay {
         currentCnt: 0,
       };
 
+      if (channelInfo.game_mode === GameMode.SPEED) {
+        gameInfo.ballDx = -5;
+        gameInfo.ballDy = -5;
+      }
+
       const creatorSocketId = gameConnectedClients.get(
         parseInt(redisInfo.creator),
       ).socket.id;
@@ -913,10 +919,9 @@ export class GameGateWay {
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
-    //if (gameChannelInfo.game_status !== GameStatus.INGAME) {
-    //  console.log("check here", gameDictionary.size);
-    //  return;
-    //}
+    const checkGameDone = await this.gameService.isGameDone(gameChannelInfo.id);
+
+    if (checkGameDone === true) return;
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
@@ -940,7 +945,8 @@ export class GameGateWay {
     if (
       (gameChannelInfo.game_type === GameType.SINGLE &&
         redisInfo.creatorOnline === "false") ||
-      redisInfo.userOnline === "false"
+      redisInfo.userOnline === "false" ||
+      redisInfo.creatorOnline === "false"
     ) {
       if (redisInfo.creatorOnline === "false") {
         await this.gamePlayerService.dropOutGamePlayer(
@@ -952,6 +958,7 @@ export class GameGateWay {
           gameChannelInfo.id,
           parseInt(redisInfo.user),
         );
+        socket.disconnect(true);
       }
       this.gameService.disconnectGame(
         data.title,
@@ -976,18 +983,18 @@ export class GameGateWay {
       );
 
       //console.log("loopInfo", loopInfo);
-
-      gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
-
       if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
         mutex.release();
         gameDictionary.delete(parseInt(data.gameId));
         clearInterval(intervalId);
         return;
-      } else if (
+      }
+
+      gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
+      if (
         //5점 바꾸기
-        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5 ||
-        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >= 5 ||
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score >= 5
       ) {
         mutex.release();
         clearInterval(intervalId);

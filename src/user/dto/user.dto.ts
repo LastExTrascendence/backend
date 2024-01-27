@@ -66,6 +66,7 @@ export class userInfoDto {
   nickname: string | null;
   avatar: string | null;
   status: UserStatus;
+  language: string;
 }
 
 export class userOtpDto {

@@ -219,6 +219,7 @@ export class UserController {
         nickname: userData.nickname,
         avatar: userData.avatar,
         status: userData.status,
+        language: userData.language,
       };
       return userInfo;
     } catch (e) {
@@ -250,6 +251,7 @@ export class UserController {
         two_fa: UserInfo.two_fa,
         is_friend: false,
         at_friend: null,
+        language: UserInfo.language,
         games: UserGameInfo.length,
         wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
         loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
@@ -345,6 +347,7 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
+        language: UserInfo.language,
         wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
         loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
         is_friend: UserFriendInfo ? true : false,
@@ -382,6 +385,7 @@ export class UserController {
         avatar: UserInfo.avatar,
         email: UserInfo.email,
         games: UserGameInfo.length,
+        language: UserInfo.language,
         wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
         loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
         is_friend: UserFriendInfo ? true : false,

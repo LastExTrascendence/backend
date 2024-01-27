@@ -13,6 +13,7 @@ import {
   GameMode,
   GameType,
   GameStatus,
+  GameResult,
 } from "./enum/game.enum";
 import {
   awayInfoDto,
@@ -32,7 +33,8 @@ import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
 import { gameDictionary } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
-import { IsDate } from "class-validator";
+import { IsDate, IsEAN } from "class-validator";
+import { GamePlayer } from "./entity/game.player.entity";
 
 @Injectable()
 export class GameService {
@@ -92,7 +94,7 @@ export class GameService {
     }
   }
 
-  async saveTest(
+  async saveStat(
     gameId: number,
     numberOfRounds: number,
     numberOfBounces: number,
@@ -128,14 +130,13 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
-          game_status: GameStatus.DONE,
           ended_at: IsNull(),
         },
       });
       if (game) {
-        return true;
-      } else {
         return false;
+      } else {
+        return true;
       }
     } catch (error) {
       this.logger.error(error);
@@ -174,7 +175,7 @@ export class GameService {
 
   async loopPosition(
     gameInfo: gameInfoDto,
-    gameId: number,
+    channelId: number,
     server: Server,
   ): Promise<gameInfoDto | void> {
     try {
@@ -189,7 +190,7 @@ export class GameService {
       //socket.socketsJoin(data.gameId.toString());
 
       const calculatedCoordinates = await this.calculateCoordinates(
-        gameId,
+        channelId,
         gameInfo.ballX,
         gameInfo.ballY,
         gameInfo.ballDx,
@@ -238,7 +239,7 @@ export class GameService {
   }
 
   async calculateCoordinates(
-    gameId: number,
+    channelId: number,
     ballX: number,
     ballY: number,
     ballDx: number,
@@ -314,12 +315,12 @@ export class GameService {
       numberOfRounds++;
       awayInfo.score++;
       server
-        .to(gameId.toString())
+        .to(channelId.toString())
         .emit("score", [homeInfo.score, awayInfo.score]);
-      if (awayInfo.score > 5) {
+      if (awayInfo.score >= 5) {
         // 홈팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
@@ -344,12 +345,12 @@ export class GameService {
       ballDy = -ballDy;
       numberOfRounds++;
       server
-        .to(gameId.toString())
+        .to(channelId.toString())
         .emit("score", [homeInfo.score, awayInfo.score]);
-      if (homeInfo.score > 5) {
+      if (homeInfo.score >= 5) {
         //away팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
@@ -413,25 +414,30 @@ export class GameService {
 
   async timeOutGame(
     title: string,
-    gameId: string,
+    channelId: string,
     startTime: Date,
     server: Server,
   ) {
     if (
-      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
-        .game_type === GameType.SINGLE
+      (
+        await this.gameChannelService.findOneGameChannelById(
+          parseInt(channelId),
+        )
+      ).game_type === GameType.SINGLE
     ) {
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
       const result = {
         winUserNick: "",
         loseUserNick: "",
         playTime: this.showPlayTime(startTime),
-        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+        homeScore: gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo
+          .score,
+        awayScore: gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo
+          .score,
       };
       if (
-        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
-        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+        gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo.score
       ) {
         result.winUserNick = "HOME";
         result.loseUserNick = "AWAY";
@@ -439,12 +445,15 @@ export class GameService {
         result.winUserNick = "HOME";
         result.loseUserNick = "AWAY";
       }
-      server.to(gameId.toString()).emit("gameEnd", result);
+      server.to(channelId.toString()).emit("gameEnd", result);
     } else {
-      await this.saveTest(
-        parseInt(gameId),
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+      const gameInfo = await this.gameRepository.findOne({
+        where: { channel_id: parseInt(channelId), ended_at: IsNull() },
+      });
+      await this.saveStat(
+        gameInfo.id,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfBounces,
         this.showPlayTime(startTime),
       );
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
@@ -452,8 +461,10 @@ export class GameService {
         winUserNick: "",
         loseUserNick: "",
         playTime: this.showPlayTime(startTime),
-        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+        homeScore: gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo
+          .score,
+        awayScore: gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo
+          .score,
       };
 
       const creatorInfo = await this.userService.findUserById(
@@ -463,8 +474,8 @@ export class GameService {
         parseInt(redisInfo.user),
       );
       if (
-        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
-        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+        gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo.score
       ) {
         result.winUserNick = creatorInfo.nickname;
         result.loseUserNick = userInfo.nickname;
@@ -472,22 +483,25 @@ export class GameService {
         result.winUserNick = userInfo.nickname;
         result.loseUserNick = creatorInfo.nickname;
       }
-      server.to(gameId.toString()).emit("gameEnd", result);
+      server.to(channelId.toString()).emit("gameEnd", result);
     }
   }
 
   async disconnectGame(
     title: string,
-    gameId: string,
+    channelId: string,
     myRole: string,
     startTime: Date,
     server: Server,
   ) {
     try {
-      await this.saveTest(
-        parseInt(gameId),
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+      const gameInfo = await this.gameRepository.findOne({
+        where: { channel_id: parseInt(channelId), ended_at: IsNull() },
+      });
+      await this.saveStat(
+        gameInfo.id,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfBounces,
         this.showPlayTime(startTime),
       );
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
@@ -518,7 +532,7 @@ export class GameService {
         result.loseUserNick = creatorInfo.nickname;
       }
 
-      server.to(gameId.toString()).emit("gameEnd", result);
+      server.to(channelId.toString()).emit("gameEnd", result);
     } catch (error) {
       console.log(error);
     }
@@ -526,24 +540,31 @@ export class GameService {
 
   async finishGame(
     title: string,
-    gameId: string,
+    channelId: string,
     startTime: Date,
     server: Server,
   ) {
     if (
-      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
-        .game_type === GameType.SINGLE
+      (
+        await this.gameChannelService.findOneGameChannelById(
+          parseInt(channelId),
+        )
+      ).game_type === GameType.SINGLE
     ) {
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
       const result = {
         winUserNick: "",
         loseUserNick: "",
         playTime: this.showPlayTime(startTime),
-        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+        homeScore: gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo
+          .score,
+        awayScore: gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo
+          .score,
       };
 
-      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+      if (
+        gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo.score >= 5
+      ) {
         result.winUserNick = "HOME";
         result.loseUserNick = "AWAY";
       } else {
@@ -551,12 +572,15 @@ export class GameService {
         result.loseUserNick = "HOME";
       }
       console.log("check game end");
-      server.to(gameId.toString()).emit("gameEnd", result);
+      server.to(channelId.toString()).emit("gameEnd", result);
     } else {
-      await this.saveTest(
-        parseInt(gameId),
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
-        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+      const gameInfo = await this.gameRepository.findOne({
+        where: { channel_id: parseInt(channelId), ended_at: IsNull() },
+      });
+      await this.saveStat(
+        gameInfo.id,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(channelId)).gameInfo.numberOfBounces,
         this.showPlayTime(startTime),
       );
       const redisInfo = await this.redisService.hgetall(`GM|${title}`);
@@ -564,8 +588,10 @@ export class GameService {
         winUserNick: "",
         loseUserNick: "",
         playTime: this.showPlayTime(startTime),
-        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+        homeScore: gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo
+          .score,
+        awayScore: gameDictionary.get(parseInt(channelId)).gameInfo.awayInfo
+          .score,
       };
       const creatorInfo = await this.userService.findUserById(
         parseInt(redisInfo.creator),
@@ -574,7 +600,9 @@ export class GameService {
         parseInt(redisInfo.user),
       );
 
-      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+      if (
+        gameDictionary.get(parseInt(channelId)).gameInfo.homeInfo.score >= 5
+      ) {
         result.winUserNick = creatorInfo.nickname;
         result.loseUserNick = userInfo.nickname;
       } else {
@@ -582,11 +610,11 @@ export class GameService {
         result.loseUserNick = creatorInfo.nickname;
       }
       console.log("check game end");
-      server.to(gameId.toString()).emit("gameEnd", result);
+      server.to(channelId.toString()).emit("gameEnd", result);
     }
     await this.gameRepository.update(
       {
-        channel_id: parseInt(gameId),
+        channel_id: parseInt(channelId),
       },
       {
         game_status: GameStatus.DONE,
@@ -637,17 +665,8 @@ export class GameService {
       where: { channel_id: gameId, ended_at: IsNull() },
     });
 
-    if (gameInfo) {
-      return gameInfo.created_at;
-    } else {
-      throw new HttpException(
-        {
-          status: HttpStatus.BAD_REQUEST,
-          error: "존재하지 않는 게임입니다.",
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    if (gameInfo) return gameInfo.created_at;
+    else return new Date();
   }
 
   async deleteAllGame() {
@@ -692,6 +711,95 @@ export class GameService {
       this.logger.error(error);
       throw error;
     }
+  }
+
+  calculateAverageTimes(totalGameInfo: Game[]) {
+    let TotalTime = 0;
+    for (let i = 0; i < totalGameInfo.length; i++) {
+      const playTime = totalGameInfo[i].play_time.split(":");
+      const minute = parseInt(playTime[0]);
+      const second = parseInt(playTime[1]);
+      const totalSecond = minute * 60 + second;
+      TotalTime += totalSecond;
+    }
+
+    let averageTime = TotalTime / totalGameInfo.length;
+    let averageMinute = Math.floor(averageTime / 60).toFixed(0);
+    let averageSecond = Math.floor(averageTime % 60).toFixed(0);
+    if (averageSecond.length === 1) averageSecond = "0" + averageSecond;
+    let averageTimeFormat =
+      "0" + averageMinute.toString() + ":" + averageSecond.toString();
+    return averageTimeFormat;
+  }
+
+  calculateLongestGame(totalGameInfo: Game[]) {
+    let longestGame = 0;
+    for (let i = 0; i < totalGameInfo.length; i++) {
+      const playTime = totalGameInfo[i].play_time.split(":");
+      const minute = parseInt(playTime[0]);
+      const second = parseInt(playTime[1]);
+      const time = minute * 60 + second;
+      if (time > longestGame) {
+        longestGame = time;
+      }
+    }
+    let longestMinute = Math.floor(longestGame / 60).toFixed(0);
+    let longestSecond = Math.floor(longestGame % 60).toFixed(0);
+    if (longestSecond.length === 1) longestSecond = "0" + longestSecond;
+    let longestTimeFormat =
+      "0" + longestMinute.toString() + ":" + longestSecond.toString();
+    return longestTimeFormat;
+  }
+
+  calculateShortestGame(totalGameInfo: Game[]) {
+    let shortestGame = 400;
+    for (let i = 0; i < totalGameInfo.length; i++) {
+      const playTime = totalGameInfo[i].play_time.split(":");
+      const minute = parseInt(playTime[0]);
+      const second = parseInt(playTime[1]);
+      const time = minute * 60 + second;
+      if (time < shortestGame) {
+        shortestGame = time;
+      }
+    }
+    let shortestMinute = Math.floor(shortestGame / 60).toFixed(0);
+    let shortestSecond = Math.floor(shortestGame % 60).toFixed(0);
+    if (shortestSecond.length === 1) shortestSecond = "0" + shortestSecond;
+    let shortestTimeFormat =
+      "0" + shortestMinute.toString() + ":" + shortestSecond.toString();
+    return shortestTimeFormat;
+  }
+
+  calculateTotalPointScored(gamePlayerInfo: GamePlayer[]) {
+    let totalPointScored = 0;
+    for (let i = 0; i < gamePlayerInfo.length; i++) {
+      totalPointScored += gamePlayerInfo[i].score;
+    }
+    return totalPointScored.toString();
+  }
+
+  calculateAverageScorePerGame(gamePlayerInfo: GamePlayer[]) {
+    let averageScorePerGame = 0;
+    for (let i = 0; i < gamePlayerInfo.length; i++) {
+      averageScorePerGame += gamePlayerInfo[i].score;
+    }
+    averageScorePerGame /= gamePlayerInfo.length;
+    return averageScorePerGame.toFixed(1);
+  }
+
+  calculateAverageScorePerWin(gamePlayerInfo: GamePlayer[]) {
+    let averageScorePerWin = 0;
+    let totalWin = 0;
+    for (let i = 0; i < gamePlayerInfo.length; i++) {
+      if (gamePlayerInfo[i].role === GameResult.WINNER) {
+        totalWin++;
+      }
+    }
+    for (let i = 0; i < gamePlayerInfo.length; i++) {
+      averageScorePerWin += gamePlayerInfo[i].score;
+    }
+    averageScorePerWin /= totalWin;
+    return averageScorePerWin.toFixed(1);
   }
 }
 
