@@ -158,7 +158,6 @@ export class AuthController {
         const payload = {
           id: userInfo.id,
           nickname: userInfo.nickname,
-          avatar: userInfo.avatar,
           email: userInfo.email,
           two_fa: userInfo.two_fa,
           status: userInfo.status,

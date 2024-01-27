@@ -1,10 +1,4 @@
-import {
-  HttpException,
-  Inject,
-  Logger,
-  UseGuards,
-  forwardRef,
-} from "@nestjs/common";
+import { Logger, UseFilters, UseGuards } from "@nestjs/common";
 import {
   ConnectedSocket,
   MessageBody,
@@ -14,6 +8,7 @@ import {
   SubscribeMessage,
   WebSocketGateway,
   WebSocketServer,
+  WsException,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
 import { Redis } from "ioredis";
@@ -39,6 +34,7 @@ import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
 import { gameConnectedClients } from "src/game/game.gateway";
 import { Console } from "console";
+import { WebSocketExceptionFilter } from "src/auth/jwt/jwtWebSocket.filter";
 
 //path, endpoint
 
@@ -73,7 +69,8 @@ export class UserGateway
     this.logger.debug(`Socket Server Init Complete`);
   }
 
-  async handleConnection(socket: Socket): Promise<void | HttpException> {
+  @UseFilters(WebSocketExceptionFilter)
+  async handleConnection(socket: Socket): Promise<void | WsException> {
     try {
       //userId 필요함
       const userId = parseInt(socket.handshake.auth.user.id);
@@ -94,7 +91,12 @@ export class UserGateway
         { status: UserStatus.ONLINE },
       );
 
-      await this.sendMyStatus(userId);
+      try {
+        await this.sendMyStatus(userId);
+      } catch (error) {
+        console.log(error);
+        throw error;
+      }
 
       if (userConnectedClients.size === 1) {
         this.channelsService.resetChatChannel();
@@ -112,6 +114,7 @@ export class UserGateway
     }
   }
 
+  @UseFilters(WebSocketExceptionFilter)
   async handleDisconnect(socket: Socket) {
     const userId = parseInt(socket.handshake.auth.user.id);
     if (userId === 0) {
@@ -123,7 +126,13 @@ export class UserGateway
       { status: UserStatus.OFFLINE },
     );
     userConnectedClients.delete(userId);
-    await this.sendMyStatus(userId);
+
+    try {
+      await this.sendMyStatus(userId);
+    } catch (error) {
+      // console.log(error);
+      throw error;
+    }
 
     this.logger.verbose(`${socket.id}, ${userId} is disconnected...`);
   }
@@ -173,6 +182,7 @@ export class UserGateway
   }
 
   @SubscribeMessage("msgToServer")
+  @UseFilters(WebSocketExceptionFilter)
   async handleMessage(
     @MessageBody()
     payload: {
@@ -189,8 +199,8 @@ export class UserGateway
     const receiver = await this.userService.findUserByNickname(
       payload.receiver,
     );
-    if (!sender) throw new HttpException("No sender found", 404);
-    else if (!receiver) throw new HttpException("No receiver found", 404);
+    if (!sender) throw new WsException("No sender found");
+    else if (!receiver) throw new WsException("No receiver found");
 
     //2. 둘다 있으면 저장 중복이면 저장 안함
     let name = null;
@@ -409,6 +419,7 @@ export class UserGateway
   //userId : number
 
   @SubscribeMessage("enterQueue")
+  @UseFilters(WebSocketExceptionFilter)
   async enterQueue(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -417,7 +428,7 @@ export class UserGateway
     const { userId } = data;
 
     if (!userId || !(await this.userService.findUserById(userId))) {
-      throw new HttpException("No user found", 404);
+      throw new WsException("No user found");
     }
 
     // Store user information in Redis queue
@@ -427,7 +438,7 @@ export class UserGateway
     if (filteredList.length !== 0) {
       await this.redisClient.lrem("QM", 0, userId);
       await socket.leave(`QM|${userId}`);
-      //throw new HttpException("User already in queue", 400);
+      //throw new WsException("User already in queue");
     }
 
     await this.redisClient.rpush("QM", userId);
@@ -498,7 +509,7 @@ export class UserGateway
       //  console.log(filteredList);
 
       //  if (filteredList.length === 0) {
-      //    //throw new HttpException("No user found", 404);
+      //    //throw new WsException("No user found");
       //  } else {
       //    await this.redisClient.lrem("QM", 0, userId);
       //    await socket.leave(`QM|${userId}`);
@@ -529,7 +540,7 @@ export class UserGateway
   //    console.log(filteredList);
 
   //    if (filteredList.length === 0) {
-  //      throw new HttpException("No user found", 404);
+  //      throw new WsException("No user found");
   //    } else {
   //      await this.redisClient.lrem("QM", 0, userId);
   //      await socket.leave(`QM|${userId}`);
@@ -540,6 +551,7 @@ export class UserGateway
   //}
 
   @SubscribeMessage("gameInvite")
+  @UseFilters(WebSocketExceptionFilter)
   async inviteUser(
     @MessageBody() data: any,
     @ConnectedSocket() socket: Socket,
@@ -563,13 +575,13 @@ export class UserGateway
         await this.gameChannelService.findOneGameChannelById(gameId);
 
       if (!gameId || !gameTitle) {
-        throw new HttpException("No game found", 404);
+        throw new WsException("No game found");
       } else if (
         gameInfo.deleted_at !== null ||
         gameInfo.game_status !== GameStatus.READY ||
         gameInfo.cur_user !== 1
       ) {
-        throw new HttpException("No game found", 404);
+        throw new WsException("No game found");
       }
 
       //입장 불가인 경우
@@ -583,13 +595,13 @@ export class UserGateway
       //초대 받은 사람이, 초대한 사람을 싫어하는 경우
 
       //if (!gameInfo) {
-      //  throw new HttpException("No game found", 404);
+      //  throw new WsException("No game found");
       // } else if (inviteUser.id === userId) {
-      //   throw new HttpException("Can't invite yourself", 400);
+      //   throw new WsException("Can't invite yourself");
       // } else if (gameConnectedClients) {
-      //   throw new HttpException("User is already in game", 400);
+      //   throw new WsException("User is already in game");
       // } else if (inviteUser.status === UserStatus.OFFLINE) {
-      //   throw new HttpException("User is offline", 400);
+      //   throw new WsException("User is offline");
       //} else {
       //if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
       //  await this.redisClient.hset(
@@ -607,15 +619,15 @@ export class UserGateway
 
       //}
     } catch (error) {
-      throw new HttpException(error, 400);
+      throw new WsException(error);
     }
   }
 
-  async sendMyStatus(myId: number): Promise<void | HttpException> {
+  async sendMyStatus(myId: number): Promise<void | WsException> {
     try {
       this.logger.debug(`sendMyStatus: ${myId}`);
       const myInfo = await this.userService.findUserById(myId);
-      if (!myInfo) throw new HttpException("No user found", 404);
+      if (!myInfo) throw new WsException("No user found");
       const myData = {
         id: myInfo.id,
         nickname: myInfo.nickname,
