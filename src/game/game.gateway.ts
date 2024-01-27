@@ -990,9 +990,9 @@ export class GameGateWay {
 
       //console.log("loopInfo", loopInfo);
       if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
-        gameDictionary.delete(parseInt(data.gameId));
-        mutex.release();
         clearInterval(intervalId);
+        mutex.release();
+        gameDictionary.delete(parseInt(data.gameId));
         return;
       }
 
@@ -1003,6 +1003,8 @@ export class GameGateWay {
         gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >= 5 ||
         gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score >= 5
       ) {
+        clearInterval(intervalId);
+        mutex.release();
         await this.gamePlayerService.saveGamePlayer(
           parseInt(gameId),
           gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
@@ -1014,18 +1016,16 @@ export class GameGateWay {
           startTime,
           this.server,
         );
-        mutex.release();
-        clearInterval(intervalId);
         return;
       } else if (timeOut(startTime)) {
+        mutex.release();
+        clearInterval(intervalId);
         await this.gameService.timeOutGame(
           data.title,
           data.gameId,
           startTime,
           this.server,
         );
-        mutex.release();
-        clearInterval(intervalId);
         return;
       }
 
@@ -1055,11 +1055,11 @@ export class GameGateWay {
         { game_status: GameStatus.READY },
       );
       await this.gameService.doneGame(parseInt(data.gameId));
-      gameDictionary.get(parseInt(data.gameId)).homeUserSocket.disconnect(true);
-      if (gameChannelInfo.game_type !== GameType.SINGLE)
-        gameDictionary
-          .get(parseInt(data.gameId))
-          .awayUserSocket.disconnect(true);
+      //gameDictionary.get(parseInt(data.gameId)).homeUserSocket.disconnect(true);
+      //if (gameChannelInfo.game_type !== GameType.SINGLE)
+      //  gameDictionary
+      //    .get(parseInt(data.gameId))
+      //    .awayUserSocket.disconnect(true);
 
       //gameDictionary.delete(parseInt(data.gameId));
     });
