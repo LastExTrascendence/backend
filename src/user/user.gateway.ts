@@ -607,20 +607,26 @@ export class UserGateway
   }
 
   async sendMyStatus(myId: number) {
-    this.logger.debug(`sendMyStatus: ${myId}`);
-    const myInfo = await this.userService.findUserById(myId);
-    const myData = {
-      id: myInfo.id,
-      nickname: myInfo.nickname,
-      avatar: myInfo.avatar,
-      status: myInfo.status,
-    };
+    try {
+      this.logger.debug(`sendMyStatus: ${myId}`);
+      const myInfo = await this.userService.findUserById(myId);
+      if (!myInfo) throw new HttpException("No user found", 404);
+      const myData = {
+        id: myInfo.id,
+        nickname: myInfo.nickname,
+        avatar: myInfo.avatar,
+        status: myInfo.status,
+      };
 
-    userConnectedClients.forEach(async (socket, userId) => {
-      //console.log("followingStatus", userId);
+      userConnectedClients.forEach(async (socket, userId) => {
+        //console.log("followingStatus", userId);
 
-      this.server.to(userId.toString()).emit("followingStatus", myData);
-    });
+        this.server.to(userId.toString()).emit("followingStatus", myData);
+      });
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
   }
 
   async leaveServer(userId: number) {

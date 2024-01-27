@@ -27,7 +27,7 @@ export class GamePlayerService {
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
     private redisService: Redis,
-  ) { }
+  ) {}
 
   async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
@@ -152,6 +152,10 @@ export class GamePlayerService {
     try {
       const gameInfo =
         await this.gameChannelService.findOneGameChannelById(gameId);
+
+      if (gameInfo.game_type === GameType.SINGLE) {
+        return;
+      }
 
       const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
 

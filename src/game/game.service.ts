@@ -122,17 +122,42 @@ export class GameService {
     }
   }
 
-  async dropOutGame(channelId: number) {
+  async isGameDone(channelId: number): Promise<boolean> {
     try {
-      this.gameRepository.update(
-        {
+      const game = await this.gameRepository.findOne({
+        where: {
           channel_id: channelId,
         },
-        {
-          game_status: GameStatus.DONE,
-          ended_at: new Date(),
+      });
+      if (game.game_status === GameStatus.DONE) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  async dropOutGame(channelId: number) {
+    try {
+      const game = await this.gameRepository.findOne({
+        where: {
+          channel_id: channelId,
         },
-      );
+      });
+      if (game.game_type !== GameType.SINGLE) {
+        this.gameRepository.update(
+          {
+            channel_id: channelId,
+          },
+          {
+            game_status: GameStatus.DONE,
+            ended_at: new Date(),
+          },
+        );
+      }
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -378,6 +403,7 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
+          created_at: IsNull(),
         },
       });
       if (game) {
@@ -520,6 +546,15 @@ export class GameService {
       }
       server.to(gameId.toString()).emit("gameEnd", result);
     }
+    this.gameRepository.update(
+      {
+        channel_id: parseInt(gameId),
+      },
+      {
+        game_status: GameStatus.DONE,
+        ended_at: new Date(),
+      },
+    );
   }
 
   //async saveRecord(

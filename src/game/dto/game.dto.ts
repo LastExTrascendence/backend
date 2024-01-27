@@ -233,6 +233,8 @@ export class gameInfoDto {
 
   height: number;
 
+  map: string;
+
   paddleWidth: number;
 
   paddleHeight: number;
