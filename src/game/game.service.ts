@@ -32,7 +32,7 @@ import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
 import { gameDictionary } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
-import { IsDate } from "class-validator";
+import { IsDate, IsEAN } from "class-validator";
 
 @Injectable()
 export class GameService {
@@ -128,14 +128,13 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
-          game_status: GameStatus.DONE,
           ended_at: IsNull(),
         },
       });
       if (game) {
-        return true;
-      } else {
         return false;
+      } else {
+        return true;
       }
     } catch (error) {
       this.logger.error(error);
@@ -174,7 +173,7 @@ export class GameService {
 
   async loopPosition(
     gameInfo: gameInfoDto,
-    gameId: number,
+    channelId: number,
     server: Server,
   ): Promise<gameInfoDto | void> {
     try {
@@ -189,7 +188,7 @@ export class GameService {
       //socket.socketsJoin(data.gameId.toString());
 
       const calculatedCoordinates = await this.calculateCoordinates(
-        gameId,
+        channelId,
         gameInfo.ballX,
         gameInfo.ballY,
         gameInfo.ballDx,
@@ -238,7 +237,7 @@ export class GameService {
   }
 
   async calculateCoordinates(
-    gameId: number,
+    channelId: number,
     ballX: number,
     ballY: number,
     ballDx: number,
@@ -314,12 +313,12 @@ export class GameService {
       numberOfRounds++;
       awayInfo.score++;
       server
-        .to(gameId.toString())
+        .to(channelId.toString())
         .emit("score", [homeInfo.score, awayInfo.score]);
-      if (awayInfo.score > 5) {
+      if (awayInfo.score >= 5) {
         // 홈팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
@@ -344,12 +343,12 @@ export class GameService {
       ballDy = -ballDy;
       numberOfRounds++;
       server
-        .to(gameId.toString())
+        .to(channelId.toString())
         .emit("score", [homeInfo.score, awayInfo.score]);
-      if (homeInfo.score > 5) {
+      if (homeInfo.score >= 5) {
         //away팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
@@ -637,17 +636,8 @@ export class GameService {
       where: { channel_id: gameId, ended_at: IsNull() },
     });
 
-    if (gameInfo) {
-      return gameInfo.created_at;
-    } else {
-      throw new HttpException(
-        {
-          status: HttpStatus.BAD_REQUEST,
-          error: "존재하지 않는 게임입니다.",
-        },
-        HttpStatus.BAD_REQUEST,
-      );
-    }
+    if (gameInfo) return gameInfo.created_at;
+    else return null;
   }
 
   async deleteAllGame() {

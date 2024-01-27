@@ -913,10 +913,9 @@ export class GameGateWay {
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
-    //if (gameChannelInfo.game_status !== GameStatus.INGAME) {
-    //  console.log("check here", gameDictionary.size);
-    //  return;
-    //}
+    const checkGameDone = await this.gameService.isGameDone(gameChannelInfo.id);
+
+    if (checkGameDone === true) return;
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
@@ -986,8 +985,8 @@ export class GameGateWay {
         return;
       } else if (
         //5점 바꾸기
-        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5 ||
-        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >= 5 ||
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score >= 5
       ) {
         mutex.release();
         clearInterval(intervalId);

@@ -227,8 +227,6 @@ export class ChannelsService {
         },
       });
 
-      console.log("channelsInfo", channelsInfo);
-
       if (channelsInfo.length === 0) {
         return [];
         // throw new HttpException(
@@ -263,8 +261,6 @@ export class ChannelsService {
           totalChannels.push(channel);
         }
       }
-
-      console.log("totalChannels", totalChannels);
       return totalChannels;
     } catch (error) {
       throw error;

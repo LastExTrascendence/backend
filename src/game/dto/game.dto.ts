@@ -191,15 +191,6 @@ export class gameStatsDto {
 
   @IsNumber()
   averageScorePerWin: number;
-
-  @IsNumber()
-  winStreaks: number;
-
-  @IsNumber()
-  averageSpeed: number;
-
-  @IsNumber()
-  fastestGame: string;
 }
 
 export class homeInfoDto {
