@@ -1070,6 +1070,11 @@ export class GameGateWay {
       const gameChannelInfo = await this.gameChannelRepository.findOne({
         where: { id: parseInt(data.gameId), deleted_at: IsNull() },
       });
+      if (!gameChannelInfo) {
+        mutex.release();
+        clearInterval(intervalId);
+        return;
+      }
       const gameInfo = await this.gameService.findOneByChannelId(
         gameChannelInfo.id,
       );

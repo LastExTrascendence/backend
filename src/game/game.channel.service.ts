@@ -195,7 +195,7 @@ export class GameChannelService {
           );
         } else {
           const userInfo = await this.userService.findUserById(
-            gameUserVerifyDto.userId,
+            gameUserVerifyDto.myInfoId,
           );
 
           await this.redisClient.hset(

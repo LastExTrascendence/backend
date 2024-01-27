@@ -125,7 +125,7 @@ export class gameUserVerifyDto {
 
   @IsNumber()
   @IsNotEmpty()
-  userId: number;
+  myInfoId: number;
 }
 
 /**

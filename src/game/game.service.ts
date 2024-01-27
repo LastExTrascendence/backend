@@ -567,6 +567,7 @@ export class GameService {
       const gameInfo = await this.gameRepository.findOne({
         where: { channel_id: parseInt(channelId), ended_at: IsNull() },
       });
+      if (!gameInfo) return;
       await this.saveStat(
         gameInfo.id,
         gameDictionary.get(parseInt(channelId)).gameInfo.numberOfRounds,
