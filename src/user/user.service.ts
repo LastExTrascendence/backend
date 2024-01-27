@@ -88,7 +88,17 @@ export class UserService {
     oldNickname: string,
     updateUserInfoDto: updateUserInfoDto,
   ): Promise<User> {
-    const { nickname, avatar, two_fa, language } = updateUserInfoDto;
+    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    if (oldNickname !== nickname) {
+      const existingNickname = await this.userRepository.findOne({
+        where: { nickname },
+      });
+      if (existingNickname)
+        throw new HttpException(
+          "이미 존재하는 닉네임입니다.\n다른 닉네임을 사용해주세요.",
+          HttpStatus.BAD_REQUEST,
+        );
+    }
     const user = await this.userRepository.findOne({
       where: { nickname: oldNickname },
     });
@@ -112,42 +122,4 @@ export class UserService {
       { status: UserStatus.OFFLINE },
     );
   }
-
-  //  async updateAvatar(
-  //    nickname: string,
-  //    profileUrl: string,
-  //    file: Express.Multer.File,
-  //  ): Promise<User> {
-  //    try {
-  //      let photoData = null;
-  //      if (file) {
-  //        photoData = file.buffer;
-  //      } else {
-  //        throw new HttpException(
-  //          "파일이 존재하지 않습니다.",
-  //          HttpStatus.BAD_REQUEST,
-  //        );
-  //      }
-
-  //      const findUser = await this.userService.findUserByNickname(nickname);
-
-  //      if (!findUser)
-  //        throw new HttpException(
-  //          "유저를 찾을 수 없습니다.",
-  //          HttpStatus.BAD_REQUEST,
-  //        );
-  //      else {
-  //        findUser.avatar = photoData;
-  //        return findUser;
-  //      }
-  //      //await this.userRepository.delete(this.userService.findUser(intra_name));
-
-  //      //await this.userRepository.save(findUser);
-
-  //      ////delete avatar.photoData;
-  //      //return findUser;
-  //    } catch (e) {
-  //      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //    }
-  //  }
 }
