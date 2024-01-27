@@ -74,7 +74,7 @@ export class UserGateway
     try {
       //userId 필요함
       const userId = parseInt(socket.handshake.auth.user.id);
-      if (userId === 0) {
+      if (userId === 0 || !userId) {
         socket.disconnect();
         return;
       }
