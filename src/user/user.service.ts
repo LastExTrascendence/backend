@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { HttpException, HttpStatus, Injectable, Logger } from "@nestjs/common";
 import { userDto, userSessionDto } from "./dto/user.dto";
 import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
@@ -13,10 +13,20 @@ export class UserService {
   constructor(
     @InjectRepository(User) private userRepository: Repository<User>,
     private userOtpService: UserOtpService,
-  ) { }
+  ) {}
 
   async createUser(userSessionDto: userSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
+
+    const existingNickname = await this.userRepository.findOne({
+      where: { nickname: userSessionDto.nickname },
+    });
+    if (existingNickname)
+      throw new HttpException(
+        "이미 존재하는 닉네임입니다.\n다른 닉네임을 사용해주세요.",
+        HttpStatus.BAD_REQUEST,
+      );
+
     const user = {
       intra_name: userSessionDto.intra_name,
       nickname: userSessionDto.nickname,

@@ -73,38 +73,43 @@ export class UserGateway
     this.logger.debug(`Socket Server Init Complete`);
   }
 
-  async handleConnection(socket: Socket) {
-    //userId 필요함
-    const userId = parseInt(socket.handshake.auth.user.id);
-    if (userId === 0) {
-      socket.disconnect();
-      return;
-    }
-    //이미 들어온 유저 까투
-    else if (userConnectedClients.has(userId)) {
-      socket.disconnect();
-      return;
-    }
-    userConnectedClients.set(userId, socket);
-    await socket.join(userId.toString());
-    this.logger.debug(`user ONLINE: ${userId}`);
-    await this.userRepository.update(
-      { id: userId },
-      { status: UserStatus.ONLINE },
-    );
+  async handleConnection(socket: Socket): Promise<void | HttpException> {
+    try {
+      //userId 필요함
+      const userId = parseInt(socket.handshake.auth.user.id);
+      if (userId === 0) {
+        socket.disconnect();
+        return;
+      }
+      //이미 들어온 유저 까투
+      else if (userConnectedClients.has(userId)) {
+        socket.disconnect();
+        return;
+      }
+      userConnectedClients.set(userId, socket);
+      await socket.join(userId.toString());
+      this.logger.debug(`user ONLINE: ${userId}`);
+      await this.userRepository.update(
+        { id: userId },
+        { status: UserStatus.ONLINE },
+      );
 
-    await this.sendMyStatus(userId);
+      await this.sendMyStatus(userId);
 
-    if (userConnectedClients.size === 1) {
-      this.channelsService.resetChatChannel();
-      this.gameChannelService.deleteAllGameChannel();
-      this.gameService.deleteAllGame();
+      if (userConnectedClients.size === 1) {
+        this.channelsService.resetChatChannel();
+        this.gameChannelService.deleteAllGameChannel();
+        this.gameService.deleteAllGame();
+      }
+      //this.sendFriendStatus();
+      //이미 들어온 유저 까투
+      this.logger.verbose(
+        `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
+      );
+    } catch (error) {
+      console.log(error);
+      throw error;
     }
-    //this.sendFriendStatus();
-    //이미 들어온 유저 까투
-    this.logger.verbose(
-      `${socket.id}(${socket.handshake.query["username"]}) is connected!`,
-    );
   }
 
   async handleDisconnect(socket: Socket) {
@@ -606,7 +611,7 @@ export class UserGateway
     }
   }
 
-  async sendMyStatus(myId: number) {
+  async sendMyStatus(myId: number): Promise<void | HttpException> {
     try {
       this.logger.debug(`sendMyStatus: ${myId}`);
       const myInfo = await this.userService.findUserById(myId);
