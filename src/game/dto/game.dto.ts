@@ -116,18 +116,16 @@ export class gameChannelListDto {
 
 // 게임채널 입장 시
 export class gameUserVerifyDto {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(12)
-  title: string;
+  @IsNumber()
+  channelId: number;
 
   @IsOptional()
   @IsString()
   password: string | null;
 
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  nickname: string;
+  userId: number;
 }
 
 /**
@@ -234,6 +232,8 @@ export class gameInfoDto {
   width: number;
 
   height: number;
+
+  map: string;
 
   paddleWidth: number;
 

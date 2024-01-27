@@ -54,10 +54,10 @@ export class UserController {
 
   @Post("/create")
   @UseGuards(JWTUserCreationGuard)
-  createUser(
+  async createUser(
     @Headers() headers: any,
     @Body(ValidationPipe) userRegisterDataDto: userRegisterDataDto,
-  ): void {
+  ): Promise<void> {
     this.logger.debug(`Called ${UserController.name} ${this.createUser.name}`);
     const token = headers.authorization.replace("Bearer ", "");
     const decoded_token = this.jwtService.decode(token);
@@ -71,7 +71,7 @@ export class UserController {
       two_fa_complete: decoded_token["two_fa_complete"],
     };
     try {
-      this.userService.createUser(userSessionDto);
+      await this.userService.createUser(userSessionDto);
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }

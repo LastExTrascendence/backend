@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import {
   GameChannelPolicy,
   GameMode,
@@ -30,6 +30,9 @@ import { gameConnectedClients } from "./game.gateway";
 import { Game } from "./entity/game.entity";
 import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
+import { gameDictionary } from "./game.gateway";
+import { GameChannelService } from "./game.channel.service";
+import { IsDate } from "class-validator";
 
 @Injectable()
 export class GameService {
@@ -52,6 +55,11 @@ export class GameService {
     private gameRepository: Repository<Game>,
     @Inject(forwardRef(() => GamePlayerService))
     private gamePlayerService: GamePlayerService,
+    @Inject(forwardRef(() => UserService))
+    private userService: UserService,
+    private redisService: Redis,
+    @Inject(forwardRef(() => GameChannelService))
+    private gameChannelService: GameChannelService,
   ) {}
 
   async saveGame(channelId: number) {
@@ -115,17 +123,47 @@ export class GameService {
     }
   }
 
+  async isGameDone(channelId: number): Promise<boolean> {
+    try {
+      const game = await this.gameRepository.findOne({
+        where: {
+          channel_id: channelId,
+          game_status: GameStatus.DONE,
+          ended_at: IsNull(),
+        },
+      });
+      if (game) {
+        return true;
+      } else {
+        return false;
+      }
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
   async dropOutGame(channelId: number) {
     try {
-      this.gameRepository.update(
-        {
+      const game = await this.gameRepository.findOne({
+        where: {
           channel_id: channelId,
+          game_status: GameStatus.INGAME,
+          ended_at: IsNull(),
         },
-        {
-          game_status: GameStatus.DONE,
-          ended_at: new Date(),
-        },
-      );
+      });
+      if (game.game_type !== GameType.SINGLE) {
+        this.gameRepository.update(
+          {
+            channel_id: channelId,
+            ended_at: IsNull(),
+          },
+          {
+            game_status: GameStatus.DONE,
+            ended_at: new Date(),
+          },
+        );
+      }
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -165,17 +203,7 @@ export class GameService {
         gameInfo.numberOfRounds,
         server,
       );
-      if (
-        (
-          await this.gameChannelRepository.findOne({
-            where: {
-              id: gameId,
-            },
-          })
-        ).game_status != GameStatus.INGAME
-      ) {
-        return;
-      }
+
       gameInfo.ballX = calculatedCoordinates.ball.x;
       gameInfo.ballY = calculatedCoordinates.ball.y;
       gameInfo.ballDx = calculatedCoordinates.ball.dx;
@@ -371,23 +399,150 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
+          created_at: IsNull(),
         },
       });
-      if (game) {
-        return game;
-      } else {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "존재하지 않는 게임입니다.",
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      return game;
     } catch (error) {
       this.logger.error(error);
       throw error;
     }
+  }
+
+  async disconnectGame(
+    title: string,
+    gameId: string,
+    startTime: Date,
+    server: Server,
+  ) {
+    if (
+      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
+        .game_type === GameType.SINGLE
+    ) {
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+      ) {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      } else {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
+    } else {
+      await this.saveTest(
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+        this.showPlayTime(startTime),
+      );
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+
+      const creatorInfo = await this.userService.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const userInfo = await this.userService.findUserById(
+        parseInt(redisInfo.user),
+      );
+      if (
+        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >=
+        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score
+      ) {
+        result.winUserNick = creatorInfo.nickname;
+        result.loseUserNick = userInfo.nickname;
+      } else {
+        result.winUserNick = userInfo.nickname;
+        result.loseUserNick = creatorInfo.nickname;
+      }
+      server.to(gameId.toString()).emit("gameEnd", result);
+    }
+  }
+
+  async finishGame(
+    title: string,
+    gameId: string,
+    startTime: Date,
+    server: Server,
+  ) {
+    if (
+      (await this.gameChannelService.findOneGameChannelById(parseInt(gameId)))
+        .game_type === GameType.SINGLE
+    ) {
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+
+      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+        result.winUserNick = "HOME";
+        result.loseUserNick = "AWAY";
+      } else {
+        result.winUserNick = "AWAY";
+        result.loseUserNick = "HOME";
+      }
+      console.log("check game end");
+      server.to(gameId.toString()).emit("gameEnd", result);
+    } else {
+      await this.saveTest(
+        parseInt(gameId),
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfRounds,
+        gameDictionary.get(parseInt(gameId)).gameInfo.numberOfBounces,
+        this.showPlayTime(startTime),
+      );
+      const redisInfo = await this.redisService.hgetall(`GM|${title}`);
+      const result = {
+        winUserNick: "",
+        loseUserNick: "",
+        playTime: this.showPlayTime(startTime),
+        homeScore: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+        awayScore: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+      };
+      const creatorInfo = await this.userService.findUserById(
+        parseInt(redisInfo.creator),
+      );
+      const userInfo = await this.userService.findUserById(
+        parseInt(redisInfo.user),
+      );
+
+      if (gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5) {
+        result.winUserNick = creatorInfo.nickname;
+        result.loseUserNick = userInfo.nickname;
+      } else {
+        result.winUserNick = userInfo.nickname;
+        result.loseUserNick = creatorInfo.nickname;
+      }
+      console.log("check game end");
+      server.to(gameId.toString()).emit("gameEnd", result);
+    }
+    await this.gameRepository.update(
+      {
+        channel_id: parseInt(gameId),
+      },
+      {
+        game_status: GameStatus.DONE,
+        ended_at: new Date(),
+      },
+    );
   }
 
   //async saveRecord(
@@ -428,8 +583,8 @@ export class GameService {
   //}
 
   async getStartTime(gameId: number) {
-    const gameInfo = await this.gameChannelRepository.findOne({
-      where: { id: gameId },
+    const gameInfo = await this.gameRepository.findOne({
+      where: { channel_id: gameId, ended_at: IsNull() },
     });
 
     if (gameInfo) {
@@ -449,6 +604,36 @@ export class GameService {
     try {
       await this.gameRepository.update(
         { ended_at: IsNull() },
+        {
+          ended_at: new Date(),
+        },
+      );
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
+  }
+
+  showPlayTime(startTime: Date) {
+    const afterTime = new Date();
+
+    const cal = (afterTime.getTime() - startTime.getTime()) / 1000;
+
+    const minute = cal / 60;
+    const second = cal % 60;
+
+    let formattedDate = null;
+
+    if (second < 10) formattedDate = minute.toFixed() + ":0" + second.toFixed();
+    else formattedDate = minute.toFixed() + ":" + second.toFixed();
+
+    return formattedDate;
+  }
+
+  async doneGame(channelId: number) {
+    try {
+      await this.gameRepository.update(
+        { channel_id: channelId, ended_at: IsNull() },
         {
           ended_at: new Date(),
         },

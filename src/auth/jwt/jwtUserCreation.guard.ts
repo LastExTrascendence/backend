@@ -37,7 +37,6 @@ export class JWTUserCreationGuard implements CanActivate {
     if (!decoded) return false;
     const user = {
       nickname: request.body.nickname,
-      avatar: request.body.avatar,
       email: decoded["email"],
       two_fa: decoded["two_fa"],
       status: decoded["status"],

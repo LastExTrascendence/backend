@@ -1,6 +1,7 @@
 import {
   IsEnum,
   IsNotEmpty,
+  IsNumber,
   IsOptional,
   IsString,
   MaxLength,
@@ -35,16 +36,14 @@ export class chatChannelUserDto {
  * @param {string} nickname - 채널의 LET 닉네임
  */
 export class channelUserVerify {
-  @IsString()
-  @MinLength(1)
-  @MaxLength(20)
-  title: string;
+  @IsNumber()
+  channelId: number;
 
   @IsOptional()
   @IsString()
   password: string | null;
 
-  @IsString()
+  @IsNumber()
   @IsNotEmpty()
-  nickname: string;
+  userId: number;
 }

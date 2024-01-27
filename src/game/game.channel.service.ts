@@ -83,12 +83,14 @@ export class GameChannelService {
       };
       if (gameChannelListDto.password) {
         newGame.game_channel_policy = GameChannelPolicy.PRIVATE;
+      } else if (gameChannelListDto.gameType === GameType.SINGLE) {
+        newGame.max_user = 1;
       }
 
       await this.gameChannelRepository.save(newGame);
 
       const newGameInfo = await this.gameChannelRepository.findOne({
-        where: { title: newGame.title },
+        where: { title: newGame.title, deleted_at: IsNull() },
       });
 
       await this.redisClient.hset(
@@ -105,6 +107,11 @@ export class GameChannelService {
           `GM|${gameChannelListDto.title}`,
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
+        );
+        await this.redisClient.hset(
+          `GM|${gameChannelListDto.title}`,
+          `ACCESS|${createInfo.id}`,
+          createInfo.id,
         );
       }
 
@@ -143,6 +150,10 @@ export class GameChannelService {
         gameStatus: GameStatus.READY,
       };
 
+      if (gameChannelListDto.gameType === GameType.SINGLE) {
+        retGameInfo.maxUser = 1;
+      }
+
       return retGameInfo;
     } catch (error) {
       throw error;
@@ -153,12 +164,11 @@ export class GameChannelService {
     gameUserVerifyDto: gameUserVerifyDto,
   ): Promise<void | HttpException> {
     try {
-      const GameInfo = await this.redisClient.lrange(
-        `GM|${gameUserVerifyDto.title}`,
-        0,
-        -1,
-      );
-      if (GameInfo.length === 0) {
+      const gameInfo = await this.gameChannelRepository.findOne({
+        where: { id: gameUserVerifyDto.channelId },
+      });
+
+      if (!gameInfo) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -168,9 +178,7 @@ export class GameChannelService {
         );
       }
 
-      const redisInfo = await this.redisClient.hgetall(
-        `GM|${gameUserVerifyDto.title}`,
-      );
+      const redisInfo = await this.redisClient.hgetall(`GM|${gameInfo.title}`);
 
       if (gameUserVerifyDto.password) {
         const isMatch = await bcrypt.compare(
@@ -186,12 +194,12 @@ export class GameChannelService {
             HttpStatus.BAD_REQUEST,
           );
         } else {
-          const userInfo = await this.userService.findUserByNickname(
-            gameUserVerifyDto.nickname,
+          const userInfo = await this.userService.findUserById(
+            gameUserVerifyDto.userId,
           );
 
           await this.redisClient.hset(
-            `GM|${gameUserVerifyDto.title}`,
+            `GM|${gameInfo.title}`,
             `ACCESS|${userInfo.id}`,
             userInfo.id,
           );
@@ -256,7 +264,9 @@ export class GameChannelService {
             gameMode: channelsInfo[i].game_mode,
             gameStatus: channelsInfo[i].game_status,
           };
-
+          if (channelsInfo[i].game_type === GameType.SINGLE) {
+            channel.max_user = 1;
+          }
           totalChannels.push(channel);
         }
       }

@@ -144,12 +144,11 @@ export class ChannelsService {
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
-      const ChannelInfo = await this.redisClient.lrange(
-        `CH|${channelUserVerify.title}`,
-        0,
-        -1,
-      );
-      if (ChannelInfo.length === 0) {
+      const ChannelInfo = await this.channelsRepository.findOne({
+        where: { id: channelUserVerify.channelId },
+      });
+
+      if (!ChannelInfo) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -160,7 +159,7 @@ export class ChannelsService {
       }
 
       const ChatPassword = await this.redisClient.hgetall(
-        `CH|${channelUserVerify.title}`,
+        `CH|${ChannelInfo.title}`,
       );
 
       if (channelUserVerify.password) {
@@ -177,12 +176,12 @@ export class ChannelsService {
             HttpStatus.BAD_REQUEST,
           );
         } else {
-          const userInfo = await this.userService.findUserByNickname(
-            channelUserVerify.nickname,
+          const userInfo = await this.userService.findUserById(
+            channelUserVerify.userId,
           );
 
           await this.redisClient.hset(
-            `CH|${channelUserVerify.title}`,
+            `CH|${ChannelInfo.title}`,
             `ACCESS|${userInfo.id}`,
             userInfo.id,
           );
@@ -242,14 +241,24 @@ export class ChannelsService {
       const totalChannels = [];
 
       for (let i = 0; i < channelsInfo.length; i++) {
+        const user = await this.userService.findUserById(
+          channelsInfo[i].creator_id,
+        );
+        if (!user) {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "존재하지 않는 유저입니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
         const channel = {
           id: channelsInfo[i].id,
           title: channelsInfo[i].title,
           channelPolicy: channelsInfo[i].channel_policy,
           creator: {
-            nickname: (
-              await this.userService.findUserById(channelsInfo[i].creator_id)
-            ).nickname,
+            nickname: user.nickname,
             avatar: channelsInfo[i].creator_avatar,
           },
           curUser:

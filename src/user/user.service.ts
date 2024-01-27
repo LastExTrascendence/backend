@@ -17,10 +17,21 @@ export class UserService {
 
   async createUser(userSessionDto: userSessionDto): Promise<void> {
     this.logger.debug(`Called ${UserService.name} ${this.createUser.name}`);
+
+    const existingNickname = await this.userRepository.findOne({
+      where: { nickname: userSessionDto.nickname },
+    });
+    if (existingNickname)
+      throw new HttpException(
+        "이미 존재하는 닉네임입니다.\n다른 닉네임을 사용해주세요.",
+        HttpStatus.BAD_REQUEST,
+      );
+
     const user = {
       intra_name: userSessionDto.intra_name,
       nickname: userSessionDto.nickname,
       avatar: userSessionDto.avatar,
+      language: "kr",
       status: UserStatus.OFFLINE,
       email: userSessionDto.email,
       two_fa: false,
@@ -77,7 +88,7 @@ export class UserService {
     oldNickname: string,
     updateUserInfoDto: updateUserInfoDto,
   ): Promise<User> {
-    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    const { nickname, avatar, two_fa, language } = updateUserInfoDto;
     if (oldNickname !== nickname) {
       const existingNickname = await this.userRepository.findOne({
         where: { nickname },
@@ -94,6 +105,7 @@ export class UserService {
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
+    user.language = language ?? "kr";
     await this.userRepository.save(user);
 
     //todo, user.two_fa_complete 이슈 물어보기
