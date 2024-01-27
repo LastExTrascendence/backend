@@ -165,7 +165,7 @@ export class GameChannelService {
   ): Promise<void | HttpException> {
     try {
       const gameInfo = await this.gameChannelRepository.findOne({
-        where: { id: gameUserVerifyDto.channelId },
+        where: { id: gameUserVerifyDto.gameId },
       });
 
       if (!gameInfo) {

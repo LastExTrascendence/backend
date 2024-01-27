@@ -835,7 +835,6 @@ export class GameGateWay {
       width: gameTotalInfo.gameInfo.width,
       height: gameTotalInfo.gameInfo.height,
       map: gameTotalInfo.gameInfo.map,
-      team: "HOME",
       paddleWidth: gameTotalInfo.gameInfo.paddleWidth,
       paddleHeight: gameTotalInfo.gameInfo.paddleHeight,
       ballSize: gameTotalInfo.gameInfo.ballSize,
