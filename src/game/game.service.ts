@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { IsNull, Repository } from "typeorm";
+import { IsNull, Not, Repository } from "typeorm";
 import {
   GameChannelPolicy,
   GameMode,
@@ -32,6 +32,7 @@ import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
 import { gameDictionary } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
+import { IsDate } from "class-validator";
 
 @Injectable()
 export class GameService {
@@ -127,9 +128,11 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
+          game_status: GameStatus.DONE,
+          ended_at: IsNull(),
         },
       });
-      if (game.game_status === GameStatus.DONE) {
+      if (game) {
         return true;
       } else {
         return false;
@@ -145,12 +148,15 @@ export class GameService {
       const game = await this.gameRepository.findOne({
         where: {
           channel_id: channelId,
+          game_status: GameStatus.INGAME,
+          ended_at: IsNull(),
         },
       });
       if (game.game_type !== GameType.SINGLE) {
         this.gameRepository.update(
           {
             channel_id: channelId,
+            ended_at: IsNull(),
           },
           {
             game_status: GameStatus.DONE,
@@ -197,17 +203,7 @@ export class GameService {
         gameInfo.numberOfRounds,
         server,
       );
-      if (
-        (
-          await this.gameChannelRepository.findOne({
-            where: {
-              id: gameId,
-            },
-          })
-        ).game_status != GameStatus.INGAME
-      ) {
-        return;
-      }
+
       gameInfo.ballX = calculatedCoordinates.ball.x;
       gameInfo.ballY = calculatedCoordinates.ball.y;
       gameInfo.ballDx = calculatedCoordinates.ball.dx;
@@ -406,17 +402,7 @@ export class GameService {
           created_at: IsNull(),
         },
       });
-      if (game) {
-        return game;
-      } else {
-        throw new HttpException(
-          {
-            status: HttpStatus.BAD_REQUEST,
-            error: "존재하지 않는 게임입니다.",
-          },
-          HttpStatus.BAD_REQUEST,
-        );
-      }
+      return game;
     } catch (error) {
       this.logger.error(error);
       throw error;
@@ -514,6 +500,7 @@ export class GameService {
         result.winUserNick = "AWAY";
         result.loseUserNick = "HOME";
       }
+      console.log("check game end");
       server.to(gameId.toString()).emit("gameEnd", result);
     } else {
       await this.saveTest(
@@ -544,9 +531,10 @@ export class GameService {
         result.winUserNick = userInfo.nickname;
         result.loseUserNick = creatorInfo.nickname;
       }
+      console.log("check game end");
       server.to(gameId.toString()).emit("gameEnd", result);
     }
-    this.gameRepository.update(
+    await this.gameRepository.update(
       {
         channel_id: parseInt(gameId),
       },
@@ -596,7 +584,7 @@ export class GameService {
 
   async getStartTime(gameId: number) {
     const gameInfo = await this.gameRepository.findOne({
-      where: { channel_id: gameId },
+      where: { channel_id: gameId, ended_at: IsNull() },
     });
 
     if (gameInfo) {
@@ -640,6 +628,20 @@ export class GameService {
     else formattedDate = minute.toFixed() + ":" + second.toFixed();
 
     return formattedDate;
+  }
+
+  async doneGame(channelId: number) {
+    try {
+      await this.gameRepository.update(
+        { channel_id: channelId, ended_at: IsNull() },
+        {
+          ended_at: new Date(),
+        },
+      );
+    } catch (error) {
+      this.logger.error(error);
+      throw error;
+    }
   }
 }
 
