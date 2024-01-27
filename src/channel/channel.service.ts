@@ -177,7 +177,7 @@ export class ChannelsService {
           );
         } else {
           const userInfo = await this.userService.findUserById(
-            channelUserVerify.userId,
+            channelUserVerify.myInfoId,
           );
 
           await this.redisClient.hset(
