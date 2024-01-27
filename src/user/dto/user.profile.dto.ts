@@ -30,7 +30,7 @@ export class userProfileDto {
 
   is_friend: boolean;
   at_friend: Date;
-
+  language: string;
   games: number;
   wins: number;
   loses: number;
@@ -62,6 +62,6 @@ export class updateUserInfoDto {
   @IsString()
   @MinLength(2)
   @MaxLength(2)
-  @Matches(/^[a-zA-Z]+$/) // 영문만 허용 
+  @Matches(/^[a-zA-Z]+$/) // 영문만 허용
   language: string;
 }
