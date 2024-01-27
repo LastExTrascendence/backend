@@ -272,7 +272,10 @@ export class UserController {
       `Called ${UserController.name} ${this.updateMyInfo.name}`,
     );
     try {
-      this.userService.updateUserProfile(user.nickname, updateUserInfoDto);
+      await this.userService.updateUserProfile(
+        user.nickname,
+        updateUserInfoDto,
+      );
     } catch (error) {
       throw new HttpException(error.message, HttpStatus.BAD_REQUEST);
     }
