@@ -88,7 +88,7 @@ export class UserService {
     oldNickname: string,
     updateUserInfoDto: updateUserInfoDto,
   ): Promise<User> {
-    const { nickname, avatar, two_fa } = updateUserInfoDto;
+    const { nickname, avatar, two_fa, language } = updateUserInfoDto;
     if (oldNickname !== nickname) {
       const existingNickname = await this.userRepository.findOne({
         where: { nickname },
