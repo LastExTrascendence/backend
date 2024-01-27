@@ -227,6 +227,8 @@ export class ChannelsService {
         },
       });
 
+      console.log("channelsInfo", channelsInfo);
+
       if (channelsInfo.length === 0) {
         return [];
         // throw new HttpException(
@@ -244,31 +246,25 @@ export class ChannelsService {
         const user = await this.userService.findUserById(
           channelsInfo[i].creator_id,
         );
-        if (!user) {
-          throw new HttpException(
-            {
-              status: HttpStatus.BAD_REQUEST,
-              error: "존재하지 않는 유저입니다.",
+        if (user) {
+          const channel = {
+            id: channelsInfo[i].id,
+            title: channelsInfo[i].title,
+            channelPolicy: channelsInfo[i].channel_policy,
+            creator: {
+              nickname: user.nickname,
+              avatar: channelsInfo[i].creator_avatar,
             },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-        const channel = {
-          id: channelsInfo[i].id,
-          title: channelsInfo[i].title,
-          channelPolicy: channelsInfo[i].channel_policy,
-          creator: {
-            nickname: user.nickname,
-            avatar: channelsInfo[i].creator_avatar,
-          },
-          curUser:
-            channelConnectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
-          maxUser: channelsInfo[i].max_user,
-        };
+            curUser:
+              channelConnectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
+            maxUser: channelsInfo[i].max_user,
+          };
 
-        totalChannels.push(channel);
+          totalChannels.push(channel);
+        }
       }
 
+      console.log("totalChannels", totalChannels);
       return totalChannels;
     } catch (error) {
       throw error;

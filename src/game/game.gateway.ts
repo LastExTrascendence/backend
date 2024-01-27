@@ -113,33 +113,42 @@ export class GameGateWay {
         const channelInfo = await this.gameChannelRepository.findOne({
           where: { id: gameId, deleted_at: IsNull() },
         });
-        if (channelInfo.game_type === GameType.SINGLE) {
-          await this.redisClient.hset(`GM|${title}`, "creatorOnline", "false");
-        } else if (channelInfo.game_status === GameStatus.READY) {
-          if (parseInt(redisInfo.creator) === socketKey) {
+        if (channelInfo) {
+          if (channelInfo.game_type === GameType.SINGLE) {
             await this.redisClient.hset(
               `GM|${title}`,
               "creatorOnline",
               "false",
             );
-          } else if (parseInt(redisInfo.user) === socketKey) {
-            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
-            await this.redisClient.hset(`GM|${title}`, "user", null);
+          } else if (channelInfo.game_status === GameStatus.READY) {
+            if (parseInt(redisInfo.creator) === socketKey) {
+              await this.redisClient.hset(
+                `GM|${title}`,
+                "creatorOnline",
+                "false",
+              );
+            } else if (parseInt(redisInfo.user) === socketKey) {
+              await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+              await this.redisClient.hset(`GM|${title}`, "user", null);
+              await this.redisClient.hset(`GM|${title}`, "userReady", "false");
+              await this.redisClient.hset(`GM|${title}`, "mute", "null");
+            }
+          } else if (channelInfo.game_status === GameStatus.INGAME) {
+            if (parseInt(redisInfo.creator) === socketKey) {
+              await this.redisClient.hset(
+                `GM|${title}`,
+                "creatorOnline",
+                "false",
+              );
+            } else if (parseInt(redisInfo.user) === socketKey) {
+              await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+              await this.redisClient.hset(`GM|${title}`, "userReady", "false");
+              await this.redisClient.hset(`GM|${title}`, "mute", "null");
+            }
           }
-        } else if (channelInfo.game_status === GameStatus.INGAME) {
-          if (parseInt(redisInfo.creator) === socketKey) {
-            await this.redisClient.hset(
-              `GM|${title}`,
-              "creatorOnline",
-              "false",
-            );
-          } else if (parseInt(redisInfo.user) === socketKey) {
-            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
-            await this.redisClient.hset(`GM|${title}`, "user", null);
-          }
+          await this.updateCurUser(channelInfo.title, channelInfo.id);
+          await this.sendUserList(title, gameId, socket);
         }
-        await this.updateCurUser(channelInfo.title, channelInfo.id);
-        await this.sendUserList(title, gameId, socket);
       }
       gameConnectedClients.delete(socketKey);
     }
@@ -701,46 +710,42 @@ export class GameGateWay {
         const gameInfo = await this.gameService.findOneByChannelId(
           channelInfo.id,
         );
-        await this.gamePlayerService.dropOutGamePlayer(gameId, leaveId);
-        await this.gameService.dropOutGame(data.gameId);
+        //await this.gamePlayerService.dropOutGamePlayer(gameId, leaveId);
+        //await this.gameService.dropOutGame(data.gameId);
         if (creatorId === leaveId) {
           //방장이 나간경우
           this.logger.debug("leaveGame CREATOR on INGAME");
-
-          const result = {
-            winUserNick: userInfo.nickname,
-            loseUserNick: creatorInfo.nickname,
-            playTime: showPlayTime(gameInfo.created_at),
-            homeScore: 0,
-            awayScore: 5,
-          };
-          this.server.to(data.gameId.toString()).emit("gameEnd", result);
-
+          //const result = {
+          //  winUserNick: userInfo.nickname,
+          //  loseUserNick: creatorInfo.nickname,
+          //  playTime: showPlayTime(gameInfo.created_at),
+          //  homeScore: 0,
+          //  awayScore: 5,
+          //};
+          //this.server.to(data.gameId.toString()).emit("gameEnd", result);
           setTimeout(async () => {
-            await this.gameChannelService.doneGame(parseInt(data.gameId));
             const targetClient = gameConnectedClients.get(userId);
             gameConnectedClients.delete(userId);
             await this.redisClient.del(`GM|${channelInfo.title}`);
             targetClient.socket.disconnect(true);
-          }, 3);
-        } else if (userId === leaveId) {
-          this.logger.debug("leaveGame User on INGAME");
-          //유저가 나간 경우
-
-          const result = {
-            winUserNick: creatorInfo.nickname,
-            loseUserNick: userInfo.nickname,
-            playTime: showPlayTime(gameInfo.created_at),
-            homeScore: 5,
-            awayScore: 0,
-          };
-          this.server.to(data.gameId.toString()).emit("gameEnd", result);
-
-          this.gameChannelRepository.update(
-            { id: channelInfo.id },
-            { game_status: GameStatus.READY },
-          );
+          }, 1000);
         }
+        //  } else if (userId === leaveId) {
+        //    this.logger.debug("leaveGame User on INGAME");
+        //    //유저가 나간 경우
+        //    const result = {
+        //      winUserNick: creatorInfo.nickname,
+        //      loseUserNick: userInfo.nickname,
+        //      playTime: showPlayTime(gameInfo.created_at),
+        //      homeScore: 5,
+        //      awayScore: 0,
+        //    };
+        //    this.server.to(data.gameId.toString()).emit("gameEnd", result);
+        //    this.gameChannelRepository.update(
+        //      { id: channelInfo.id },
+        //      { game_status: GameStatus.READY },
+        //    );
+        //  }
       }
     } catch (error) {
       console.log(error);
@@ -906,7 +911,7 @@ export class GameGateWay {
 
     const gameTotalInfo = gameDictionary.get(parseInt(gameId));
 
-    console.log("gameTotalInfo", gameTotalInfo);
+    //console.log("gameTotalInfo", gameTotalInfo);
 
     //if (gameChannelInfo.game_status !== GameStatus.INGAME) {
     //  console.log("check here", gameDictionary.size);
@@ -930,6 +935,35 @@ export class GameGateWay {
     //  return;
     //}
 
+    const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+    if (
+      (gameChannelInfo.game_type === GameType.SINGLE &&
+        redisInfo.creatorOnline === "false") ||
+      redisInfo.userOnline === "false"
+    ) {
+      if (redisInfo.creatorOnline === "false") {
+        await this.gamePlayerService.dropOutGamePlayer(
+          gameChannelInfo.id,
+          parseInt(redisInfo.creator),
+        );
+      } else if (redisInfo.userOnline === "false") {
+        await this.gamePlayerService.dropOutGamePlayer(
+          gameChannelInfo.id,
+          parseInt(redisInfo.user),
+        );
+      }
+      this.gameService.disconnectGame(
+        data.title,
+        data.gameId,
+        data.myRole,
+        startTime,
+        this.server,
+      );
+      this.gameService.dropOutGame(gameChannelInfo.id);
+      return;
+    }
+
     const intervalId = setInterval(async () => {
       mutex.acquire();
       //await gameTotalInfo.gameLoop.bind(gameTotalInfo)(gameTotalInfo, gameId);
@@ -947,6 +981,7 @@ export class GameGateWay {
 
       if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
         mutex.release();
+        gameDictionary.delete(parseInt(data.gameId));
         clearInterval(intervalId);
         return;
       } else if (
@@ -966,7 +1001,7 @@ export class GameGateWay {
       } else if (timeOut(startTime)) {
         mutex.release();
         clearInterval(intervalId);
-        this.gameService.disconnectGame(
+        this.gameService.timeOutGame(
           data.title,
           data.gameId,
           startTime,
@@ -1001,7 +1036,7 @@ export class GameGateWay {
         { game_status: GameStatus.READY },
       );
       await this.gameService.doneGame(parseInt(data.gameId));
-      gameDictionary.delete(parseInt(data.gameId));
+      //gameDictionary.delete(parseInt(data.gameId));
     });
 
     socket.on("disconnect", async () => {
@@ -1012,15 +1047,41 @@ export class GameGateWay {
       const gameInfo = await this.gameService.findOneByChannelId(
         gameChannelInfo.id,
       );
-      if (
+      console.log("gameChannelInfo", gameChannelInfo);
+      console.log("gameInfo", gameInfo);
+      if (!gameInfo) {
+        mutex.release();
+        clearInterval(intervalId);
+        return;
+      } else if (
         gameChannelInfo.game_status === GameStatus.INGAME &&
         gameChannelInfo.game_type !== GameType.SINGLE &&
         gameInfo.game_status === GameStatus.INGAME
       ) {
+        this.logger.debug(`refresh check`);
+        mutex.release();
+        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+        if (data.myRole === GameUserRole.CREATOR) {
+          await this.gamePlayerService.dropOutGamePlayer(
+            gameChannelInfo.id,
+            parseInt(redisInfo.creator),
+          );
+        } else if (data.myRole === GameUserRole.USER) {
+          await this.gamePlayerService.dropOutGamePlayer(
+            gameChannelInfo.id,
+            parseInt(redisInfo.user),
+          );
+        }
+        this.gameService.disconnectGame(
+          data.title,
+          data.gameId,
+          data.myRole,
+          startTime,
+          this.server,
+        );
         this.gameService.dropOutGame(gameChannelInfo.id);
+        clearInterval(intervalId);
       }
-      mutex.release();
-      clearInterval(intervalId);
     });
   }
 
