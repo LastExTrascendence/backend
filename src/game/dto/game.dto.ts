@@ -245,9 +245,9 @@ export class gameDictionaryDto {
 
   gameLoop: Function;
 
-  homeUserSocketId: string;
+  homeUserSocket: Socket;
 
-  awayUserSocketId: string;
+  awayUserSocket: Socket;
 
   server: Server;
 }

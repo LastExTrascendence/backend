@@ -76,7 +76,7 @@ export class GamePlayerService {
         where: { channel_id: channelInfo.id, ended_at: IsNull() },
       });
 
-      if (homeScore === 5) {
+      if (homeScore >= 5) {
         await this.gamePlayerRepository.save({
           user_id: homeUserInfo.id,
           game_id: gameInfo.id,
@@ -89,7 +89,7 @@ export class GamePlayerService {
           role: GameResult.LOSER,
           score: awayScore,
         });
-      } else if (awayScore === 5) {
+      } else if (awayScore >= 5) {
         await this.gamePlayerRepository.save({
           user_id: homeUserInfo.id,
           game_id: gameInfo.id,

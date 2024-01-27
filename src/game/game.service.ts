@@ -319,11 +319,6 @@ export class GameService {
         .emit("score", [homeInfo.score, awayInfo.score]);
       if (awayInfo.score >= 5) {
         // 홈팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          channelId,
-          homeInfo.score,
-          awayInfo.score,
-        );
         return {
           ball: { x: ballX, y: ballY, dx: ballDx, dy: ballDy },
           homePaddle: { x: 5, y: homeInfo.y, dy: homeInfo.dy },
@@ -349,11 +344,6 @@ export class GameService {
         .emit("score", [homeInfo.score, awayInfo.score]);
       if (homeInfo.score >= 5) {
         //away팀 승자로 넣기
-        await this.gamePlayerService.saveGamePlayer(
-          channelId,
-          homeInfo.score,
-          awayInfo.score,
-        );
         return {
           ball: { x: ballX, y: ballY, dx: ballDx, dy: ballDy },
           homePaddle: { x: 5, y: homeInfo.y, dy: homeInfo.dy },

@@ -486,15 +486,16 @@ export class GameGateWay {
 
       const creatorSocketId = gameConnectedClients.get(
         parseInt(redisInfo.creator),
-      ).socket.id;
+      ).socket;
 
       let userSocketId = null;
 
       if (channelInfo.game_type === GameType.SINGLE) {
         userSocketId = null;
       } else {
-        userSocketId = gameConnectedClients.get(parseInt(redisInfo.user)).socket
-          .id;
+        userSocketId = gameConnectedClients.get(
+          parseInt(redisInfo.user),
+        ).socket;
       }
 
       const gameTotalInfo: gameDictionaryDto = {
@@ -506,8 +507,8 @@ export class GameGateWay {
         ) => {
           return await this.gameService.loopPosition(gameInfo, Number, server);
         },
-        homeUserSocketId: creatorSocketId,
-        awayUserSocketId: userSocketId,
+        homeUserSocket: creatorSocketId,
+        awayUserSocket: userSocketId,
         server: this.server,
       };
 
@@ -943,10 +944,14 @@ export class GameGateWay {
     const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
     if (
-      (gameChannelInfo.game_type === GameType.SINGLE &&
-        redisInfo.creatorOnline === "false") ||
-      redisInfo.userOnline === "false" ||
+      gameChannelInfo.game_type === GameType.SINGLE &&
       redisInfo.creatorOnline === "false"
+    ) {
+      return;
+    } else if (
+      (redisInfo.userOnline === "false" ||
+        redisInfo.creatorOnline === "false") &&
+      gameChannelInfo.game_type !== GameType.SINGLE
     ) {
       if (redisInfo.creatorOnline === "false") {
         await this.gamePlayerService.dropOutGamePlayer(
@@ -974,6 +979,7 @@ export class GameGateWay {
     const intervalId = setInterval(async () => {
       mutex.acquire();
       //await gameTotalInfo.gameLoop.bind(gameTotalInfo)(gameTotalInfo, gameId);
+
       const loopInfo = await gameDictionary
         .get(parseInt(gameId))
         .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
@@ -984,36 +990,42 @@ export class GameGateWay {
 
       //console.log("loopInfo", loopInfo);
       if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
-        mutex.release();
         gameDictionary.delete(parseInt(data.gameId));
+        mutex.release();
         clearInterval(intervalId);
         return;
       }
 
       gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
+
       if (
         //5점 바꾸기
         gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >= 5 ||
         gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score >= 5
       ) {
-        mutex.release();
-        clearInterval(intervalId);
-        this.gameService.finishGame(
+        await this.gamePlayerService.saveGamePlayer(
+          parseInt(gameId),
+          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
+          gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+        );
+        await this.gameService.finishGame(
           data.title,
           data.gameId,
           startTime,
           this.server,
         );
+        mutex.release();
+        clearInterval(intervalId);
         return;
       } else if (timeOut(startTime)) {
-        mutex.release();
-        clearInterval(intervalId);
-        this.gameService.timeOutGame(
+        await this.gameService.timeOutGame(
           data.title,
           data.gameId,
           startTime,
           this.server,
         );
+        mutex.release();
+        clearInterval(intervalId);
         return;
       }
 
@@ -1043,6 +1055,12 @@ export class GameGateWay {
         { game_status: GameStatus.READY },
       );
       await this.gameService.doneGame(parseInt(data.gameId));
+      gameDictionary.get(parseInt(data.gameId)).homeUserSocket.disconnect(true);
+      if (gameChannelInfo.game_type !== GameType.SINGLE)
+        gameDictionary
+          .get(parseInt(data.gameId))
+          .awayUserSocket.disconnect(true);
+
       //gameDictionary.delete(parseInt(data.gameId));
     });
 
