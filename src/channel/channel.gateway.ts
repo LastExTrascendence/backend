@@ -71,6 +71,8 @@ export class ChannelGateWay {
     try {
       const { userId, title } = data;
 
+      this.logger.debug(`enter ${userId} ${title}`);
+
       let channelInfo = await this.channelRepository.findOne({
         where: { title: title },
       });
@@ -188,9 +190,6 @@ export class ChannelGateWay {
         };
         await this.channelUserRepository.save(newEnterUser);
       }
-
-      console.log(socket.rooms);
-
       //현재 채널의 인원수를 업데이트 한다.
       await this.updateCurUser(title, channelInfo.id);
 
@@ -530,9 +529,7 @@ export class ChannelGateWay {
       TotalUserInfo.push(UserInfo);
     }
 
-    //console.log(TotalUserInfo);
-    //this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
-    this.server.in(channelId.toString()).emit("userList", TotalUserInfo);
+    this.server.to(channelId.toString()).emit("userList", TotalUserInfo);
   }
 
   async updateCurUser(title: string, channelId: number) {

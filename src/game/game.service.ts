@@ -561,7 +561,6 @@ export class GameService {
         result.winUserNick = "AWAY";
         result.loseUserNick = "HOME";
       }
-      console.log("check game end");
       server.to(channelId.toString()).emit("gameEnd", result);
     } else {
       const gameInfo = await this.gameRepository.findOne({
@@ -600,7 +599,6 @@ export class GameService {
         result.winUserNick = userInfo.nickname;
         result.loseUserNick = creatorInfo.nickname;
       }
-      console.log("check game end");
       server.to(channelId.toString()).emit("gameEnd", result);
     }
     await this.gameRepository.update(

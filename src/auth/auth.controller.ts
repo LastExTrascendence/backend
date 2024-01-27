@@ -119,7 +119,6 @@ export class AuthController {
         if (userInfo.two_fa === true) {
           throw new HttpException("너 잘못했잖아", HttpStatus.BAD_REQUEST);
         }
-        //await this.authService.setOtpSecret(userInfo);
       } else {
         throw new HttpException(
           "OTP 코드가 일치하지 않습니다.",

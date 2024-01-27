@@ -68,6 +68,24 @@ export class ChannelsService {
           },
           HttpStatus.BAD_REQUEST,
         );
+      } else if (chatChannelListDto.title.match(/^[a-zA-Z0-9-_]+$/) === null) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "방 제목은 영문, 숫자, 특수문자(-, _)만 허용됩니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      } else if (chatChannelListDto.password) {
+        if (chatChannelListDto.password.length > 8) {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "비밀번호는 20자 이하여야 합니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       const createInfo = await this.userService.findUserById(
@@ -75,7 +93,7 @@ export class ChannelsService {
       );
 
       const newChannel = {
-        title: chatChannelListDto.title,
+        title: encodeURIComponent(chatChannelListDto.title),
         channel_policy: ChatChannelPolicy.PUBLIC,
         creator_id: createInfo.id,
         creator_avatar: createInfo.avatar,
@@ -100,7 +118,7 @@ export class ChannelsService {
       await this.redisClient.hset(
         `CH|${chatChannelListDto.title}`,
         "title",
-        chatChannelListDto.title,
+        encodeURIComponent(chatChannelListDto.title),
       );
 
       if (
@@ -125,7 +143,7 @@ export class ChannelsService {
 
       const retChannelInfo = {
         id: newChannelInfo.id,
-        title: newChannel.title,
+        title: encodeURIComponent(newChannel.title),
         channelPolicy: newChannel.channel_policy,
         password: null,
         creatorId: newChannel.creator_id,
@@ -204,20 +222,6 @@ export class ChannelsService {
     try {
       if (channelConnectedClients.size === 0) {
         await this.resetChatChannel();
-        //const channelUserInfo = await this.channelUserRepository.find();
-        //for (let i = 0; i < channelUserInfo.length; i++) {
-        //  this.channelUserRepository.update(
-        //    { id: channelUserInfo[i].id },
-        //    { deleted_at: new Date() },
-        //  );
-        //}
-        //const channelsInfo = await this.channelsRepository.find();
-        //for (let i = 0; i < channelsInfo.length; i++) {
-        //  this.channelsRepository.update(
-        //    { id: channelsInfo[i].id },
-        //    { cur_user: 0 },
-        //  );
-        //}
       }
 
       const channelsInfo = await this.channelsRepository.find({
@@ -229,13 +233,6 @@ export class ChannelsService {
 
       if (channelsInfo.length === 0) {
         return [];
-        // throw new HttpException(
-        //   {
-        //     status: HttpStatus.BAD_REQUEST,
-        //     error: "존재하는 채널이 없습니다.",
-        //   },
-        //   HttpStatus.BAD_REQUEST,
-        // );
       }
 
       const totalChannels = [];

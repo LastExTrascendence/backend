@@ -284,44 +284,6 @@ export class UserController {
     }
   }
 
-  //사용자의 특정 유저 프로필 검색
-  // @Get("/profile/:id")
-  // @UseGuards(JWTAuthGuard)
-  // async getprofilebyid(
-  //   @Req() req: any,
-  // ): Promise<userProfileDto | HttpException> {
-  //   this.logger.debug(
-  //     `Called ${UserController.name} ${this.getprofilebyid.name}`,
-  //   );
-  //   try {
-  //     const UserInfo = await this.userService.findUserById(req.user_id);
-  //     const UserGameInfo = await this.gamePlayerService.findGamePlayerByUserId(
-  //       req.user_id,
-  //     );
-  //     //첫번째 인자는, 사용자의 id, 두번째 인자는, 찾고자하는 user의 id
-  //     const UserFriendInfo = await this.friendService.findFriend(
-  //       req.user_id,
-  //       req.friend_id,
-  //     );
-
-  //     const Userprofile: userProfileDto = {
-  //       id: UserInfo.id,
-  //       intra_name: UserInfo.intra_name,
-  //       nickname: UserInfo.nickname,
-  //       avatar: UserInfo.avatar,
-  //       email: UserInfo.email,
-  //       games: UserGameInfo.length,
-  //       wins: UserGameInfo.filter((game) => game.role === "WINNER").length,
-  //       loses: UserGameInfo.filter((game) => game.role === "LOSER").length,
-  //       is_friend: UserFriendInfo ? true : false,
-  //       at_friend: UserFriendInfo ? UserFriendInfo.created_at : null,
-  //     };
-  //     return Userprofile;
-  //   } catch (e) {
-  //     throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //   }
-  // }
-
   //특정 유저의 공개 프로필 검색 (닉네임)
   @Get("/info/:nickname")
   @UseGuards(JWTAuthGuard, TwoFAGuard)
@@ -372,7 +334,7 @@ export class UserController {
     );
     try {
       const UserInfo = await this.userService.findUserByNickname(nickname);
-      //console.log(UserInfo);
+
       const UserGameInfo = await this.gamePlayerService.findGamesByUserId(
         UserInfo.id,
       );

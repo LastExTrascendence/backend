@@ -84,42 +84,4 @@ export class UserOtpService {
       throw error;
     }
   }
-
-  //  async updateAvatar(
-  //    nickname: string,
-  //    profileUrl: string,
-  //    file: Express.Multer.File,
-  //  ): Promise<User> {
-  //    try {
-  //      let photoData = null;
-  //      if (file) {
-  //        photoData = file.buffer;
-  //      } else {
-  //        throw new HttpException(
-  //          "파일이 존재하지 않습니다.",
-  //          HttpStatus.BAD_REQUEST,
-  //        );
-  //      }
-
-  //      const findUser = await this.userService.findUserByNickname(nickname);
-
-  //      if (!findUser)
-  //        throw new HttpException(
-  //          "유저를 찾을 수 없습니다.",
-  //          HttpStatus.BAD_REQUEST,
-  //        );
-  //      else {
-  //        findUser.avatar = photoData;
-  //        return findUser;
-  //      }
-  //      //await this.userRepository.delete(this.userService.findUser(intra_name));
-
-  //      //await this.userRepository.save(findUser);
-
-  //      ////delete avatar.photoData;
-  //      //return findUser;
-  //    } catch (e) {
-  //      throw new HttpException(e.message, HttpStatus.BAD_REQUEST);
-  //    }
-  //  }
 }

@@ -62,6 +62,24 @@ export class GameChannelService {
           },
           HttpStatus.BAD_REQUEST,
         );
+      } else if (gameChannelListDto.title.match(/^[a-zA-Z0-9-_]+$/) === null) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "방 제목은 영문, 숫자, 특수문자(-, _)만 허용됩니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      } else if (gameChannelListDto.password) {
+        if (gameChannelListDto.password.length > 8) {
+          throw new HttpException(
+            {
+              status: HttpStatus.BAD_REQUEST,
+              error: "비밀번호는 20자 이하여야 합니다.",
+            },
+            HttpStatus.BAD_REQUEST,
+          );
+        }
       }
 
       const createInfo = await this.userService.findUserById(
@@ -107,11 +125,6 @@ export class GameChannelService {
           `GM|${gameChannelListDto.title}`,
           "password",
           await bcrypt.hash(gameChannelListDto.password, 10),
-        );
-        await this.redisClient.hset(
-          `GM|${gameChannelListDto.title}`,
-          `ACCESS|${createInfo.id}`,
-          createInfo.id,
         );
       }
 
@@ -229,14 +242,13 @@ export class GameChannelService {
         where: { deleted_at: IsNull() },
       });
       if (channelsInfo.length === 0) {
-        return [];
-        // throw new HttpException(
-        //   {
-        //     status: HttpStatus.BAD_REQUEST,
-        //     error: "존재하는 채널이 없습니다.",
-        //   },
-        //   HttpStatus.BAD_REQUEST,
-        // );
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "존재하는 채널이 없습니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
       }
 
       const totalChannels = [];
@@ -264,9 +276,7 @@ export class GameChannelService {
             gameMode: channelsInfo[i].game_mode,
             gameStatus: channelsInfo[i].game_status,
           };
-          if (channelsInfo[i].game_type === GameType.SINGLE) {
-            channel.max_user = 1;
-          }
+
           totalChannels.push(channel);
         }
       }

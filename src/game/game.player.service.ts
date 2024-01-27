@@ -3,6 +3,7 @@ import {
   HttpStatus,
   Inject,
   Injectable,
+  Logger,
   forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
@@ -18,6 +19,7 @@ import { GameService } from "./game.service";
 
 @Injectable()
 export class GamePlayerService {
+  private logger = new Logger("GamePlayerService");
   constructor(
     @InjectRepository(Game)
     private gameRepository: Repository<Game>,
@@ -52,7 +54,9 @@ export class GamePlayerService {
     awayScore: number,
   ): Promise<void | HttpException> {
     try {
-      console.log(`saveGamePlayer ${channelId} ${homeScore} ${awayScore}`);
+      this.logger.debug(
+        `saveGamePlayer ${channelId} ${homeScore} ${awayScore}`,
+      );
 
       const channelInfo =
         await this.gameChannelService.findOneGameChannelById(channelId);
@@ -228,9 +232,6 @@ export class GamePlayerService {
       const gamePlayerInfo = await this.gamePlayerRepository.find({
         where: { user_id: gamePlayer.id },
       });
-
-      console.log(gamePlayerInfo);
-
       const totalGameInfo = [];
 
       if (gamePlayerInfo.length === 0) {
@@ -247,10 +248,9 @@ export class GamePlayerService {
             game_status: GameStatus.DONE,
           },
         });
-        if (gameInfo) totalGameInfo.push(gameInfo);
+        if (gameInfo && gameInfo.game_type !== GameType.SINGLE)
+          totalGameInfo.push(gameInfo);
       }
-
-      console.log(totalGameInfo);
 
       if (totalGameInfo.length === 0) {
         throw new HttpException(
@@ -260,21 +260,15 @@ export class GamePlayerService {
       }
       const averageGameTime =
         this.gameService.calculateAverageTimes(totalGameInfo);
-      console.log(averageGameTime);
       const longestGame = this.gameService.calculateLongestGame(totalGameInfo);
-      console.log(longestGame);
       const shortestGame =
         this.gameService.calculateShortestGame(totalGameInfo);
-      console.log(shortestGame);
       const totalPointScored =
         this.gameService.calculateTotalPointScored(gamePlayerInfo);
-      console.log(totalPointScored);
       const averageScorePerGame =
         this.gameService.calculateAverageScorePerGame(gamePlayerInfo);
-      console.log(averageScorePerGame);
       const averageScorePerWin =
         this.gameService.calculateAverageScorePerWin(gamePlayerInfo);
-      console.log(averageScorePerWin);
 
       const gamePlayerRecord: gameStatsDto = {
         nickname: nickname,
@@ -293,9 +287,6 @@ export class GamePlayerService {
         //winStreaks는 gamePlayerInfo에서 최근 게임을 기준으로 연속적으로 승리한 게임의 개수를 구한다.
         //예를들어 최근부터, win, win, win, lose, win 이라면 winStreaks는 3이 된다.
       };
-
-      console.log(gamePlayerRecord);
-
       return gamePlayerRecord;
     } catch (error) {
       throw new HttpException(
