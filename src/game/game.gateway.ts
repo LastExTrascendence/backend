@@ -898,10 +898,10 @@ export class GameGateWay {
 
     const gameTotalInfo = gameDictionary.get(parseInt(gameId));
 
-    if (gameChannelInfo.game_status !== GameStatus.INGAME) {
-      console.log("check here", gameDictionary.size);
-      return;
-    }
+    //if (gameChannelInfo.game_status !== GameStatus.INGAME) {
+    //  console.log("check here", gameDictionary.size);
+    //  return;
+    //}
 
     //console.log("gameTotalInfo", gameTotalInfo);
 
@@ -909,14 +909,14 @@ export class GameGateWay {
 
     const startTime = await this.gameService.getStartTime(parseInt(gameId));
 
-    if (
-      (await this.gameService.isGameDone(gameChannelInfo.id)) === true ||
-      gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score !== 0 ||
-      gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score !== 0
-    ) {
-      gameDictionary.delete(parseInt(gameId));
-      return;
-    }
+    //if (
+    //  (await this.gameService.isGameDone(gameChannelInfo.id)) === true ||
+    //  gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score !== 0 ||
+    //  gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score !== 0
+    //) {
+    //  gameDictionary.delete(parseInt(gameId));
+    //  return;
+    //}
 
     try {
       const intervalId = setInterval(async () => {
@@ -934,18 +934,17 @@ export class GameGateWay {
 
         gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
 
-        //if (
-        //  (
-        //    await this.gameChannelRepository.findOne({
-        //      where: { id: parseInt(data.gameId), deleted_at: IsNull() },
-        //    })
-        //  ).game_status != GameStatus.INGAME
-        //) {
-        //  clearInterval(intervalId);
-        //  mutex.release();
-        //  return;
-        //} else
         if (
+          (
+            await this.gameChannelRepository.findOne({
+              where: { id: parseInt(data.gameId), deleted_at: IsNull() },
+            })
+          ).game_status != GameStatus.INGAME
+        ) {
+          clearInterval(intervalId);
+          mutex.release();
+          return;
+        } else if (
           //5점 바꾸기
           gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5 ||
           gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
