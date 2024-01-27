@@ -69,6 +69,7 @@ export class UserController {
       intra_name: decoded_token["intra_name"],
       email: decoded_token["email"],
       two_fa_complete: decoded_token["two_fa_complete"],
+      language: decoded_token["language"],
     };
     try {
       await this.userService.createUser(userSessionDto);

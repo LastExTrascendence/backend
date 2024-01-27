@@ -50,6 +50,7 @@ export class userDto {
 export class userSessionDto extends userDto {
   intra_name: string;
   two_fa_complete: boolean;
+  language: string;
   iat?: number;
   ext?: number;
 }
