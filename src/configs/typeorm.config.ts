@@ -16,7 +16,7 @@ export default class TypeOrmConfigService implements TypeOrmOptionsFactory {
   createTypeOrmOptions(): TypeOrmModuleOptions {
     return {
       type: "postgres",
-      host: "localhost",
+      host: "host.docker.internal",
       port: 5432,
       username: "postgres",
       password: "password",
