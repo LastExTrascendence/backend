@@ -11,6 +11,7 @@ import {
   GameType,
   GameStatus,
 } from "../enum/game.enum";
+import { Matches } from "class-validator";
 
 /**
  * @description 게임에 대한 엔터티
@@ -41,6 +42,7 @@ export class GameChannel extends BaseEntity {
   creator_avatar: string;
 
   @Column()
+  @Matches(/^[a-zA-Z0-9-_]+$/) // 영문, 숫자, 특수문자(-, _)만 허용
   title: string;
 
   @Column()
