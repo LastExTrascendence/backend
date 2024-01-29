@@ -78,7 +78,14 @@ export class GamePlayerService {
 
       const gameInfo = await this.gameRepository.findOne({
         where: { channel_id: channelInfo.id, ended_at: IsNull() },
+      }); 
+
+      const gamePlayerInfo = await this.gamePlayerRepository.find({
+        where: { game_id: gameInfo.id },
       });
+
+      if (gamePlayerInfo) 
+        return ;
 
       if (homeScore >= 5) {
         await this.gamePlayerRepository.save({
@@ -227,19 +234,39 @@ export class GamePlayerService {
     try {
       //User DB 들고오기
       const gamePlayer = await this.userServie.findUserByNickname(nickname);
+      if (!gamePlayer) {
+        const gamePlayerRecord: gameStatsDto = {
+          nickname: nickname,
+          longestGame: null,
+          shortestGame: null,
+          averageGameTime: null,
+          totalPointScored: null,
+          averageScorePerGame: null,
+          averageScorePerWin: null,
+        };
+        return gamePlayerRecord;
+      }
 
       //GamePlayer DB 전부 다 들고오기
       const gamePlayerInfo = await this.gamePlayerRepository.find({
         where: { user_id: gamePlayer.id },
       });
-      const totalGameInfo = [];
 
       if (gamePlayerInfo.length === 0) {
-        throw new HttpException(
-          "게임 정보가 존재하지 않습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
+        const gamePlayerRecord: gameStatsDto = {
+          nickname: nickname,
+          longestGame: null,
+          shortestGame: null,
+          averageGameTime: null,
+          totalPointScored: null,
+          averageScorePerGame: null,
+          averageScorePerWin: null,
+        };
+        return gamePlayerRecord;
       }
+
+      const totalGameInfo = [];
+
 
       for (let i = 0; i < gamePlayerInfo.length; i++) {
         const gameInfo = await this.gameRepository.findOne({
@@ -248,15 +275,24 @@ export class GamePlayerService {
             game_status: GameStatus.DONE,
           },
         });
-        if (gameInfo && gameInfo.game_type !== GameType.SINGLE)
-          totalGameInfo.push(gameInfo);
+        if (gameInfo)
+        {
+          if (gameInfo.game_type !== GameType.SINGLE)
+            totalGameInfo.push(gameInfo);
+        }
       }
 
       if (totalGameInfo.length === 0) {
-        throw new HttpException(
-          "게임 정보가 존재하지 않습니다.",
-          HttpStatus.BAD_REQUEST,
-        );
+        const gamePlayerRecord: gameStatsDto = {
+          nickname: nickname,
+          longestGame: null,
+          shortestGame: null,
+          averageGameTime: null,
+          totalPointScored: null,
+          averageScorePerGame: null,
+          averageScorePerWin: null,
+        };
+        return gamePlayerRecord;
       }
       const averageGameTime =
         this.gameService.calculateAverageTimes(totalGameInfo);
@@ -270,6 +306,19 @@ export class GamePlayerService {
       const averageScorePerWin =
         this.gameService.calculateAverageScorePerWin(gamePlayerInfo);
 
+        if ( !averageGameTime  || !longestGame  || !shortestGame  || !totalPointScored  || !averageScorePerGame  || !averageScorePerWin )
+        {
+          const gamePlayerRecord: gameStatsDto = {
+            nickname: nickname,
+            longestGame: null,
+            shortestGame: null,
+            averageGameTime: null,
+            totalPointScored: null,
+            averageScorePerGame: null,
+            averageScorePerWin: null,
+          };
+          return gamePlayerRecord;
+        }
 
       const gamePlayerRecord: gameStatsDto = {
         nickname: nickname,
@@ -288,10 +337,10 @@ export class GamePlayerService {
         //winStreaks는 gamePlayerInfo에서 최근 게임을 기준으로 연속적으로 승리한 게임의 개수를 구한다.
         //예를들어 최근부터, win, win, win, lose, win 이라면 winStreaks는 3이 된다.
       };
+
       return gamePlayerRecord;
     } catch (error) {
-      console.log(error);
-      throw new error;
+      throw error;
     }
   }
 }

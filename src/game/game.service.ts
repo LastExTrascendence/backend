@@ -632,43 +632,6 @@ export class GameService {
     }
   }
 
-  //async saveRecord(
-  //  gameId: number,
-  //  minimumSpeed: number,
-  //  averageSpeed: number,
-  //  maximumSpeed: number,
-  //  numberOfRounds: number,
-  //  numberOfBounces: number,
-  //  playTime: number,
-  //) {
-  //  try {
-  //    const game = await this.gameRepository.findOne({
-  //      where: {
-  //        id: gameId,
-  //      },
-  //    });
-  //    if (game) {
-  //      this.gameRepository.update(
-  //        {
-  //          id: gameId,
-  //        },
-  //        {
-  //          minimum_speed: minimumSpeed,
-  //          average_speed: averageSpeed,
-  //          maximum_speed: maximumSpeed,
-  //          number_of_rounds: numberOfRounds,
-  //          number_of_bounces: numberOfBounces,
-  //          play_time: playTime,
-  //          ended_at: new Date(),
-  //        },
-  //      );
-  //    }
-  //  } catch (error) {
-  //    this.logger.error(error);
-  //    throw error;
-  //  }
-  //}
-
   async getStartTime(gameId: number) {
     const gameInfo = await this.gameRepository.findOne({
       where: { channel_id: gameId, ended_at: IsNull() },

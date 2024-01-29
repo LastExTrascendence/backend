@@ -31,7 +31,7 @@ export class UserService {
       intra_name: userSessionDto.intra_name,
       nickname: userSessionDto.nickname,
       avatar: userSessionDto.avatar,
-      language: "kr",
+      language: "en",
       status: UserStatus.OFFLINE,
       email: userSessionDto.email,
       two_fa: false,

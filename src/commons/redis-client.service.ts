@@ -102,7 +102,7 @@ export class RedisService {
     return this.redisClient.lpop(formattedKey);
   }
 
-  rpush(key: string | number, value: string | number) {
+  rpush(key: string | number, value: any) {
     const formattedKey = typeof key === "number" ? key.toString() : key;
 
     return this.redisClient.rpush(formattedKey, value);
@@ -110,5 +110,9 @@ export class RedisService {
 
   keys(pattern: string) {
     return this.redisClient.keys(pattern);
+  }
+
+  multi() {
+    return this.redisClient.multi();
   }
 }

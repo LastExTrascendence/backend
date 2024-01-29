@@ -440,48 +440,58 @@ export class UserGateway
     const makeMatch = setInterval(async () => {
       const queueLength = await this.redisClient.llen("QM");
       if (queueLength >= 2) {
-        const quickMatchNum = await this.gameChannelService.findQuickMatches();
-        // Dequeue the first two players from the queue
-        const homePlayer = await this.redisClient.lpop("QM");
-        const awayPlayer = await this.redisClient.lpop("QM");
+            const result = await this.redisClient.multi()
+                                                .lpop("QM")
+                                                .lpop("QM")
+                                                .exec();
+            const homePlayer = result[0];
+            const awayPlayer = result[1];
 
-        const newGame = {
-          id: 0,
-          title: "QuickMatch" + quickMatchNum.toString(),
-          gameChannelPolicy: GameChannelPolicy.PUBLIC,
-          password: null,
-          creatorId: parseInt(homePlayer),
-          gameType: GameType.NORMAL,
-          gameMode: GameMode.NORMAL,
-          curUser: 0,
-          maxUser: 2,
-          gameStatus: GameStatus.READY,
-        };
+            if (!awayPlayer)
+            {
+              if (homePlayer[1])
+                  await this.redisClient.rpush("QM", homePlayer[1]);
+              
+            }
+            else if (!homePlayer)
+            {
+              
+            }
+            else 
+            {
+              const quickMatchNum = await this.gameChannelService.findQuickMatches();
+              const newGame = {
+                id: 0,
+                title: "QuickMatch" + quickMatchNum, // Use a unique title for each room
+                gameChannelPolicy: GameChannelPolicy.PUBLIC,
+                password: null,
+                creatorId: parseInt(homePlayer[1].toString()),
+                gameType: GameType.NORMAL,
+                gameMode: GameMode.NORMAL,
+                curUser: 0,
+                maxUser: 2,
+                gameStatus: GameStatus.READY,
+              };
+    
+              await this.gameChannelService.createGame(newGame);
 
-        //newGame.title = encodeURIComponent(newGame.title);
+              const game = await this.gameChannelService.findOneGameChannelByTitle(
+                newGame.title,
+              );
+    
+              const gameinfo = {
+                gameId: game.id,
+                title: game.title,
+              };
+    
+              this.server.to(`QM|${homePlayer[1]}`).emit("gameMatch", gameinfo);
+              this.server.to(`QM|${awayPlayer[1]}`).emit("gameMatch", gameinfo);
 
-        await this.gameChannelService.createGame(newGame);
-
-        const game = await this.gameChannelService.findOneGameChannelByTitle(
-          newGame.title,
-        );
-
-        const gameinfo = {
-          gameId: game.id,
-          title: game.title,
-        };
-
-        // Create a game instance or use existing logic to set up a game with player1 and player2
-
-        // Notify players that the game is starting and provide opponent information
-        // Emit an event to start the game for both players
-
-        this.server.to(`QM|${homePlayer}`).emit("gameMatch", gameinfo);
-        this.server.to(`QM|${awayPlayer}`).emit("gameMatch", gameinfo);
+            }
       } else if (queueLength === 0) {
         return;
       }
-    }, 1000);
+    }, 2000);
     socket.on("exitQueue", async () => {
       //const userList = await this.redisClient.lrange("QM", 0, -1);
       ////userList에 같은 userId가 있는지 확인

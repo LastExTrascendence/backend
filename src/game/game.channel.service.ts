@@ -39,7 +39,7 @@ export class GameChannelService {
     gameChannelListDto: gameChannelListDto,
   ): Promise<gameChannelListDto | HttpException> {
     try {
-      this.logger.debug(gameChannelListDto);
+      this.logger.debug(`Called ${GameChannelService.name} ${this.createGame.name}`);
       const gameInfo = await this.gameChannelRepository.findOne({
         where: { title: gameChannelListDto.title, deleted_at: IsNull() },
       });
@@ -83,6 +83,8 @@ export class GameChannelService {
         gameChannelListDto.creatorId,
       );
 
+      console.log("createInfo", createInfo);
+
       const newGame = {
         creator_id: createInfo.id,
         creator_avatar: createInfo.avatar,
@@ -96,6 +98,9 @@ export class GameChannelService {
         created_at: new Date(),
         deleted_at: null,
       };
+
+      console.log("newGame", newGame);
+  
       if (gameChannelListDto.password) {
         newGame.game_channel_policy = GameChannelPolicy.PRIVATE;
       } else if (gameChannelListDto.gameType === GameType.SINGLE) {
@@ -147,6 +152,8 @@ export class GameChannelService {
         "false",
       );
 
+      console.log("gameChannelListDto", gameChannelListDto);
+
       const retGameInfo = {
         id: newGameInfo.id,
         title: newGame.title,
@@ -159,6 +166,8 @@ export class GameChannelService {
         gameMode: gameChannelListDto.gameMode,
         gameStatus: GameStatus.READY,
       };
+
+      console.log("retGameInfo", retGameInfo);
 
       if (gameChannelListDto.gameType === GameType.SINGLE) {
         retGameInfo.maxUser = 1;
@@ -380,7 +389,7 @@ export class GameChannelService {
 
   async findQuickMatches() {
     const gameInfo = await this.gameChannelRepository.find({
-      where: { title: Like(`%Quick Match#%`) },
+      where: { title: Like(`%QuickMatch%`) },
     });
 
     if (gameInfo) {
