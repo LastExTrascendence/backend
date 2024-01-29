@@ -123,6 +123,7 @@ export class GameGateWay {
         });
         if (channelInfo.game_type === GameType.SINGLE) {
           await this.redisClient.hset(`GM|${title}`, "creatorOnline", "false");
+          return;
         } else if (channelInfo.game_status === GameStatus.READY) {
           if (parseInt(redisInfo.creator) === socketKey) {
             await this.redisClient.hset(

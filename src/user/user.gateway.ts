@@ -422,8 +422,9 @@ export class UserGateway
       await this.redisClient.lrem("QM", 0, userId);
       await socket.leave(`QM|${userId}`);
       //throw new WsException("User already in queue");
+    } else if (filteredList) {
+      await this.redisClient.lrem("QM", 0, userId);
     }
-
     await this.redisClient.rpush("QM", userId);
 
     this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
