@@ -35,7 +35,7 @@ export class GamePlayerService {
     private gameService: GameService,
     @Inject(forwardRef(() => RedisService))
     private redisService: RedisService,
-  ) {}
+  ) { }
 
   async findGamesByUserId(user_id: number): Promise<GamePlayer[]> {
     try {
@@ -273,6 +273,7 @@ export class GamePlayerService {
       const averageScorePerWin =
         this.gameService.calculateAverageScorePerWin(gamePlayerInfo);
 
+
       const gamePlayerRecord: gameStatsDto = {
         nickname: nickname,
         //longestGame은 gameInfo.gameTime을 기준으로 내림차순 정렬하여 가장 첫번째 값을 가져온다.
@@ -292,10 +293,8 @@ export class GamePlayerService {
       };
       return gamePlayerRecord;
     } catch (error) {
-      throw new HttpException(
-        "게임 기록 조회에 실패하였습니다.",
-        HttpStatus.BAD_REQUEST,
-      );
+      console.log(error);
+      throw new error;
     }
   }
 }
