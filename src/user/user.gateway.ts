@@ -32,6 +32,7 @@ import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
 import { WebSocketExceptionFilter } from "src/auth/jwt/jwtWebSocket.filter";
 import { RedisService } from "src/commons/redis-client.service";
+import { gameConnectedClients } from "src/game/game.gateway";
 
 //path, endpoint
 
@@ -482,6 +483,20 @@ export class UserGateway
       }
     }, 1000);
     socket.on("exitQueue", async () => {
+      //const userList = await this.redisClient.lrange("QM", 0, -1);
+      ////userList에 같은 userId가 있는지 확인
+      //const filteredList = userList.filter(
+      //  (user) => parseInt(user) === userId,
+      //  );
+
+      //  console.log(filteredList);
+
+      //  if (filteredList.length === 0) {
+      //    //throw new WsException("No user found");
+      //  } else {
+      //    await this.redisClient.lrem("QM", 0, userId);
+      //    await socket.leave(`QM|${userId}`);
+      //  }
       await this.redisClient.lrem("QM", 0, userId);
       this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
       clearInterval(makeMatch);
@@ -526,7 +541,34 @@ export class UserGateway
         throw new WsException("No game found");
       }
 
+      //입장 불가인 경우
+      //1. 게임 방이 없는 경우 || 게임이 시작 된 경우
+      //2. 초대한 사람이랑 초대받은 사람이 같은 경우
+      //3. 이미 게임 소켓을 사용하고 있는 경우
+      //4. 초대한 사람이 OFFLINE인 경우
+      //5. 게임 방의 정원이 2명인 경우
+
+      //해야할 것
+      //초대 받은 사람이, 초대한 사람을 싫어하는 경우
+
+      //if (!gameInfo) {
+      //  throw new WsException("No game found");
+      // } else if (inviteUser.id === userId) {
+      //   throw new WsException("Can't invite yourself");
+      // } else if (gameConnectedClients) {
+      //   throw new WsException("User is already in game");
+      // } else if (inviteUser.status === UserStatus.OFFLINE) {
+      //   throw new WsException("User is offline");
+      //} else {
+      //if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
+      //  await this.redisClient.hset(
+      //    `GM|${gameTitle}`,
+      //    `ACCESS|${userId}`,
+      //    userId,
+      //  );
+      //}
       const inviteUserSocket = userConnectedClients.get(inviteUser.id);
+      //console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
       this.server.to(inviteUserSocket.id).emit("invitedUser", {
         hostNickname: (await this.userService.findUserById(userId)).nickname,
         url: url,

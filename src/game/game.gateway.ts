@@ -18,6 +18,7 @@ import { Server, Socket } from "socket.io";
 import { SaveOptions, RemoveOptions, Repository, IsNull } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
+import { Redis } from "ioredis";
 import {
   GameUserRole,
   GameStatus,
@@ -61,7 +62,8 @@ export class GameGateWay {
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
-    private redisClient: RedisService,
+    @Inject(forwardRef(() => Redis))
+    private redisClient: Redis,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
     @Inject(forwardRef(() => GamePlayerService))
@@ -103,50 +105,69 @@ export class GameGateWay {
       (key) => gameConnectedClients.get(key).socket === socket,
     );
 
-    if (socketKey !== undefined) {
+    this.logger.debug(`socketKey ${socketKey}`);
+
+    if (socketKey != undefined) {
       const { title, gameId } = gameConnectedClients.get(socketKey);
       //this.leaveGame({ gameId: gameId, userId: socketKey }, socket);
       const redisInfo = await this.redisClient.hgetall(`GM|${title}`);
       if (redisInfo) {
+        if (
+          redisInfo.creatorOnline === "false" &&
+          redisInfo.userOnline === "false"
+        ) {
+          await this.redisClient.del(`GM|${title}`);
+        }
         const channelInfo = await this.gameChannelRepository.findOne({
-          where: { id: gameId, deleted_at: IsNull() },
+          where: { id: gameId },
         });
-        if (channelInfo) {
-          if (channelInfo.game_type === GameType.SINGLE) {
+        if (channelInfo.game_type === GameType.SINGLE) {
+          await this.redisClient.hset(`GM|${title}`, "creatorOnline", "false");
+        } else if (channelInfo.game_status === GameStatus.READY) {
+          if (parseInt(redisInfo.creator) === socketKey) {
             await this.redisClient.hset(
               `GM|${title}`,
               "creatorOnline",
               "false",
             );
-          } else if (channelInfo.game_status === GameStatus.READY) {
-            if (parseInt(redisInfo.creator) === socketKey) {
-              await this.redisClient.hset(
-                `GM|${title}`,
-                "creatorOnline",
-                "false",
-              );
-            } else if (parseInt(redisInfo.user) === socketKey) {
-              await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
-              await this.redisClient.hset(`GM|${title}`, "user", null);
-              await this.redisClient.hset(`GM|${title}`, "userReady", "false");
-              await this.redisClient.hset(`GM|${title}`, "mute", "null");
-            }
-          } else if (channelInfo.game_status === GameStatus.INGAME) {
-            if (parseInt(redisInfo.creator) === socketKey) {
-              await this.redisClient.hset(
-                `GM|${title}`,
-                "creatorOnline",
-                "false",
-              );
-            } else if (parseInt(redisInfo.user) === socketKey) {
-              await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
-              await this.redisClient.hset(`GM|${title}`, "userReady", "false");
-              await this.redisClient.hset(`GM|${title}`, "mute", "null");
-            }
+          } else if (parseInt(redisInfo.user) === socketKey) {
+            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+            await this.redisClient.hset(`GM|${title}`, "user", null);
           }
-          await this.updateCurUser(channelInfo.title, channelInfo.id);
-          await this.sendUserList(title, gameId, socket);
+        } else if (channelInfo.game_status === GameStatus.INGAME) {
+          const startTime = await this.gameService.getStartTime(gameId);
+          await this.gameService.disconnectGame(
+            title,
+            gameId,
+            startTime,
+            this.server,
+          );
+
+          await this.gameService.dropOutGame(gameId);
+          if (parseInt(redisInfo.creator) === socketKey) {
+            await this.gamePlayerService.dropOutGamePlayer(
+              gameId,
+              parseInt(redisInfo.creator),
+            );
+            await this.redisClient.hset(
+              `GM|${title}`,
+              "creatorOnline",
+              "false",
+            );
+            setTimeout(async () => {
+              gameDictionary.get(gameId).awayUserSocket.disconnect(true);
+            }, 1000 * 3);
+          } else if (parseInt(redisInfo.user) === socketKey) {
+            await this.gamePlayerService.dropOutGamePlayer(
+              gameId,
+              parseInt(redisInfo.user),
+            );
+            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+            await this.redisClient.hset(`GM|${title}`, "user", null);
+          }
         }
+        await this.updateCurUser(channelInfo.title, channelInfo.id);
+        await this.sendUserList(title, gameId, socket);
       }
       gameConnectedClients.delete(socketKey);
     }
@@ -291,13 +312,16 @@ export class GameGateWay {
           gameConnectedClients.delete(data.userId);
           return;
         }
-      } else if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
+      }
+      if (gameChannelInfo.cur_user === gameChannelInfo.max_user) {
+        console.log("here");
         const targetClient = gameConnectedClients.get(userId);
         targetClient.socket.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
         gameConnectedClients.delete(data.userId);
         return;
-      } else if (banUserList) {
+      }
+      if (banUserList) {
         const targetClient = gameConnectedClients.get(userId);
         targetClient.socket.disconnect(true);
         socket.leave(gameChannelInfo.id.toString());
@@ -475,18 +499,31 @@ export class GameGateWay {
         gameInfo.ballDy = -5;
       }
 
-      const creatorSocketId = gameConnectedClients.get(
+      if (
+        channelInfo.game_mode === GameMode.SPEED ||
+        channelInfo.game_type === GameType.SINGLE
+      ) {
+        gameInfo.ballDx = -5;
+        gameInfo.ballDy = -5;
+      }
+
+      if (
+        channelInfo.game_type === GameType.SINGLE ||
+        gameChannelInfo.game_mode === GameMode.SPEED
+      ) {
+        gameInfo.ballDx = -5;
+        gameInfo.ballDy = -5;
+      }
+      const creatorSocket = gameConnectedClients.get(
         parseInt(redisInfo.creator),
       ).socket;
 
-      let userSocketId = null;
+      let userSocket = null;
 
       if (channelInfo.game_type === GameType.SINGLE) {
-        userSocketId = null;
+        userSocket = null;
       } else {
-        userSocketId = gameConnectedClients.get(
-          parseInt(redisInfo.user),
-        ).socket;
+        userSocket = gameConnectedClients.get(parseInt(redisInfo.user)).socket;
       }
 
       const gameTotalInfo: gameDictionaryDto = {
@@ -495,11 +532,17 @@ export class GameGateWay {
           gameInfo: gameInfoDto,
           Number: number,
           server: Server,
+          intervalId: NodeJS.Timeout,
         ) => {
-          return await this.gameService.loopPosition(gameInfo, Number, server);
+          return await this.gameService.loopPosition(
+            gameInfo,
+            Number,
+            server,
+            intervalId,
+          );
         },
-        homeUserSocket: creatorSocketId,
-        awayUserSocket: userSocketId,
+        homeUserSocket: creatorSocket,
+        awayUserSocket: userSocket,
         server: this.server,
       };
 
@@ -576,6 +619,7 @@ export class GameGateWay {
       );
     } catch (error) {
       console.log(error);
+      throw error;
     }
   }
 
@@ -615,6 +659,7 @@ export class GameGateWay {
       this.sendUserList(title, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
+      throw error;
     }
   }
 
@@ -624,7 +669,8 @@ export class GameGateWay {
   async leaveGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     try {
       //async leaveGame(data: any, socket: Socket) {
-      this.logger.debug(`leaveGame`);
+      this.logger.debug(`leaveGame${data.gameId}, ${data.userId}`);
+      console.log("leaveGame");
 
       let creatorId = null;
       let creatorInfo = null;
@@ -687,39 +733,43 @@ export class GameGateWay {
           //await this.updateCurUser(channelInfo.title, channelInfo.id);
           //await this.sendUserList(channelInfo.title, channelInfo.id, socket);
         }
-      } else if (channelInfo.game_status === GameStatus.INGAME) {
-        //게임중에 연결이 끊긴 경우
-        if (channelInfo.game_type === GameType.SINGLE) {
-          await this.redisClient.del(`GM|${channelInfo.title}`);
-          await this.gameChannelService.doneGame(parseInt(data.gameId));
-          return;
-        }
-        const gameInfo = await this.gameService.findOneByChannelId(
-          channelInfo.id,
-        );
-        //await this.gamePlayerService.dropOutGamePlayer(gameId, leaveId);
-        //await this.gameService.dropOutGame(data.gameId);
-        if (creatorId === leaveId) {
-          //방장이 나간경우
-          this.logger.debug("leaveGame CREATOR on INGAME");
-          //const result = {
-          //  winUserNick: userInfo.nickname,
-          //  loseUserNick: creatorInfo.nickname,
-          //  playTime: showPlayTime(gameInfo.created_at),
-          //  homeScore: 0,
-          //  awayScore: 5,
-          //};
-          //this.server.to(data.gameId.toString()).emit("gameEnd", result);
-          setTimeout(async () => {
-            const targetClient = gameConnectedClients.get(userId);
-            gameConnectedClients.delete(userId);
-            await this.redisClient.del(`GM|${channelInfo.title}`);
-            targetClient.socket.disconnect(true);
-          }, 1000);
-        }
+        //}
+        //else if (channelInfo.game_status === GameStatus.INGAME) {
+        //  //게임중에 연결이 끊긴 경우
+        //  if (channelInfo.game_type === GameType.SINGLE) {
+        //    await this.redisClient.del(`GM|${channelInfo.title}`);
+        //    await this.gameChannelService.doneGame(parseInt(data.gameId));
+        //    return;
+        //  }
+        //  const gameInfo = await this.gameService.findOneByChannelId(
+        //    channelInfo.id,
+        //  );
+        //  await this.gamePlayerService.dropOutGamePlayer(gameId, leaveId);
+        //  await this.gameService.dropOutGame(data.gameId);
+        //  if (creatorId === leaveId) {
+        //    //방장이 나간경우
+        //    this.logger.debug("leaveGame CREATOR on INGAME");
+
+        //    const result = {
+        //      winUserNick: userInfo.nickname,
+        //      loseUserNick: creatorInfo.nickname,
+        //      playTime: showPlayTime(gameInfo.created_at),
+        //      homeScore: 0,
+        //      awayScore: 5,
+        //    };
+        //    this.server.to(data.gameId.toString()).emit("gameEnd", result);
+
+        //    setTimeout(async () => {
+        //      await this.gameChannelService.doneGame(parseInt(data.gameId));
+        //      const targetClient = gameConnectedClients.get(userId);
+        //      gameConnectedClients.delete(userId);
+        //      await this.redisClient.del(`GM|${channelInfo.title}`);
+        //      targetClient.socket.disconnect(true);
+        //    }, 3);
         //  } else if (userId === leaveId) {
         //    this.logger.debug("leaveGame User on INGAME");
         //    //유저가 나간 경우
+
         //    const result = {
         //      winUserNick: creatorInfo.nickname,
         //      loseUserNick: userInfo.nickname,
@@ -728,6 +778,7 @@ export class GameGateWay {
         //      awayScore: 0,
         //    };
         //    this.server.to(data.gameId.toString()).emit("gameEnd", result);
+
         //    this.gameChannelRepository.update(
         //      { id: channelInfo.id },
         //      { game_status: GameStatus.READY },
@@ -736,6 +787,7 @@ export class GameGateWay {
       }
     } catch (error) {
       console.log(error);
+      throw error;
     }
   }
 
@@ -780,6 +832,7 @@ export class GameGateWay {
       this.sendUserList(title, channelInfo.id, socket);
     } catch (error) {
       console.log(error);
+      throw error;
     }
   }
 
@@ -877,6 +930,9 @@ export class GameGateWay {
 
   @SubscribeMessage("loopPosition")
   async loopLogic(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
+    this.logger.debug(
+      `loopLogic, ${data.gameId} ${data.title}, ${data.myRole}`,
+    );
     const { gameId } = data;
 
     const gameChannelInfo =
@@ -885,182 +941,175 @@ export class GameGateWay {
     const checkGameDone = await this.gameService.isGameDone(gameChannelInfo.id);
 
     if (checkGameDone === true) return;
+    const gameTotalInfo = gameDictionary.get(parseInt(gameId));
+
+    //console.log("gameTotalInfo", gameTotalInfo);
+
+    //if (gameChannelInfo.game_status !== GameStatus.INGAME) {
+    //  console.log("check here", gameDictionary.size);
+    //  return;
+    //}
+
+    //console.log("gameTotalInfo", gameTotalInfo);
 
     const mutex = new Mutex();
 
     const startTime = await this.gameService.getStartTime(parseInt(gameId));
 
-    const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+    //if (
+    //  (await this.gameService.isGameDone(gameChannelInfo.id)) === true ||
+    //  gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score !== 0 ||
+    //  gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score !== 0
+    //) {
+    //  gameDictionary.delete(parseInt(gameId));
+    //  return;
+    //}
 
-    if (
-      gameChannelInfo.game_type === GameType.SINGLE &&
-      redisInfo.creatorOnline === "false"
-    ) {
-      return;
-    } else if (
-      (redisInfo.userOnline === "false" ||
-        redisInfo.creatorOnline === "false") &&
-      gameChannelInfo.game_type !== GameType.SINGLE
-    ) {
-      if (redisInfo.creatorOnline === "false") {
-        await this.gamePlayerService.dropOutGamePlayer(
-          gameChannelInfo.id,
-          parseInt(redisInfo.creator),
-        );
-        setTimeout(async () => {
-          gameDictionary.get(parseInt(gameId)).awayUserSocket.disconnect(true);
-        }, 1000 * 3);
-      } else if (redisInfo.userOnline === "false") {
-        await this.gamePlayerService.dropOutGamePlayer(
-          gameChannelInfo.id,
-          parseInt(redisInfo.user),
-        );
-      }
-      this.gameService.disconnectGame(
-        data.title,
-        data.gameId,
-        data.myRole,
-        startTime,
-        this.server,
-      );
-      this.gameService.dropOutGame(gameChannelInfo.id);
-      return;
-    }
-
-    const intervalId = setInterval(async () => {
-      mutex.acquire();
-      //await gameTotalInfo.gameLoop.bind(gameTotalInfo)(gameTotalInfo, gameId);
-
-      const loopInfo = await gameDictionary
-        .get(parseInt(gameId))
-        .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
-        gameDictionary.get(parseInt(gameId)).gameInfo,
-        parseInt(gameId),
-        gameDictionary.get(parseInt(gameId)).server,
-      );
-
-      if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
-        clearInterval(intervalId);
-        mutex.release();
-        gameDictionary.delete(parseInt(data.gameId));
-        return;
-      }
-
-      gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
-
-      if (
-        gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score >= 5 ||
-        gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score >= 5
-      ) {
-        clearInterval(intervalId);
-        mutex.release();
-        await this.gamePlayerService.saveGamePlayer(
+    try {
+      const intervalId = setInterval(async () => {
+        await mutex.acquire();
+        //await gameTotalInfo.gameLoop.bind(gameTotalInfo)(gameTotalInfo, gameId);
+        const loopInfo = await gameDictionary
+          .get(parseInt(gameId))
+          .gameLoop.bind(gameDictionary.get(parseInt(gameId)))(
+          gameDictionary.get(parseInt(gameId)).gameInfo,
           parseInt(gameId),
-          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score,
-          gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score,
+          gameDictionary.get(parseInt(gameId)).server,
+          intervalId,
         );
-        await this.gameService.finishGame(
-          data.title,
-          data.gameId,
-          startTime,
-          this.server,
-        );
-        return;
-      } else if (timeOut(startTime)) {
-        clearInterval(intervalId);
-        mutex.release();
-        await this.gameService.timeOutGame(
-          data.title,
-          data.gameId,
-          startTime,
-          this.server,
-        );
-        return;
-      }
 
-      if (
-        gameDictionary.get(parseInt(gameId)).gameInfo.cnt >
-        gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt
-      ) {
-        gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt =
-          gameDictionary.get(parseInt(gameId)).gameInfo.cnt;
-        const returnData = {
-          x: gameDictionary.get(parseInt(gameId)).gameInfo.ballX,
-          y: gameDictionary.get(parseInt(gameId)).gameInfo.ballY,
-          l: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.y,
-          r: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.y,
-        };
-        this.server.to(gameId).emit("loopGameData", returnData);
-      }
-      mutex.release();
-    }, 1000 / 60);
-    socket.on("gameFinish", async (data) => {
-      mutex.release();
-      clearInterval(intervalId);
-      this.logger.debug(`gameFinish`);
-      await this.gameChannelRepository.update(
-        { id: parseInt(data.gameId) },
-        { game_status: GameStatus.READY },
-      );
-      await this.gameService.doneGame(parseInt(data.gameId));
-    });
+        //console.log("loopInfo", loopInfo);
 
-    socket.on("disconnect", async () => {
-      this.logger.debug(`disconnect games `);
-      const gameChannelInfo = await this.gameChannelRepository.findOne({
-        where: { id: parseInt(data.gameId), deleted_at: IsNull() },
-      });
-      if (!gameChannelInfo) {
-        mutex.release();
-        clearInterval(intervalId);
-        return;
-      }
-      const gameInfo = await this.gameService.findOneByChannelId(
-        gameChannelInfo.id,
-      );
-      if (!gameInfo) {
-        mutex.release();
-        clearInterval(intervalId);
-        return;
-      } else if (gameChannelInfo.game_type === GameType.SINGLE) {
-        this.gameChannelRepository.update(
-          { id: gameChannelInfo.id },
-          { deleted_at: new Date(), game_status: GameStatus.DONE },
-        );
-        this.gameService.doneGame(gameChannelInfo.id);
-        this.redisClient.del(`GM|${gameChannelInfo.title}`);
-        mutex.release();
-        clearInterval(intervalId);
-        return;
-      } else if (
-        gameChannelInfo.game_status === GameStatus.INGAME &&
-        gameInfo.game_status === GameStatus.INGAME
-      ) {
-        this.logger.debug(`refresh check`);
-        mutex.release();
-        const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
-        if (data.myRole === GameUserRole.CREATOR) {
-          await this.gamePlayerService.dropOutGamePlayer(
-            gameChannelInfo.id,
-            parseInt(redisInfo.creator),
+        gameDictionary.get(parseInt(gameId)).gameInfo = loopInfo;
+
+        if ((await this.gameService.isGameDone(gameChannelInfo.id)) === true) {
+          clearInterval(intervalId);
+          mutex.release();
+          return;
+        } else if (
+          //5점 바꾸기
+          gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.score === 5 ||
+          gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.score === 5
+        ) {
+          this.gameService.finishGame(
+            data.title,
+            data.gameId,
+            startTime,
+            this.server,
           );
-        } else if (data.myRole === GameUserRole.USER) {
-          await this.gamePlayerService.dropOutGamePlayer(
-            gameChannelInfo.id,
-            parseInt(redisInfo.user),
+          mutex.release();
+          return;
+        } else if (timeOut(startTime)) {
+          clearInterval(intervalId);
+          this.gameService.timeOutGame(
+            data.title,
+            data.gameId,
+            startTime,
+            this.server,
           );
+          mutex.release();
+          return;
+        } else if (
+          gameChannelInfo.game_type != GameType.SINGLE &&
+          ((await this.redisClient.hgetall(`GM|${data.title}`))
+            .creatorOnline === "false" ||
+            (await this.redisClient.hgetall(`GM|${data.title}`)).userOnline ===
+              "false")
+        ) {
+          clearInterval(intervalId);
+          mutex.release();
+          return;
+        } else if (
+          gameChannelInfo.game_type === GameType.SINGLE &&
+          (await this.redisClient.hgetall(`GM|${data.title}`)).creatorOnline ===
+            "false"
+        ) {
+          clearInterval(intervalId);
+          mutex.release();
         }
-        this.gameService.disconnectGame(
-          data.title,
-          data.gameId,
-          data.myRole,
-          startTime,
-          this.server,
-        );
-        this.gameService.dropOutGame(gameChannelInfo.id);
+
+        if (
+          gameDictionary.get(parseInt(gameId)).gameInfo.cnt >
+          gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt
+        ) {
+          gameDictionary.get(parseInt(gameId)).gameInfo.currentCnt =
+            gameDictionary.get(parseInt(gameId)).gameInfo.cnt;
+          const returnData = {
+            x: gameDictionary.get(parseInt(gameId)).gameInfo.ballX,
+            y: gameDictionary.get(parseInt(gameId)).gameInfo.ballY,
+            l: gameDictionary.get(parseInt(gameId)).gameInfo.homeInfo.y,
+            r: gameDictionary.get(parseInt(gameId)).gameInfo.awayInfo.y,
+          };
+          this.server.to(gameId).emit("loopGameData", returnData);
+        }
+        //this.server.to(data.gameId.toString()).emit("loopGameData", returnData);
+        mutex.release();
+      }, 1000 / 60);
+      socket.on("gameFinish", async (data) => {
         clearInterval(intervalId);
-      }
-    });
+        mutex.release();
+        this.logger.debug(`gameFinish`);
+        await this.gameChannelRepository.update(
+          { id: parseInt(data.gameId) },
+          { game_status: GameStatus.READY },
+        );
+        await this.gameService.doneGame(parseInt(data.gameId));
+      });
+
+      socket.on("disconnect", async () => {
+        try {
+          this.logger.debug(`disconnect games `);
+          clearInterval(intervalId);
+          mutex.release();
+          const gameChannelInfo =
+            await this.gameChannelService.findOneGameChannelById(gameId);
+          const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
+
+          if (!gameChannelInfo || !redisInfo) return;
+
+          const gameInfo = await this.gameService.findOneByChannelId(
+            gameChannelInfo.id,
+          );
+
+          if (!gameInfo) return;
+
+          if (gameChannelInfo.game_type === GameType.SINGLE) {
+            return;
+          } else if (
+            redisInfo.creatorOnline === "false" &&
+            redisInfo.userOnline === "false"
+          ) {
+            await this.redisClient.del(`GM|${data.title}`);
+          } else if (
+            redisInfo.creatorOnline === "false" ||
+            redisInfo.userOnline === "false"
+          ) {
+            await this.gameService.disconnectGame(
+              data.title,
+              data.gameId,
+              startTime,
+              this.server,
+            );
+            await this.gamePlayerService.dropOutGamePlayer(
+              gameChannelInfo.id,
+              parseInt(data.userId),
+            );
+            await this.gameService.dropOutGame(gameChannelInfo.id);
+          } else if (
+            gameChannelInfo.game_status === GameStatus.INGAME &&
+            gameInfo.game_status === GameStatus.INGAME
+          ) {
+            await this.gameService.dropOutGame(gameChannelInfo.id);
+          }
+        } catch (error) {
+          console.log(error);
+          throw error;
+        }
+      });
+    } catch (error) {
+      console.log(error);
+      throw error;
+    }
   }
 
   async sendUserList(title: string, channelId: number, socket: Socket) {
@@ -1179,7 +1228,3 @@ function timeOut(startTime: Date): boolean {
   const diffTimeInSeconds = diffTime / 1000;
   return diffTimeInSeconds > 300;
 }
-
-//URL 새로고침 할 때 상대편 승자 되는 이슈
-//방장이 카운트다운중에 나가면, user socket이 disconnect되지 않는 이슈
-//게임중 킥 밴 뮤트 비활성화
