@@ -44,8 +44,7 @@ export const userConnectedClients: Map<number, Socket> = new Map();
 })
 @UseGuards(JWTWebSocketGuard)
 export class UserGateway
-  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit
-{
+  implements OnGatewayConnection, OnGatewayDisconnect, OnGatewayInit {
   private logger = new Logger(UserGateway.name);
 
   @WebSocketServer()
@@ -61,7 +60,7 @@ export class UserGateway
     private redisClient: RedisService,
     private userService: UserService,
     private friendService: FriendService,
-  ) {}
+  ) { }
 
   afterInit() {
     this.logger.debug(`Socket Server Init Complete`);
@@ -422,8 +421,9 @@ export class UserGateway
       await this.redisClient.lrem("QM", 0, userId);
       await socket.leave(`QM|${userId}`);
       //throw new WsException("User already in queue");
+    } else if (filteredList) {
+      await this.redisClient.lrem("QM", 0, userId);
     }
-
     await this.redisClient.rpush("QM", userId);
 
     this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
@@ -447,7 +447,7 @@ export class UserGateway
 
         const newGame = {
           id: 0,
-          title: "Quick Match" + quickMatchNum.toString(),
+          title: "QuickMatch" + quickMatchNum.toString(),
           gameChannelPolicy: GameChannelPolicy.PUBLIC,
           password: null,
           creatorId: parseInt(homePlayer),

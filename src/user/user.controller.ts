@@ -50,7 +50,7 @@ export class UserController {
     private blockService: BlockService,
     private jwtService: JwtService,
     private gamePlayerService: GamePlayerService,
-  ) {}
+  ) { }
 
   @Post("/create")
   @UseGuards(JWTUserCreationGuard)
