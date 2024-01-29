@@ -135,6 +135,16 @@ export class GameGateWay {
             await this.redisClient.hset(`GM|${title}`, "user", null);
           }
         } else if (channelInfo.game_status === GameStatus.INGAME) {
+          if (parseInt(redisInfo.creator) === socketKey) {
+            await this.redisClient.hset(
+              `GM|${title}`,
+              "creatorOnline",
+              "false",
+            );
+          } else if (parseInt(redisInfo.user) === socketKey) {
+            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
+          }
+
           const startTime = await this.gameService.getStartTime(gameId);
           await this.gameService.disconnectGame(
             title,
@@ -149,11 +159,6 @@ export class GameGateWay {
               gameId,
               parseInt(redisInfo.creator),
             );
-            await this.redisClient.hset(
-              `GM|${title}`,
-              "creatorOnline",
-              "false",
-            );
             setTimeout(async () => {
               gameDictionary.get(gameId).awayUserSocket.disconnect(true);
             }, 1000 * 3);
@@ -162,14 +167,13 @@ export class GameGateWay {
               gameId,
               parseInt(redisInfo.user),
             );
-            await this.redisClient.hset(`GM|${title}`, "userOnline", "false");
             await this.redisClient.hset(`GM|${title}`, "user", null);
           }
         }
         await this.updateCurUser(channelInfo.title, channelInfo.id);
         await this.sendUserList(title, gameId, socket);
+        gameConnectedClients.delete(socketKey);
       }
-      gameConnectedClients.delete(socketKey);
     }
   }
 

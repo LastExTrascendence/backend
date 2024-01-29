@@ -515,20 +515,17 @@ export class GameService {
         return;
       }
 
-      if (
-        gameDictionary.get(gameId).gameInfo.homeInfo.score >=
-        gameDictionary.get(gameId).gameInfo.awayInfo.score
-      ) {
+      if (redisInfo.creatorOnline === "false") {
+        result.homeScore = 0;
+        result.awayScore = 5;
+      }
+
+      if (result.homeScore >= result.awayScore) {
         result.winUserNick = creatorInfo.nickname;
         result.loseUserNick = userInfo.nickname;
       } else {
         result.winUserNick = userInfo.nickname;
         result.loseUserNick = creatorInfo.nickname;
-      }
-
-      if (redisInfo.creatorOnline === "false") {
-        result.homeScore = 0;
-        result.awayScore = 5;
       }
 
       server.to(gameId.toString()).emit("gameEnd", result);

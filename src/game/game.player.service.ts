@@ -185,10 +185,10 @@ export class GamePlayerService {
   }
 
   async getGamePlayerRecord(
-    _nickname: string,
+    nickname: string,
   ): Promise<gameRecordDto[] | HttpException> {
     try {
-      const gamePlayer = await this.userServie.findUserByNickname(_nickname);
+      const gamePlayer = await this.userServie.findUserByNickname(nickname);
       const gamePlayerInfo = await this.gamePlayerRepository.find({
         where: { user_id: gamePlayer.id },
       });
@@ -200,15 +200,18 @@ export class GamePlayerService {
           where: { id: gamePlayerInfo[i].game_id },
         });
 
-        const gamePlayerRecord: gameRecordDto = {
-          nickname: gamePlayer.nickname,
-          gameUserRole: gamePlayerInfo[i].role,
-          gameType: gameInfo.game_type,
-          gameMode: gameInfo.game_mode,
-          date: gameInfo.ended_at,
-        };
-
-        totalUserStatsInfo.push(gamePlayerRecord);
+        if (gameInfo) {
+          const gamePlayerRecord: gameRecordDto = {
+            nickname: gamePlayer.nickname,
+            gameUserRole: gamePlayerInfo[i].role,
+            gameType: gameInfo.game_type,
+            gameMode: gameInfo.game_mode,
+            date: gameInfo.ended_at,
+          };
+          if (gameInfo.game_type !== GameType.SINGLE) {
+            totalUserStatsInfo.push(gamePlayerRecord);
+          }
+        }
       }
 
       return totalUserStatsInfo;
