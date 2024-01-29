@@ -105,7 +105,7 @@ export class UserService {
     user.nickname = nickname;
     user.avatar = avatar;
     user.two_fa = two_fa;
-    user.language = language ?? "kr";
+    user.language = language ?? "en";
     await this.userRepository.save(user);
 
     //todo, user.two_fa_complete 이슈 물어보기
