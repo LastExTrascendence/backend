@@ -71,7 +71,14 @@ export class UserGateway
     try {
       //userId 필요함
       const userId = parseInt(socket.handshake.auth.user.id);
-      if (userId === 0 || !userId) {
+
+      if (userId === 0 || !userId || Number.isNaN(userId)) {
+        socket.disconnect();
+        return;
+      }
+
+      const userInfo = await this.userService.findUserById(userId);
+      if (!userInfo) {
         socket.disconnect();
         return;
       }
@@ -82,7 +89,7 @@ export class UserGateway
       }
       userConnectedClients.set(userId, socket);
       await socket.join(userId.toString());
-      this.logger.debug(`user ONLINE: ${userId}`);
+      this.logger.debug(`user ONLINE: ${userId}`); 
       await this.userRepository.update(
         { id: userId },
         { status: UserStatus.ONLINE },
@@ -114,7 +121,8 @@ export class UserGateway
   @UseFilters(WebSocketExceptionFilter)
   async handleDisconnect(socket: Socket) {
     const userId = parseInt(socket.handshake.auth.user.id);
-    if (userId === 0) {
+    const userInfo = await this.userService.findUserById(userId);
+    if (userId === 0 || !userId || !userInfo) {
       return;
     }
     this.logger.debug(`user OFFLINE: ${userId}`);
@@ -592,6 +600,7 @@ export class UserGateway
 
   async sendMyStatus(myId: number): Promise<void | WsException> {
     try {
+      
       this.logger.debug(`sendMyStatus: ${myId}`);
       const myInfo = await this.userService.findUserById(myId);
       if (!myInfo) throw new WsException("No user found");
