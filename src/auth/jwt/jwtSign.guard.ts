@@ -44,9 +44,11 @@ export class JWTSignGuard implements CanActivate {
       user.nickname = result.nickname;
       user.two_fa = result.two_fa;
       user.two_fa_complete = !result.two_fa;
+      user.language = result.language;
     } catch (error) {
       this.logger.verbose(`cannot find user ${user.intra_name} in DB`);
       user.two_fa_complete = true;
+      user.language = "en";
     }
     const token = this.jwtService.sign(user);
     this.logger.debug(`genereted ${user.intra_name}'s JWT`);

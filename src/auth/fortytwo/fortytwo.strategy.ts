@@ -43,6 +43,7 @@ export class FortyTwoStrategy extends PassportStrategy(Strategy, "fortytwo") {
       status: UserStatus.OFFLINE,
       intra_name: profile.intra_name,
       two_fa_complete: true,
+      language: "en",
     };
     callback(null, user);
   }
