@@ -10,9 +10,9 @@ import { UserService } from "src/user/user.service";
 import { UserModule } from "src/user/user.module";
 import { JwtStrategy } from "./jwt/jwt.strategy";
 import { FortyTwoStrategy } from "./fortytwo/fortytwo.strategy";
-import { Redis } from "ioredis";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";
 import { UserOtpService } from "src/user/user.otp.service";
+import { CommonsModule } from "src/commons/commons.module";
 
 const jwtConfig = config.get("jwt");
 
@@ -27,6 +27,7 @@ const jwtConfig = config.get("jwt");
     }),
     forwardRef(() => UserModule),
     TypeOrmModule.forFeature([User, UserOtpSecret]),
+    CommonsModule,
   ],
   controllers: [AuthController],
   providers: [
@@ -35,7 +36,6 @@ const jwtConfig = config.get("jwt");
     JwtStrategy,
     AuthService,
     FortyTwoStrategy,
-    Redis,
   ],
   exports: [AuthService, JwtModule],
 })

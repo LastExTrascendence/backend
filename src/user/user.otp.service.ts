@@ -3,7 +3,7 @@ import { InjectRepository } from "@nestjs/typeorm";
 import { User } from "./entity/user.entity";
 import { In, Like, Repository } from "typeorm";
 import { UserOtpSecret } from "./entity/user.otp.entity";
-import Redis from "ioredis";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Injectable()
 export class UserOtpService {
@@ -11,7 +11,7 @@ export class UserOtpService {
   constructor(
     @InjectRepository(UserOtpSecret)
     private userOtpRepositoty: Repository<UserOtpSecret>,
-    private redisService: Redis,
+    private redisService: RedisService,
   ) {}
 
   async resetSecret(user: User): Promise<void> {

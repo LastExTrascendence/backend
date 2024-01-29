@@ -5,7 +5,6 @@ import { User } from "../user/entity/user.entity";
 import { UserService } from "src/user/user.service";
 import * as Config from "config";
 import { authenticator } from "otplib";
-import { Redis } from "ioredis";
 import * as qr from "qrcode";
 // import { createWriteStream } from "fs";
 import { UserStatus } from "src/user/entity/user.enum";
@@ -13,6 +12,7 @@ import * as bcrypt from "bcrypt";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";
 import * as CryptoJS from "crypto-js";
 import { UserOtpService } from "src/user/user.otp.service";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Injectable()
 export class AuthService {
@@ -24,7 +24,7 @@ export class AuthService {
     @InjectRepository(User)
     private userRepository: Repository<User>,
     private userOtpService: UserOtpService,
-    private redisService: Redis,
+    private redisService: RedisService,
   ) {}
 
   async changeUserStatus(intra_name: string): Promise<boolean> {

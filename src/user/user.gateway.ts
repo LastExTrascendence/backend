@@ -11,9 +11,7 @@ import {
   WsException,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { Redis } from "ioredis";
 import { UserService } from "src/user/user.service";
-
 import { format } from "date-fns";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
 import { User } from "./entity/user.entity";
@@ -32,9 +30,8 @@ import { GameChannelService } from "src/game/game.channel.service";
 import { FriendService } from "./user.friend.service";
 import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
-import { gameConnectedClients } from "src/game/game.gateway";
-import { Console } from "console";
 import { WebSocketExceptionFilter } from "src/auth/jwt/jwtWebSocket.filter";
+import { RedisService } from "src/commons/redis-client.service";
 
 //path, endpoint
 
@@ -60,7 +57,7 @@ export class UserGateway
     private gameChannelService: GameChannelService,
     private gameService: GameService,
     private channelsService: ChannelsService,
-    private redisClient: Redis,
+    private redisClient: RedisService,
     private userService: UserService,
     private friendService: FriendService,
   ) {}
@@ -357,7 +354,7 @@ export class UserGateway
   }
 
   private saveMessageToRedis(
-    redisClient: Redis,
+    redisClient: any,
     payload: {
       name: string;
       time: string;
