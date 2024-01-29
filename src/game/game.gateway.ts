@@ -304,9 +304,6 @@ export class GameGateWay {
               key.startsWith("ACCESS"),
             )
           : null;
-
-        //console.log("passwordValidate", passwordValidate);
-
         //ACCESS 대상이 아닌경우
         if (!passwordValidate) {
           const targetClient = gameConnectedClients.get(userId);
@@ -432,7 +429,6 @@ export class GameGateWay {
   @SubscribeMessage("pressStart")
   async StartGame(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.logger.debug(`pressStart`);
-    console.log(data);
     const startInfo = await this.redisClient.hgetall(`GM|${data.title}`);
     const gameChannelInfo =
       await this.gameChannelService.findOneGameChannelById(
@@ -441,7 +437,7 @@ export class GameGateWay {
 
     if (
       (data.myId === parseInt(startInfo.creator) &&
-        //startInfo.userReady === "true" &&
+        startInfo.userReady === "true" &&
         startInfo.creatorOnline === "true") ||
       gameChannelInfo.game_type === GameType.SINGLE
     ) {
@@ -451,8 +447,6 @@ export class GameGateWay {
       );
       await this.gameService.saveGame(data.gameId);
       this.logger.debug(`gameStart`);
-      //console.log("startInfo", startInfo);
-      //console.log("dictionary size, ", gameDictionary.size);
       const redisInfo = await this.redisClient.hgetall(`GM|${data.title}`);
 
       const channelInfo = await this.gameChannelRepository.findOne({
@@ -460,9 +454,7 @@ export class GameGateWay {
       });
 
       if (gameDictionary.has(channelInfo.id)) {
-        //console.log("checkDelete", gameDictionary.get(parseInt(data.gameId)));
         gameDictionary.delete(channelInfo.id);
-        //console.log("checkDelete", gameDictionary.size);
       }
       const homeInfo: homeInfoDto = {
         y: Math.floor(
@@ -498,6 +490,22 @@ export class GameGateWay {
         cnt: 0,
         currentCnt: 0,
       };
+
+      if (
+        channelInfo.game_mode === GameMode.SPEED ||
+        channelInfo.game_type === GameType.SINGLE
+      ) {
+        gameInfo.ballDx = -5;
+        gameInfo.ballDy = -5;
+      }
+
+      if (
+        channelInfo.game_mode === GameMode.SPEED ||
+        channelInfo.game_type === GameType.SINGLE
+      ) {
+        gameInfo.ballDx = -5;
+        gameInfo.ballDy = -5;
+      }
 
       if (
         channelInfo.game_type === GameType.SINGLE ||
@@ -538,13 +546,8 @@ export class GameGateWay {
         server: this.server,
       };
 
-      //console.log(gameTotalInfo);
-
       gameDictionary.set(channelInfo.id, gameTotalInfo);
-      //console.log("gameComponentInfo", gameDictionary.get(channelInfo.id));
 
-      //console.log("check Ids", data.gameId, channelInfo.id);
-      //console.log("gameDictionary size", gameDictionary.size);
       this.server.to(data.gameId.toString()).emit("gameStart");
     }
   }
@@ -562,14 +565,14 @@ export class GameGateWay {
       readyInfo.userReady == "true"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "false");
-      console.log("readyOff");
+      this.logger.verbose("readyOff");
       this.server.to(data.gameId.toString()).emit("readyOff");
     } else if (
       data.myId === parseInt(readyInfo.user) &&
       readyInfo.userReady == "false"
     ) {
       await this.redisClient.hset(`GM|${data.title}`, "userReady", "true");
-      console.log("readyOn");
+      this.logger.verbose("readyOn");
       this.server.to(data.gameId.toString()).emit("readyOn");
     }
   }
@@ -679,7 +682,6 @@ export class GameGateWay {
       const redisInfo = await this.redisClient.hgetall(
         `GM|${channelInfo.title}`,
       );
-      console.log("redisInfo", redisInfo);
 
       if (!data.gameId || !data.userId || !channelInfo || !redisInfo) {
         return;
@@ -908,9 +910,7 @@ export class GameGateWay {
 
     gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.y +=
       gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy;
-    // awayInfo.y += awayInfo.dy;
   }
-  //this.logger.debug(`KeyDown`);
 
   //gameId
   //team
@@ -918,21 +918,12 @@ export class GameGateWay {
   @SubscribeMessage("keyUpHOME")
   async keyUpHOME(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
     this.logger.debug(`keyUpHOME ${data.gameId} ${data.key}`);
-    //this.logger.debug(`KeyUp`);
-    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
-    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
-    //const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
-
     gameDictionary.get(parseInt(data.gameId)).gameInfo.homeInfo.dy = 0;
   }
 
   @SubscribeMessage("keyUpAWAY")
   async keyUpAWAY(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-    //this.logger.debug(`KeyUp`);
-    // 전역에서 arrow up 이나 down이 key Up 되었을 때 flag를 세워줘야함(끄거나)
-    // below loop에서 해당 flag가 켜지면 수행되어야하는 로직
     this.logger.debug(`keyUpAWAY ${data.gameId} ${data.key} ${data.myRole}`);
-    const gameTotalInfo = gameDictionary.get(parseInt(data.gameId));
 
     gameDictionary.get(parseInt(data.gameId)).gameInfo.awayInfo.dy = 0;
   }
@@ -947,6 +938,9 @@ export class GameGateWay {
     const gameChannelInfo =
       await this.gameChannelService.findOneGameChannelById(gameId);
 
+    const checkGameDone = await this.gameService.isGameDone(gameChannelInfo.id);
+
+    if (checkGameDone === true) return;
     const gameTotalInfo = gameDictionary.get(parseInt(gameId));
 
     //console.log("gameTotalInfo", gameTotalInfo);

@@ -60,8 +60,6 @@ export class GamePlayerService {
 
       const redisInfo = await this.redisService.hgetall(`GM|${gameInfo.title}`);
 
-      console.log(redisInfo);
-
       const homeUserInfo = await this.userServie.findUserById(
         parseInt(redisInfo.creator),
       );

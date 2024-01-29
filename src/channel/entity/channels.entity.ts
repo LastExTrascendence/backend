@@ -6,6 +6,7 @@ import {
   PrimaryGeneratedColumn,
 } from "typeorm";
 import { ChatChannelPolicy } from "../enum/channel.enum";
+import { Matches } from "class-validator";
 
 /**
  * @description 채널에 대한 엔터티
@@ -27,6 +28,7 @@ export class Channels extends BaseEntity {
   id: number;
 
   @Column()
+  @Matches(/^[a-zA-Z0-9-_]+$/)
   title: string;
 
   @Column()

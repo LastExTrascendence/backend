@@ -162,12 +162,9 @@ export class gameRecordDto {
  * @param {string} longestGame - 게임유저의 최장 게임 시간
  * @param {string} shortestGame - 게임유저의 최단 게임 시간
  * @param {string} averageGameTime - 게임유저의 평균 게임 시간
- * @param {number} totalpointScored - 게임유저의 총 점수
- * @param {number} averageScorePerGame - 게임유저의 총 게임 평균 점수
- * @param {number} avserageScorePerWin - 게임유저의 승리 게임 평균 점수
- * @param {number} winStreaks - 게임유저의 연승 횟수
- * @param {number} averageSpeed - 게임 평균 속도
- * @param {number} fastestGame - 가장 빨랏던 게임 속도
+ * @param {string} totalpointScored - 게임유저의 총 점수
+ * @param {string} averageScorePerGame - 게임유저의 총 게임 평균 점수
+ * @param {string} avserageScorePerWin - 게임유저의 승리 게임 평균 점수
  */
 
 export class gameStatsDto {
@@ -181,25 +178,16 @@ export class gameStatsDto {
   shortestGame: string;
 
   @IsString()
-  averageGameTime: number;
+  averageGameTime: string;
 
   @IsNumber()
-  totalPointScored: number;
+  totalPointScored: string;
 
   @IsNumber()
-  averageScorePerGame: number;
+  averageScorePerGame: string;
 
   @IsNumber()
-  averageScorePerWin: number;
-
-  @IsNumber()
-  winStreaks: number;
-
-  @IsNumber()
-  averageSpeed: number;
-
-  @IsNumber()
-  fastestGame: string;
+  averageScorePerWin: string;
 }
 
 export class homeInfoDto {

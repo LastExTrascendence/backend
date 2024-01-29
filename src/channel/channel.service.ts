@@ -36,7 +36,6 @@ export class ChannelsService {
     chatChannelListDto: chatChannelListDto,
   ): Promise<chatChannelListDto | HttpException> {
     try {
-      console.log(chatChannelListDto);
       if (
         await this.channelsRepository.findOne({
           where: { title: chatChannelListDto.title },
@@ -153,7 +152,6 @@ export class ChannelsService {
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
-      console.log(channelUserVerify);
       const ChannelInfo = await this.channelsRepository.findOne({
         where: { id: channelUserVerify.channelId },
       });
@@ -236,8 +234,6 @@ export class ChannelsService {
           created_at: "ASC",
         },
       });
-
-      console.log(channelsInfo);
 
       if (channelsInfo.length === 0) {
         return [];

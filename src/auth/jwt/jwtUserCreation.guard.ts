@@ -42,6 +42,7 @@ export class JWTUserCreationGuard implements CanActivate {
       status: decoded["status"],
       intra_name: decoded["intra_name"],
       two_fa_complete: decoded["two_fa_complete"],
+      language: decoded["language"] ?? "en",
     };
     const token = this.jwtService.sign(user);
     response.cookie("access_token", token);
