@@ -317,14 +317,14 @@ export class GameService {
       awayInfo.score++;
       if (awayInfo.score <= 5) {
         server
-          .to(gameId.toString())
+          .to(channelId.toString())
           .emit("score", [homeInfo.score, awayInfo.score]);
       } else awayInfo.score = 5;
       if (awayInfo.score === 5) {
         clearInterval(intervalId);
         // 홈팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
@@ -337,14 +337,14 @@ export class GameService {
       homeInfo.score++;
       if (homeInfo.score <= 5) {
         server
-          .to(gameId.toString())
+          .to(channelId.toString())
           .emit("score", [homeInfo.score, awayInfo.score]);
       } else homeInfo.score = 5;
       if (homeInfo.score === 5) {
         clearInterval(intervalId);
         //away팀 승자로 넣기
         await this.gamePlayerService.saveGamePlayer(
-          gameId,
+          channelId,
           homeInfo.score,
           awayInfo.score,
         );
