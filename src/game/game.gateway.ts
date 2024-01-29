@@ -15,10 +15,8 @@ import {
   WebSocketServer,
 } from "@nestjs/websockets";
 import { Server, Socket } from "socket.io";
-import { SaveOptions, RemoveOptions, Repository, IsNull } from "typeorm";
+import { Repository, IsNull } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
-import { Game } from "./entity/game.entity";
-import { Redis } from "ioredis";
 import {
   GameUserRole,
   GameStatus,
@@ -62,8 +60,7 @@ export class GameGateWay {
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
-    @Inject(forwardRef(() => Redis))
-    private redisClient: Redis,
+    private redisClient: RedisService,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
     @Inject(forwardRef(() => GamePlayerService))

@@ -7,7 +7,7 @@ import {
   forwardRef,
 } from "@nestjs/common";
 import { InjectRepository } from "@nestjs/typeorm";
-import { In, IsNull, Repository } from "typeorm";
+import { IsNull, Repository } from "typeorm";
 import { GamePlayer } from "./entity/game.player.entity";
 import { UserService } from "src/user/user.service";
 import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
@@ -15,9 +15,7 @@ import { Game } from "./entity/game.entity";
 import { GameResult, GameStatus, GameType } from "./enum/game.enum";
 import { GameChannelService } from "./game.channel.service";
 import { RedisService } from "src/commons/redis-client.service";
-import { format } from "date-fns";
 import { GameService } from "./game.service";
-import Redis from "ioredis";
 
 @Injectable()
 export class GamePlayerService {
@@ -33,7 +31,6 @@ export class GamePlayerService {
     private gameChannelService: GameChannelService,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
-    @Inject(forwardRef(() => RedisService))
     private redisService: RedisService,
   ) { }
 

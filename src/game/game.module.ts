@@ -15,7 +15,6 @@ import { UserModule } from "src/user/user.module";
 import { UserOtpService } from "src/user/user.otp.service";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";
 import { CommonsModule } from "src/commons/commons.module";
-import { Redis } from "ioredis";
 import { RedisService } from "src/commons/redis-client.service";
 
 @Module({
@@ -39,7 +38,6 @@ import { RedisService } from "src/commons/redis-client.service";
     GamePlayerService,
     UserService,
     GameGateWay,
-    Redis,
     RedisService,
   ],
   exports: [
