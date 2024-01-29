@@ -21,8 +21,8 @@ import { User } from "src/decorator/user.decorator";
 import { userOtpDto, userSessionDto } from "src/user/dto/user.dto";
 import { FortyTwoAuthGuard } from "./fortytwo/fortytwo.guard";
 import { JWTAuthGuard } from "./jwt/jwtAuth.guard";
-import Redis from "ioredis";
 import { TwoFAGuard } from "./twoFA/twoFA.guard";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Controller("auth")
 export class AuthController {
@@ -31,7 +31,7 @@ export class AuthController {
     private authService: AuthService,
     private readonly userService: UserService,
     private jwtService: JwtService,
-    private redisService: Redis,
+    private redisService: RedisService,
   ) {}
 
   @Get("/login")

@@ -11,6 +11,7 @@ import { GameModule } from "./game/game.module";
 import { ConfigModule } from "@nestjs/config";
 import { AppController } from "./app.controller";
 import { AppService } from "./app.service";
+import { CommonsModule } from "./commons/commons.module";
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { AppService } from "./app.service";
     UserModule,
     ChannelModule,
     GameModule,
+    CommonsModule,
   ],
   controllers: [AppController],
   providers: [AppService, SessionMiddleware],

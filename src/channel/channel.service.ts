@@ -9,7 +9,6 @@ import {
 import { Channels } from "./entity/channels.entity";
 import { IsNull, Repository } from "typeorm";
 import { chatChannelListDto } from "./dto/channels.dto";
-import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { ChannelUser } from "./entity/channel.user.entity";
 import { UserService } from "src/user/user.service";
@@ -17,6 +16,7 @@ import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { channelUserVerify } from "./dto/channel.user.dto";
 import { channelConnectedClients } from "./channel.gateway";
 import { userConnectedClients } from "src/user/user.gateway";
+import { RedisService } from "src/commons/redis-client.service";
 
 //1. 채널 입장 시 채널 정보를 channels DB에 담기
 //2. 채널 입장 시 유저 정보를 channelsUser DB에 담기
@@ -29,7 +29,7 @@ export class ChannelsService {
     @InjectRepository(ChannelUser)
     private channelUserRepository: Repository<ChannelUser>,
     private userService: UserService,
-    private redisClient: Redis,
+    private redisClient: RedisService,
   ) {}
 
   async createChannel(

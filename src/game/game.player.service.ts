@@ -14,8 +14,8 @@ import { gameRecordDto, gameStatsDto } from "./dto/game.dto";
 import { Game } from "./entity/game.entity";
 import { GameResult, GameStatus, GameType } from "./enum/game.enum";
 import { GameChannelService } from "./game.channel.service";
-import Redis from "ioredis";
 import { GameService } from "./game.service";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Injectable()
 export class GamePlayerService {

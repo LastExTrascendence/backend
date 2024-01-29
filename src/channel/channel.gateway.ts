@@ -15,7 +15,6 @@ import {
 import { Server, Socket } from "socket.io";
 import { Channels } from "./entity/channels.entity";
 import { ChannelsService } from "./channel.service";
-import { Redis } from "ioredis";
 import { IsNull, Repository } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { UserService } from "src/user/user.service";
@@ -23,6 +22,7 @@ import { ChannelUser } from "./entity/channel.user.entity";
 import { format } from "date-fns";
 import { ChatChannelPolicy, ChatChannelUserRole } from "./enum/channel.enum";
 import { JWTWebSocketGuard } from "src/auth/jwt/jwtWebSocket.guard";
+import { RedisService } from "src/commons/redis-client.service";
 
 // channelConnectedClients를 export 해서 다른 곳에서도 사용할 수 있도록 한다.
 export const channelConnectedClients: Map<number, Socket> = new Map();
@@ -40,8 +40,7 @@ export class ChannelGateWay {
     private readonly channelRepository: Repository<Channels>,
     @InjectRepository(ChannelUser)
     private readonly channelUserRepository: Repository<ChannelUser>,
-    @Inject(forwardRef(() => Redis))
-    private redisClient: Redis,
+    private redisClient: RedisService,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
   ) {}

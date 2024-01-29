@@ -5,7 +5,6 @@ import { GameService } from "./game.service";
 import { Game } from "./entity/game.entity";
 import { GamePlayer } from "./entity/game.player.entity";
 import { GameController } from "./game.controller";
-import { Redis } from "ioredis";
 import { AuthModule } from "src/auth/auth.module";
 import { GamePlayerService } from "./game.player.service";
 import { UserService } from "src/user/user.service";
@@ -15,6 +14,7 @@ import { GameChannelService } from "./game.channel.service";
 import { UserModule } from "src/user/user.module";
 import { UserOtpService } from "src/user/user.otp.service";
 import { UserOtpSecret } from "src/user/entity/user.otp.entity";
+import { CommonsModule } from "src/commons/commons.module";
 
 @Module({
   imports: [
@@ -27,6 +27,7 @@ import { UserOtpSecret } from "src/user/entity/user.otp.entity";
       GameChannel,
       GamePlayer,
     ]),
+    CommonsModule,
   ],
   controllers: [GameController],
   providers: [
@@ -34,7 +35,6 @@ import { UserOtpSecret } from "src/user/entity/user.otp.entity";
     GameChannelService,
     GameService,
     GamePlayerService,
-    Redis,
     UserService,
     GameGateWay,
   ],
@@ -43,7 +43,6 @@ import { UserOtpSecret } from "src/user/entity/user.otp.entity";
     GameChannelService,
     GameService,
     GamePlayerService,
-    Redis,
     GameGateWay,
   ],
 })

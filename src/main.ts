@@ -13,6 +13,8 @@ const whitelist = [
   `http://${config.get("FE").get("domain")}`,
   `http://localhost:${config.get("FE").get("port")}`,
   `http://localhost`,
+  `http://host.docker.internal:${config.get("FE").get("port")}`,
+  ,
 ];
 
 async function bootstrap() {

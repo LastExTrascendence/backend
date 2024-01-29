@@ -23,7 +23,6 @@ import {
   gameUserVerifyDto,
   homeInfoDto,
 } from "./dto/game.dto";
-import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
@@ -33,8 +32,9 @@ import { GamePlayerService } from "./game.player.service";
 import { Server } from "socket.io";
 import { gameDictionary } from "./game.gateway";
 import { GameChannelService } from "./game.channel.service";
-import { IsDate, IsEAN } from "class-validator";
 import { GamePlayer } from "./entity/game.player.entity";
+import { IsDate } from "class-validator";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Injectable()
 export class GameService {
@@ -59,7 +59,7 @@ export class GameService {
     private gamePlayerService: GamePlayerService,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-    private redisService: Redis,
+    private redisService: RedisService,
     @Inject(forwardRef(() => GameChannelService))
     private gameChannelService: GameChannelService,
   ) {}

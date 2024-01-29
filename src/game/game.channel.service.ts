@@ -15,12 +15,12 @@ import {
   GameStatus,
 } from "./enum/game.enum";
 import { gameChannelListDto, gameUserVerifyDto } from "./dto/game.dto";
-import { Redis } from "ioredis";
 import * as bcrypt from "bcrypt";
 import { UserService } from "src/user/user.service";
 import { GameChannel } from "./entity/game.channel.entity";
 import { gameConnectedClients } from "./game.gateway";
 import { GameService } from "./game.service";
+import { RedisService } from "src/commons/redis-client.service";
 
 @Injectable()
 export class GameChannelService {
@@ -30,8 +30,7 @@ export class GameChannelService {
     private gameChannelRepository: Repository<GameChannel>,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
-    @Inject(forwardRef(() => Redis))
-    private redisClient: Redis,
+    private redisClient: RedisService,
     @Inject(forwardRef(() => GameService))
     private gameService: GameService,
   ) {}

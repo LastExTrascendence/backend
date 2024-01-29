@@ -14,7 +14,6 @@ import { UserFriend } from "./entity/user.friend.entity";
 import { UserBlock } from "./entity/user.block.entity";
 import { GameModule } from "src/game/game.module";
 import { AuthModule } from "src/auth/auth.module";
-import { Redis } from "ioredis";
 import { UserGateway } from "./user.gateway";
 import { GameGateWay } from "src/game/game.gateway";
 import { GameChannel } from "src/game/entity/game.channel.entity";
@@ -30,6 +29,7 @@ import { GamePlayerService } from "src/game/game.player.service";
 import { UserOtpService } from "./user.otp.service";
 import { UserOtpSecret } from "./entity/user.otp.entity";
 import { AuthService } from "src/auth/auth.service";
+import { CommonsModule } from "src/commons/commons.module";
 //import { JwtStrategy } from '../auth/strategy/jwt.strategy';
 
 const jwtConfig = config.get("jwt");
@@ -48,6 +48,7 @@ const jwtConfig = config.get("jwt");
       Channels,
       ChannelUser,
     ]),
+    CommonsModule,
   ],
   controllers: [UserController],
   providers: [
@@ -56,7 +57,6 @@ const jwtConfig = config.get("jwt");
     PassportModule,
     FriendService,
     BlockService,
-    Redis,
     UserGateway,
     Game,
     GameChannel,
@@ -69,4 +69,4 @@ const jwtConfig = config.get("jwt");
   ],
   exports: [UserService, UserGateway, UserOtpService],
 })
-export class UserModule { }
+export class UserModule {}

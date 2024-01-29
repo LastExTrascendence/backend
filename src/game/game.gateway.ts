@@ -18,7 +18,6 @@ import { Server, Socket } from "socket.io";
 import { SaveOptions, RemoveOptions, Repository, IsNull } from "typeorm";
 import { InjectRepository } from "@nestjs/typeorm";
 import { Game } from "./entity/game.entity";
-import { Redis } from "ioredis";
 import {
   GameUserRole,
   GameStatus,
@@ -44,6 +43,7 @@ import {
   gameInfoDto,
   homeInfoDto,
 } from "./dto/game.dto";
+import { RedisService } from "src/commons/redis-client.service";
 
 export const gameConnectedClients: Map<number, gameConnectDto> = new Map();
 
@@ -61,8 +61,7 @@ export class GameGateWay {
   constructor(
     @InjectRepository(GameChannel)
     private gameChannelRepository: Repository<GameChannel>,
-    @Inject(forwardRef(() => Redis))
-    private redisClient: Redis,
+    private redisClient: RedisService,
     @Inject(forwardRef(() => UserService))
     private userService: UserService,
     @Inject(forwardRef(() => GamePlayerService))
