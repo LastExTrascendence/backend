@@ -32,6 +32,7 @@ import { ChannelsService } from "src/channel/channel.service";
 import { GameService } from "src/game/game.service";
 import { WebSocketExceptionFilter } from "src/auth/jwt/jwtWebSocket.filter";
 import { RedisService } from "src/commons/redis-client.service";
+import { gameConnectedClients } from "src/game/game.gateway";
 
 //path, endpoint
 
@@ -440,7 +441,7 @@ export class UserGateway
 
     await this.redisClient.rpush("QM", userId);
 
-    console.log("QM", await this.redisClient.lrange("QM", 0, -1));
+    this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
 
     await socket.join(`QM|${userId}`);
     userConnectedClients.set(userId, socket);
@@ -497,22 +498,14 @@ export class UserGateway
       }
     }, 1000);
     socket.on("exitQueue", async () => {
-      //const userList = await this.redisClient.lrange("QM", 0, -1);
-      ////userList에 같은 userId가 있는지 확인
-      //const filteredList = userList.filter(
-      //  (user) => parseInt(user) === userId,
-      //  );
-
-      //  console.log(filteredList);
-
-      //  if (filteredList.length === 0) {
-      //    //throw new WsException("No user found");
-      //  } else {
-      //    await this.redisClient.lrem("QM", 0, userId);
-      //    await socket.leave(`QM|${userId}`);
-      //  }
       await this.redisClient.lrem("QM", 0, userId);
-      console.log("QM", await this.redisClient.lrange("QM", 0, -1));
+      this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
+      clearInterval(makeMatch);
+      return;
+    });
+    socket.on("disconnect", async () => {
+      await this.redisClient.lrem("QM", 0, userId);
+      this.logger.verbose(`QM, ${await this.redisClient.lrange("QM", 0, -1)}`);
       clearInterval(makeMatch);
       return;
     });
@@ -520,32 +513,6 @@ export class UserGateway
       clearInterval(makeMatch);
     });
   }
-
-  //@SubscribeMessage("exitQueue")
-  //async exitQueue(@MessageBody() data: any, @ConnectedSocket() socket: Socket) {
-  //  try {
-  //    const { userId } = data;
-  //    this.logger.verbose(`exitQueue: ${userId}`);
-
-  //    const userList = await this.redisClient.lrange("QM", 0, -1);
-
-  //    console.log("userList", userList);
-
-  //    //userList에 같은 userId가 있는지 확인
-  //    const filteredList = userList.filter((user) => parseInt(user) === userId);
-
-  //    console.log(filteredList);
-
-  //    if (filteredList.length === 0) {
-  //      throw new WsException("No user found");
-  //    } else {
-  //      await this.redisClient.lrem("QM", 0, userId);
-  //      await socket.leave(`QM|${userId}`);
-  //    }
-  //  } catch (error) {
-  //    console.log(error);
-  //  }
-  //}
 
   @SubscribeMessage("gameInvite")
   @UseFilters(WebSocketExceptionFilter)
@@ -591,30 +558,29 @@ export class UserGateway
       //해야할 것
       //초대 받은 사람이, 초대한 사람을 싫어하는 경우
 
-      //if (!gameInfo) {
-      //  throw new WsException("No game found");
-      // } else if (inviteUser.id === userId) {
-      //   throw new WsException("Can't invite yourself");
-      // } else if (gameConnectedClients) {
-      //   throw new WsException("User is already in game");
-      // } else if (inviteUser.status === UserStatus.OFFLINE) {
-      //   throw new WsException("User is offline");
-      //} else {
-      //if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
-      //  await this.redisClient.hset(
-      //    `GM|${gameTitle}`,
-      //    `ACCESS|${userId}`,
-      //    userId,
-      //  );
-      //}
-      const inviteUserSocket = userConnectedClients.get(inviteUser.id);
-      //console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
-      this.server.to(inviteUserSocket.id).emit("invitedUser", {
-        hostNickname: (await this.userService.findUserById(userId)).nickname,
-        url: url,
-      });
-
-      //}
+      if (!gameInfo) {
+        throw new WsException("No game found");
+      } else if (inviteUser.id === userId) {
+        throw new WsException("Can't invite yourself");
+      } else if (gameConnectedClients.get(inviteUser.id)) {
+        throw new WsException("User is already in game");
+      } else if (inviteUser.status === UserStatus.OFFLINE) {
+        throw new WsException("User is offline");
+      } else {
+        if (gameInfo.game_channel_policy === GameChannelPolicy.PRIVATE) {
+          await this.redisClient.hset(
+            `GM|${gameTitle}`,
+            `ACCESS|${userId}`,
+            userId,
+          );
+        }
+        const inviteUserSocket = userConnectedClients.get(inviteUser.id);
+        //console.log("invitedUser", inviteUserSocket.id, gameTitle, url);
+        this.server.to(inviteUserSocket.id).emit("invitedUser", {
+          hostNickname: (await this.userService.findUserById(userId)).nickname,
+          url: url,
+        });
+      }
     } catch (error) {
       throw new WsException(error);
     }

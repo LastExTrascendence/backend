@@ -45,5 +45,5 @@ export class channelUserVerify {
 
   @IsNumber()
   @IsNotEmpty()
-  userId: number;
+  myInfoId: number;
 }

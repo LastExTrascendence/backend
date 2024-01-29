@@ -8,7 +8,7 @@ export class RedisIoAdapter extends IoAdapter {
 
     const redisOptions: RedisAdapterOptions = {
       key: "socket.io",
-      pubClient: "host.docker.internal", // Replace with your Redis pub client instance
+      pubClient: "localhost", // Replace with your Redis pub client instance
       subClient: process.env.REDIS_SUB_CLIENT, // Replace with your Redis sub client instance
       requestsTimeout: 5000,
     };

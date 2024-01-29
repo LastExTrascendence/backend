@@ -40,12 +40,10 @@ export class GameChannelService {
   ): Promise<gameChannelListDto | HttpException> {
     try {
       this.logger.debug(gameChannelListDto);
-      const gameInfo = await this.redisClient.lrange(
-        `GM|${gameChannelListDto.title}`,
-        0,
-        -1,
-      );
-      if (gameInfo.length !== 0) {
+      const gameInfo = await this.gameChannelRepository.findOne({
+        where: { title: gameChannelListDto.title, deleted_at: IsNull() },
+      });
+      if (gameInfo) {
         throw new HttpException(
           {
             status: HttpStatus.BAD_REQUEST,
@@ -164,7 +162,7 @@ export class GameChannelService {
   ): Promise<void | HttpException> {
     try {
       const gameInfo = await this.gameChannelRepository.findOne({
-        where: { id: gameUserVerifyDto.channelId },
+        where: { id: gameUserVerifyDto.gameId },
       });
 
       if (!gameInfo) {
@@ -194,7 +192,7 @@ export class GameChannelService {
           );
         } else {
           const userInfo = await this.userService.findUserById(
-            gameUserVerifyDto.userId,
+            gameUserVerifyDto.myInfoId,
           );
 
           await this.redisClient.hset(
@@ -318,6 +316,12 @@ export class GameChannelService {
         {
           cur_user: 0,
           game_status: GameStatus.DONE,
+          deleted_at: new Date(),
+        },
+      );
+      await this.gameChannelRepository.update(
+        { game_status: GameStatus.INGAME },
+        {
           deleted_at: new Date(),
         },
       );

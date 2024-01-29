@@ -36,6 +36,7 @@ export class ChannelsService {
     chatChannelListDto: chatChannelListDto,
   ): Promise<chatChannelListDto | HttpException> {
     try {
+      console.log(chatChannelListDto);
       if (
         await this.channelsRepository.findOne({
           where: { title: chatChannelListDto.title },
@@ -53,6 +54,14 @@ export class ChannelsService {
           {
             status: HttpStatus.BAD_REQUEST,
             error: "방 제목은 20자 이하여야 합니다.",
+          },
+          HttpStatus.BAD_REQUEST,
+        );
+      } else if (isNaN(chatChannelListDto.maxUser)) {
+        throw new HttpException(
+          {
+            status: HttpStatus.BAD_REQUEST,
+            error: "최대 인원은 숫자여야 합니다.",
           },
           HttpStatus.BAD_REQUEST,
         );
@@ -144,6 +153,7 @@ export class ChannelsService {
     channelUserVerify: channelUserVerify,
   ): Promise<void | HttpException> {
     try {
+      console.log(channelUserVerify);
       const ChannelInfo = await this.channelsRepository.findOne({
         where: { id: channelUserVerify.channelId },
       });
@@ -177,7 +187,7 @@ export class ChannelsService {
           );
         } else {
           const userInfo = await this.userService.findUserById(
-            channelUserVerify.userId,
+            channelUserVerify.myInfoId,
           );
 
           await this.redisClient.hset(
@@ -227,6 +237,8 @@ export class ChannelsService {
         },
       });
 
+      console.log(channelsInfo);
+
       if (channelsInfo.length === 0) {
         return [];
         // throw new HttpException(
@@ -244,29 +256,22 @@ export class ChannelsService {
         const user = await this.userService.findUserById(
           channelsInfo[i].creator_id,
         );
-        if (!user) {
-          throw new HttpException(
-            {
-              status: HttpStatus.BAD_REQUEST,
-              error: "존재하지 않는 유저입니다.",
+        if (user) {
+          const channel = {
+            id: channelsInfo[i].id,
+            title: channelsInfo[i].title,
+            channelPolicy: channelsInfo[i].channel_policy,
+            creator: {
+              nickname: user.nickname,
+              avatar: channelsInfo[i].creator_avatar,
             },
-            HttpStatus.BAD_REQUEST,
-          );
-        }
-        const channel = {
-          id: channelsInfo[i].id,
-          title: channelsInfo[i].title,
-          channelPolicy: channelsInfo[i].channel_policy,
-          creator: {
-            nickname: user.nickname,
-            avatar: channelsInfo[i].creator_avatar,
-          },
-          curUser:
-            channelConnectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
-          maxUser: channelsInfo[i].max_user,
-        };
+            curUser:
+              channelConnectedClients.size === 0 ? 0 : channelsInfo[i].cur_user,
+            maxUser: channelsInfo[i].max_user,
+          };
 
-        totalChannels.push(channel);
+          totalChannels.push(channel);
+        }
       }
 
       return totalChannels;

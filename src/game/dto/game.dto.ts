@@ -117,7 +117,7 @@ export class gameChannelListDto {
 // 게임채널 입장 시
 export class gameUserVerifyDto {
   @IsNumber()
-  channelId: number;
+  gameId: number;
 
   @IsOptional()
   @IsString()
@@ -125,7 +125,7 @@ export class gameUserVerifyDto {
 
   @IsNumber()
   @IsNotEmpty()
-  userId: number;
+  myInfoId: number;
 }
 
 /**
@@ -257,9 +257,9 @@ export class gameDictionaryDto {
 
   gameLoop: Function;
 
-  homeUserSocketId: string;
+  homeUserSocket: Socket;
 
-  awayUserSocketId: string;
+  awayUserSocket: Socket;
 
   server: Server;
 }
